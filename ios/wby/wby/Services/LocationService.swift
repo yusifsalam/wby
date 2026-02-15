@@ -48,7 +48,32 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     private func reverseGeocode(_ location: CLLocation) {
         guard let request = MKReverseGeocodingRequest(location: location) else { return }
         request.getMapItems { [weak self] items, _ in
-            self?.placeName = items?.first?.name
+            guard let placemark = items?.first?.placemark else { return }
+            self?.placeName = Self.displayAreaName(from: placemark)
         }
+    }
+
+    private static func displayAreaName(from placemark: CLPlacemark) -> String? {
+        // Prefer district-like area names and avoid exact street/POI labels.
+        if let district = nonEmpty(placemark.subLocality) {
+            return district
+        }
+        if let city = nonEmpty(placemark.locality) {
+            return city
+        }
+        if let area = nonEmpty(placemark.subAdministrativeArea) {
+            return area
+        }
+        if let area = nonEmpty(placemark.administrativeArea) {
+            return area
+        }
+        return nonEmpty(placemark.country)
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
     }
 }

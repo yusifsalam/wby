@@ -4,24 +4,29 @@ struct DailyForecastRow: View {
     let forecast: DailyForecast
     let overallLow: Double
     let overallHigh: Double
+    private let absoluteMinTemp = -40.0
+    private let absoluteMaxTemp = 40.0
+    private let minimumBarFraction = 0.03
 
     var body: some View {
         HStack {
             Text(dayName)
-                .frame(width: 44, alignment: .leading)
+                .foregroundStyle(.white)
+                .frame(width: 64, alignment: .leading)
 
             Image(systemName: symbolName)
-                .frame(width: 30)
+                .frame(width: 40)
                 .symbolRenderingMode(.multicolor)
 
             Text(formatTemp(forecast.low))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.72))
                 .frame(width: 36, alignment: .trailing)
 
             temperatureBar
                 .frame(height: 4)
 
             Text(formatTemp(forecast.high))
+                .foregroundStyle(.white)
                 .frame(width: 36, alignment: .trailing)
         }
         .padding(.vertical, 8)
@@ -47,33 +52,55 @@ struct DailyForecastRow: View {
         }
     }
 
-    @ViewBuilder
     private var temperatureBar: some View {
         GeometryReader { geo in
-            let range = overallHigh - overallLow
             let lo = forecast.low ?? overallLow
             let hi = forecast.high ?? overallHigh
-
-            let startFraction = range > 0 ? (lo - overallLow) / range : 0
-            let endFraction = range > 0 ? (hi - overallLow) / range : 1
+            let range = max(overallHigh - overallLow, 1)
+            let startTemp = min(lo, hi)
+            let endTemp = max(lo, hi)
+            let startFraction = min(max((startTemp - overallLow) / range, 0), 1)
+            let rawEndFraction = min(max((endTemp - overallLow) / range, 0), 1)
+            let endFraction = max(rawEndFraction, min(startFraction + minimumBarFraction, 1))
 
             Capsule()
-                .fill(.gray.opacity(0.2))
+                .fill(Color.black.opacity(0.24))
                 .overlay(alignment: .leading) {
-                    Capsule()
-                        .fill(temperatureGradient)
-                        .frame(width: geo.size.width * (endFraction - startFraction))
-                        .offset(x: geo.size.width * startFraction)
+                    windowTemperatureGradient
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .mask(alignment: .leading) {
+                            Capsule()
+                                .frame(width: geo.size.width * (endFraction - startFraction))
+                                .offset(x: geo.size.width * startFraction)
+                        }
                 }
         }
     }
 
-    private var temperatureGradient: LinearGradient {
-        LinearGradient(
-            colors: [.blue, .green, .yellow, .orange, .red],
+    private var windowTemperatureGradient: LinearGradient {
+        let low = min(overallLow, overallHigh)
+        let high = max(overallLow, overallHigh)
+        let mid = (low + high) / 2
+
+        return LinearGradient(
+            colors: [colorForTemperature(low), colorForTemperature(mid), colorForTemperature(high)],
             startPoint: .leading,
             endPoint: .trailing
         )
+    }
+
+    private func colorForTemperature(_ temp: Double) -> Color {
+        let t = min(max(temp, absoluteMinTemp), absoluteMaxTemp)
+        switch t {
+        case ..<(-30): return Color(red: 0.23, green: 0.08, blue: 0.36)
+        case ..<(-20): return Color(red: 0.27, green: 0.19, blue: 0.59)
+        case ..<(-10): return Color(red: 0.20, green: 0.36, blue: 0.83)
+        case ..<0: return Color(red: 0.20, green: 0.58, blue: 0.95)
+        case ..<10: return Color(red: 0.22, green: 0.77, blue: 0.72)
+        case ..<20: return Color(red: 0.94, green: 0.82, blue: 0.28)
+        case ..<30: return Color(red: 0.93, green: 0.49, blue: 0.23)
+        default: return Color(red: 0.57, green: 0.10, blue: 0.12)
+        }
     }
 
     private func formatTemp(_ temp: Double?) -> String {
