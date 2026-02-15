@@ -1,0 +1,68 @@
+import Foundation
+
+struct WeatherResponse: Codable {
+    let station: StationInfo
+    let current: CurrentConditions
+    let dailyForecast: [DailyForecast]
+
+    enum CodingKeys: String, CodingKey {
+        case station
+        case current
+        case dailyForecast = "daily_forecast"
+    }
+}
+
+struct StationInfo: Codable {
+    let name: String
+    let distanceKm: Double
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case distanceKm = "distance_km"
+    }
+}
+
+struct CurrentConditions: Codable {
+    let temperature: Double?
+    let feelsLike: Double?
+    let windSpeed: Double?
+    let windDirection: Double?
+    let humidity: Double?
+    let pressure: Double?
+    let observedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case temperature
+        case feelsLike = "feels_like"
+        case windSpeed = "wind_speed"
+        case windDirection = "wind_direction"
+        case humidity
+        case pressure
+        case observedAt = "observed_at"
+    }
+}
+
+struct DailyForecast: Codable, Identifiable {
+    let date: String
+    let high: Double?
+    let low: Double?
+    let symbol: String?
+    let windSpeedAvg: Double?
+    let precipitationMm: Double?
+
+    var id: String {
+        date
+    }
+
+    var displayDate: Date? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: date)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case date, high, low, symbol
+        case windSpeedAvg = "wind_speed_avg"
+        case precipitationMm = "precipitation_mm"
+    }
+}
