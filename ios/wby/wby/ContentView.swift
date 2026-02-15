@@ -30,6 +30,10 @@ struct ContentView: View {
                         }
                         CurrentConditionsCard(current: weather.current)
                         dailyForecastSection(weather.dailyForecast)
+                        HStack(alignment: .top, spacing: 12) {
+                            FeelsLikeCard(current: weather.current)
+                            UVIndexCard(value: 0)
+                        }
                         WindCard(
                             current: weather.current,
                             gustSpeed: weather.dailyForecast.first?.windSpeedAvg
@@ -67,7 +71,6 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder
     private func headerSection(_ weather: WeatherResponse) -> some View {
         VStack(spacing: 4) {
             Text(locationService.placeName ?? weather.station.name)
@@ -87,10 +90,9 @@ struct ContentView: View {
         .padding(.top, 20)
     }
 
-    @ViewBuilder
     private func dailyForecastSection(_ forecasts: [DailyForecast]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Label("\(forecasts.count-1)-DAY FORECAST", systemImage: "calendar")
+            Label("\(forecasts.count - 1)-DAY FORECAST", systemImage: "calendar")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.8))
                 .padding(.bottom, 8)
