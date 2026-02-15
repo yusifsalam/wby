@@ -3,12 +3,29 @@ import Foundation
 struct WeatherResponse: Codable {
     let station: StationInfo
     let current: CurrentConditions
+    let hourlyForecast: [HourlyForecast]
     let dailyForecast: [DailyForecast]
 
     enum CodingKeys: String, CodingKey {
         case station
         case current
+        case hourlyForecast = "hourly_forecast"
         case dailyForecast = "daily_forecast"
+    }
+
+    init(station: StationInfo, current: CurrentConditions, hourlyForecast: [HourlyForecast], dailyForecast: [DailyForecast]) {
+        self.station = station
+        self.current = current
+        self.hourlyForecast = hourlyForecast
+        self.dailyForecast = dailyForecast
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        station = try c.decode(StationInfo.self, forKey: .station)
+        current = try c.decode(CurrentConditions.self, forKey: .current)
+        hourlyForecast = try c.decodeIfPresent([HourlyForecast].self, forKey: .hourlyForecast) ?? []
+        dailyForecast = try c.decode([DailyForecast].self, forKey: .dailyForecast)
     }
 }
 
@@ -65,4 +82,12 @@ struct DailyForecast: Codable, Identifiable {
         case windSpeedAvg = "wind_speed_avg"
         case precipitationMm = "precipitation_mm"
     }
+}
+
+struct HourlyForecast: Codable, Identifiable {
+    let time: Date
+    let temperature: Double?
+    let symbol: String?
+
+    var id: Date { time }
 }

@@ -25,6 +25,9 @@ struct ContentView: View {
                 VStack(spacing: 20) {
                     if let weather {
                         headerSection(weather)
+                        if !weather.hourlyForecast.isEmpty {
+                            HourlyForecastCard(hourly: weather.hourlyForecast)
+                        }
                         CurrentConditionsCard(current: weather.current)
                         dailyForecastSection(weather.dailyForecast)
                         if let lastUpdated {
@@ -168,6 +171,20 @@ private enum PreviewWeatherData {
             pressure: 1012.0,
             observedAt: .now
         ),
+        hourlyForecast: [
+            HourlyForecast(time: .now, temperature: -11.0, symbol: "2"),
+            HourlyForecast(time: .now.addingTimeInterval(3600), temperature: -11.0, symbol: "2"),
+            HourlyForecast(time: .now.addingTimeInterval(7200), temperature: -11.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(10800), temperature: -10.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(14400), temperature: -10.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(18000), temperature: -10.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(21600), temperature: -9.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(25200), temperature: -9.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(28800), temperature: -9.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(32400), temperature: -8.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(36000), temperature: -8.0, symbol: "2"),
+            HourlyForecast(time: .now.addingTimeInterval(39600), temperature: -8.0, symbol: "2"),
+        ],
         dailyForecast: [
             DailyForecast(date: "2026-02-15", high: -5, low: -8, symbol: "3", windSpeedAvg: 3.1, precipitationMm: 0.0),
             DailyForecast(date: "2026-02-16", high: -3, low: -9, symbol: "2", windSpeedAvg: 2.7, precipitationMm: 0.2),
