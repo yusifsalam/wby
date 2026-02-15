@@ -13,6 +13,8 @@ type WeatherStore interface {
 	LatestObservation(ctx context.Context, fmisid int) (Observation, error)
 	GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]DailyForecast, error)
 	UpsertForecasts(ctx context.Context, forecasts []DailyForecast) error
+	GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64, limit int) ([]HourlyForecast, error)
+	UpsertHourlyForecasts(ctx context.Context, gridLat, gridLon float64, hourly []HourlyForecast) error
 }
 
 type ForecastFetcher interface {
@@ -102,9 +104,28 @@ func (s *Service) getHourlyForecast(ctx context.Context, gridLat, gridLon float6
 		return cached, nil
 	}
 
+	persistedHourly, storeErr := s.store.GetHourlyForecasts(ctx, gridLat, gridLon, limit)
+	if storeErr == nil && len(persistedHourly) > 0 && isHourlyFresh(persistedHourly, 90*time.Minute) {
+		s.hourlyCache.Set(cacheKey, persistedHourly)
+		return persistedHourly, nil
+	}
+
 	hourly, err := s.fmi.FetchHourlyForecast(ctx, gridLat, gridLon, limit)
 	if err != nil {
+		if len(persistedHourly) > 0 {
+			slog.Warn("using stale persisted hourly forecast", "err", err, "lat", gridLat, "lon", gridLon)
+			s.hourlyCache.Set(cacheKey, persistedHourly)
+			return persistedHourly, nil
+		}
 		return nil, err
+	}
+
+	fetchedAt := time.Now()
+	for i := range hourly {
+		hourly[i].FetchedAt = fetchedAt
+	}
+	if upsertErr := s.store.UpsertHourlyForecasts(ctx, gridLat, gridLon, hourly); upsertErr != nil {
+		slog.Warn("failed to store hourly forecasts", "err", upsertErr)
 	}
 	s.hourlyCache.Set(cacheKey, hourly)
 	return hourly, nil
@@ -133,4 +154,20 @@ func hasExpandedForecastData(forecasts []DailyForecast) bool {
 		}
 	}
 	return false
+}
+
+func isHourlyFresh(hourly []HourlyForecast, maxAge time.Duration) bool {
+	oldest := hourly[0].FetchedAt
+	if oldest.IsZero() {
+		return false
+	}
+	for _, h := range hourly[1:] {
+		if h.FetchedAt.IsZero() {
+			return false
+		}
+		if h.FetchedAt.Before(oldest) {
+			oldest = h.FetchedAt
+		}
+	}
+	return time.Since(oldest) < maxAge
 }

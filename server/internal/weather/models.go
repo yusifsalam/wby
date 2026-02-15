@@ -73,6 +73,7 @@ type DailyForecast struct {
 
 type HourlyForecast struct {
 	Time        time.Time
+	FetchedAt   time.Time
 	Temperature *float64
 	WindSpeed   *float64
 	WindDir     *float64

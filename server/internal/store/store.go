@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -215,6 +216,71 @@ func (s *Store) GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]w
 			return nil, err
 		}
 		result = append(result, f)
+	}
+	return result, nil
+}
+
+func (s *Store) UpsertHourlyForecasts(ctx context.Context, gridLat, gridLon float64, hourly []weather.HourlyForecast) error {
+	batch := &pgx.Batch{}
+	now := time.Now()
+	for _, h := range hourly {
+		fetchedAt := h.FetchedAt
+		if fetchedAt.IsZero() {
+			fetchedAt = now
+		}
+		batch.Queue(
+			`INSERT INTO hourly_forecasts (
+				grid_lat, grid_lon, forecast_time, fetched_at,
+				temperature, wind_speed, wind_direction, humidity, precipitation_1h, symbol
+			)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			 ON CONFLICT (grid_lat, grid_lon, forecast_time) DO UPDATE SET
+			   fetched_at = $4, temperature = $5, wind_speed = $6, wind_direction = $7,
+			   humidity = $8, precipitation_1h = $9, symbol = $10`,
+			gridLat, gridLon, h.Time, fetchedAt,
+			h.Temperature, h.WindSpeed, h.WindDir, h.Humidity, h.Precip1h, h.Symbol,
+		)
+	}
+	br := s.pool.SendBatch(ctx, batch)
+	defer br.Close()
+	for range hourly {
+		if _, err := br.Exec(); err != nil {
+			return fmt.Errorf("upsert hourly forecast: %w", err)
+		}
+	}
+	_, _ = s.pool.Exec(ctx,
+		`DELETE FROM hourly_forecasts
+		 WHERE forecast_time < (NOW() - INTERVAL '3 days')`,
+	)
+	return nil
+}
+
+func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64, limit int) ([]weather.HourlyForecast, error) {
+	if limit <= 0 {
+		limit = 12
+	}
+	rows, err := s.pool.Query(ctx,
+		`SELECT forecast_time, fetched_at, temperature, wind_speed, wind_direction, humidity, precipitation_1h, symbol
+		 FROM hourly_forecasts
+		 WHERE grid_lat = $1 AND grid_lon = $2 AND forecast_time >= date_trunc('hour', NOW())
+		 ORDER BY forecast_time
+		 LIMIT $3`,
+		gridLat, gridLon, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get hourly forecasts: %w", err)
+	}
+	defer rows.Close()
+
+	var result []weather.HourlyForecast
+	for rows.Next() {
+		var h weather.HourlyForecast
+		if err := rows.Scan(
+			&h.Time, &h.FetchedAt, &h.Temperature, &h.WindSpeed, &h.WindDir, &h.Humidity, &h.Precip1h, &h.Symbol,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, h)
 	}
 	return result, nil
 }
