@@ -30,6 +30,10 @@ struct ContentView: View {
                         }
                         CurrentConditionsCard(current: weather.current)
                         dailyForecastSection(weather.dailyForecast)
+                        WindCard(
+                            current: weather.current,
+                            gustSpeed: weather.dailyForecast.first?.windSpeedAvg
+                        )
                         if let lastUpdated {
                             Text("Updated \(lastUpdated, style: .relative) ago")
                                 .font(.caption)
