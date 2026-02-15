@@ -9,7 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	"wby/internal/api"
 	"wby/internal/config"
+	"wby/internal/fetcher"
+	"wby/internal/fmi"
+	"wby/internal/store"
+	"wby/internal/weather"
 )
 
 func main() {
@@ -20,11 +25,26 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	db, err := store.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		slog.Error("failed to connect to database", "err", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	fmiClient := fmi.NewClient(cfg.FMIBaseURL)
+
+	svc := weather.NewService(db, fmiClient, 10*time.Minute)
+
+	f := fetcher.New(fmiClient, db)
+	go f.RunObservationLoop(ctx, 10*time.Minute)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
-	})
+	handler := api.NewHandler(svc)
+	handler.RegisterRoutes(mux)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -45,8 +65,9 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	srv.Shutdown(ctx)
+	cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	srv.Shutdown(shutdownCtx)
 	slog.Info("server stopped")
 }
