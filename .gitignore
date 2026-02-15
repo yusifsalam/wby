@@ -45,3 +45,5 @@ logs/
 
 # Zed
 .zed/
+
+.env
