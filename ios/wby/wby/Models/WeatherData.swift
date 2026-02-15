@@ -43,6 +43,7 @@ struct CurrentConditions: Codable {
     let temperature: Double?
     let feelsLike: Double?
     let windSpeed: Double?
+    let windGust: Double?
     let windDirection: Double?
     let humidity: Double?
     let pressure: Double?
@@ -52,6 +53,7 @@ struct CurrentConditions: Codable {
         case temperature
         case feelsLike = "feels_like"
         case windSpeed = "wind_speed"
+        case windGust = "wind_gust"
         case windDirection = "wind_direction"
         case humidity
         case pressure

@@ -36,7 +36,7 @@ struct ContentView: View {
                         }
                         WindCard(
                             current: weather.current,
-                            gustSpeed: weather.dailyForecast.first?.windSpeedAvg
+                            gustSpeed: weather.current.windGust
                         )
                         HStack(alignment: .top, spacing: 12) {
                             SunriseCard(
@@ -180,6 +180,7 @@ private enum PreviewWeatherData {
             temperature: -6.0,
             feelsLike: -11.0,
             windSpeed: 3.2,
+            windGust: 5.6,
             windDirection: 250.0,
             humidity: 84.0,
             pressure: 1012.0,

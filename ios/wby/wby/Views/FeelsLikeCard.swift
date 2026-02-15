@@ -66,6 +66,7 @@ struct FeelsLikeCard: View {
                 temperature: -9,
                 feelsLike: -10,
                 windSpeed: 1.0,
+                windGust: 2.0,
                 windDirection: 266.0,
                 humidity: 84.0,
                 pressure: 1012.0,

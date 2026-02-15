@@ -175,6 +175,7 @@ struct WindCard: View {
                 temperature: -6.0,
                 feelsLike: -11.0,
                 windSpeed: 1.0,
+                windGust: 2.0,
                 windDirection: 266.0,
                 humidity: 84.0,
                 pressure: 1012.0,

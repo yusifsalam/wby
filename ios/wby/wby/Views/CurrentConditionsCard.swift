@@ -66,6 +66,7 @@ struct CurrentConditionsCard: View {
             temperature: -4,
             feelsLike: -9,
             windSpeed: 5.2,
+            windGust: 7.1,
             windDirection: 220,
             humidity: 89,
             pressure: 1013,
