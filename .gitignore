@@ -1,0 +1,47 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+*.xcuserdata/
+*.xcuserdatad/
+*.xccheckout
+*.xcscmblueprint
+*.moved-aside
+*.xcworkspace
+*.xcworkspace/xcuserdata/
+*.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Bun
+node_modules/
+
+# Build output
+dist/
+
+# App caches and outputs
+cache/
+output/
+
+
+# Logs
+*.log
+logs/
+
+# Local tooling
+.vscode/
+.idea/
+
+# Zed
+.zed/
