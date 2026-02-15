@@ -6,6 +6,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
 
     var coordinate: CLLocationCoordinate2D?
+    var altitudeMeters: Double?
     var placeName: String?
     var error: Error?
 
@@ -38,6 +39,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         coordinate = location.coordinate
+        altitudeMeters = Self.validAltitude(from: location)
         reverseGeocode(location)
     }
 
@@ -75,5 +77,12 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
             return nil
         }
         return trimmed
+    }
+
+    private static func validAltitude(from location: CLLocation) -> Double? {
+        guard location.verticalAccuracy >= 0 else { return nil }
+        let altitude = location.altitude
+        guard altitude.isFinite else { return nil }
+        return altitude
     }
 }
