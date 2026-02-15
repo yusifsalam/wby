@@ -83,6 +83,7 @@ type shape struct {
 }
 
 type gmlPoint struct {
+	Name string `xml:"name"`
 	Pos string `xml:"pos"`
 }
 
@@ -132,7 +133,7 @@ func ParseObservations(data []byte) (*ObservationResult, error) {
 	obsMap := make(map[obsKey]*weather.Observation)
 
 	for _, m := range fc.Members {
-		param := extractParam(m.Observation.ObservedProperty.Href)
+		param := strings.ToLower(extractParam(m.Observation.ObservedProperty.Href))
 		fmisid, name, lat, lon, wmo := extractStationInfo(m.Observation)
 
 		if _, ok := stationMap[fmisid]; !ok {
@@ -208,7 +209,7 @@ func ParseForecast(data []byte, gridLat, gridLon float64) ([]weather.DailyForeca
 	params := make(map[string][]hourlyEntry)
 
 	for _, m := range fc.Members {
-		param := extractParam(m.Observation.ObservedProperty.Href)
+		param := strings.ToLower(extractParam(m.Observation.ObservedProperty.Href))
 		for _, pt := range m.Observation.Result.TimeSeries.Points {
 			t, err := time.Parse(time.RFC3339, pt.TVP.Time)
 			if err != nil {
@@ -320,13 +321,28 @@ func extractStationInfo(pts pointTimeSeries) (fmisid int, name string, lat, lon 
 	for _, lm := range foi.SampledFeature.LocationCollection.Members {
 		loc := lm.Location
 		fmisid, _ = strconv.Atoi(loc.Identifier)
+		var fallbackName string
 		for _, n := range loc.Names {
-			switch {
-			case strings.Contains(n.CodeSpace, "name"):
-				name = n.Value
-			case strings.Contains(n.CodeSpace, "wmo"):
-				wmo = n.Value
+			value := strings.TrimSpace(n.Value)
+			if value == "" {
+				continue
 			}
+			switch {
+			case isLocationNameCodeSpace(n.CodeSpace):
+				if name == "" || isLikelyCodeValue(name) {
+					name = value
+				}
+			case isLocationWMOCodeSpace(n.CodeSpace):
+				wmo = value
+				if fallbackName == "" {
+					fallbackName = value
+				}
+			case fallbackName == "":
+				fallbackName = value
+			}
+		}
+		if name == "" {
+			name = fallbackName
 		}
 	}
 
@@ -334,8 +350,40 @@ func extractStationInfo(pts pointTimeSeries) (fmisid int, name string, lat, lon 
 	if pos == "" && len(foi.Shape.MultiPoint.Points) > 0 {
 		pos = foi.Shape.MultiPoint.Points[0].Pos
 	}
+	if name == "" {
+		name = strings.TrimSpace(foi.Shape.Point.Name)
+	}
+	if name == "" && len(foi.Shape.MultiPoint.Points) > 0 {
+		name = strings.TrimSpace(foi.Shape.MultiPoint.Points[0].Name)
+	}
+	if name == "" && wmo != "" {
+		name = wmo
+	}
+	if name == "" {
+		name = strconv.Itoa(fmisid)
+	}
 	lat, lon = parsePos(pos)
 	return
+}
+
+func isLocationNameCodeSpace(codeSpace string) bool {
+	return strings.HasSuffix(strings.ToLower(strings.TrimSpace(codeSpace)), "/locationcode/name")
+}
+
+func isLocationWMOCodeSpace(codeSpace string) bool {
+	return strings.HasSuffix(strings.ToLower(strings.TrimSpace(codeSpace)), "/locationcode/wmo")
+}
+
+func isLikelyCodeValue(v string) bool {
+	if v == "" {
+		return false
+	}
+	for _, ch := range v {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func parsePos(pos string) (float64, float64) {

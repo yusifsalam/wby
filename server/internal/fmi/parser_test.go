@@ -39,6 +39,35 @@ func TestParseObservations(t *testing.T) {
 	}
 }
 
+func TestParseObservationsStationNamePreference(t *testing.T) {
+	data, err := os.ReadFile("testdata/observations.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := ParseObservations(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var found bool
+	for _, st := range result.Stations {
+		if st.FMISID != 100971 {
+			continue
+		}
+		found = true
+		if st.Name != "Helsinki Kaisaniemi" {
+			t.Fatalf("unexpected station name for FMISID 100971: %q", st.Name)
+		}
+		if st.WMOCode != "2978" {
+			t.Fatalf("unexpected WMO code for FMISID 100971: %q", st.WMOCode)
+		}
+	}
+	if !found {
+		t.Fatal("expected station FMISID 100971 in fixture")
+	}
+}
+
 func TestParseForecast(t *testing.T) {
 	data, err := os.ReadFile("testdata/forecast.xml")
 	if err != nil {

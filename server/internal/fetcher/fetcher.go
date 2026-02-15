@@ -44,6 +44,10 @@ func (f *Fetcher) fetchObservations(ctx context.Context) {
 		slog.Error("failed to fetch observations from FMI", "err", err)
 		return
 	}
+	if len(result.Stations) == 0 {
+		slog.Warn("observation fetch returned no stations")
+		return
+	}
 
 	if err := f.store.UpsertStations(ctx, result.Stations); err != nil {
 		slog.Error("failed to upsert stations", "err", err)

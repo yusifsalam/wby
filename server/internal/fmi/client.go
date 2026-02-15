@@ -16,6 +16,8 @@ type Client struct {
 	httpClient *http.Client
 }
 
+const forecastDays = 11
+
 func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL: baseURL,
@@ -34,6 +36,9 @@ func (c *Client) FetchObservations(ctx context.Context) (*ObservationResult, err
 		"parameters":     {"temperature,windspeedms,winddirection,humidity,pressure"},
 		"timestep":       {"10"},
 		"maxlocations":   {"200"},
+		// FMI currently returns empty results without an explicit area filter.
+		// This bbox covers Finland where the app data is sourced.
+		"bbox": {"19,59,32,71"},
 	}
 
 	data, err := c.fetch(ctx, params)
@@ -44,14 +49,18 @@ func (c *Client) FetchObservations(ctx context.Context) (*ObservationResult, err
 }
 
 func (c *Client) FetchForecast(ctx context.Context, lat, lon float64) ([]weather.DailyForecast, error) {
+	start, end := forecastTimeWindowUTC(forecastDays)
+
 	params := url.Values{
 		"service":        {"WFS"},
 		"version":        {"2.0.0"},
 		"request":        {"getFeature"},
-		"storedquery_id": {"fmi::forecast::harmonie::surface::point::timevaluepair"},
+		"storedquery_id": {"fmi::forecast::edited::weather::scandinavia::point::timevaluepair"},
 		"latlon":         {fmt.Sprintf("%f,%f", lat, lon)},
-		"parameters":     {"temperature,windspeedms,winddirection,humidity,precipitation1h,weathersymbol3"},
+		"parameters":     {"Temperature,WindSpeedMS,WindDirection,Humidity,Precipitation1h,WeatherSymbol3"},
 		"timestep":       {"60"},
+		"starttime":      {start},
+		"endtime":        {end},
 	}
 
 	data, err := c.fetch(ctx, params)
@@ -59,6 +68,16 @@ func (c *Client) FetchForecast(ctx context.Context, lat, lon float64) ([]weather
 		return nil, fmt.Errorf("fetch forecast: %w", err)
 	}
 	return ParseForecast(data, lat, lon)
+}
+
+func forecastTimeWindowUTC(days int) (start, end string) {
+	if days < 1 {
+		days = 1
+	}
+	startTime := time.Now().UTC().Truncate(time.Hour)
+	// Inclusive window: today + next (days-1) days.
+	endTime := startTime.AddDate(0, 0, days-1)
+	return startTime.Format(time.RFC3339), endTime.Format(time.RFC3339)
 }
 
 func (c *Client) fetch(ctx context.Context, params url.Values) ([]byte, error) {

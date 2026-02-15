@@ -128,7 +128,8 @@ func (s *Store) GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]w
 		`SELECT grid_lat, grid_lon, forecast_for, fetched_at, temp_high, temp_low, wind_speed, precip_mm, symbol
 		 FROM forecasts
 		 WHERE grid_lat = $1 AND grid_lon = $2 AND forecast_for >= CURRENT_DATE
-		 ORDER BY forecast_for`,
+		 ORDER BY forecast_for
+		 LIMIT 11`,
 		gridLat, gridLon,
 	)
 	if err != nil {
