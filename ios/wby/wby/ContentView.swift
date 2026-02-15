@@ -38,6 +38,14 @@ struct ContentView: View {
                             current: weather.current,
                             gustSpeed: weather.dailyForecast.first?.windSpeedAvg
                         )
+                        HStack(alignment: .top, spacing: 12) {
+                            SunriseCard(
+                                coordinate: locationService.coordinate ?? fallbackCoordinate,
+                                referenceDate: weather.current.observedAt,
+                                elevationMeters: locationService.altitudeMeters
+                            )
+                            PrecipitationCard(forecasts: weather.dailyForecast)
+                        }
                         if let lastUpdated {
                             Text("Updated \(lastUpdated, style: .relative) ago")
                                 .font(.caption)
