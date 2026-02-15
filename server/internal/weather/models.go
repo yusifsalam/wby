@@ -32,6 +32,12 @@ type DailyForecast struct {
 	Symbol    *string
 }
 
+type HourlyForecast struct {
+	Time        time.Time
+	Temperature *float64
+	Symbol      *string
+}
+
 type CurrentWeather struct {
 	Station     Station
 	DistanceKM  float64
@@ -40,5 +46,6 @@ type CurrentWeather struct {
 
 type WeatherResponse struct {
 	Current  CurrentWeather
+	Hourly   []HourlyForecast
 	Forecast []DailyForecast
 }

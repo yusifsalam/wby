@@ -303,6 +303,74 @@ func ParseForecast(data []byte, gridLat, gridLon float64) ([]weather.DailyForeca
 	return forecasts, nil
 }
 
+// ParseHourlyForecast parses hourly time/value pairs for temperature and weather symbol.
+func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, error) {
+	var fc featureCollection
+	if err := xml.Unmarshal(data, &fc); err != nil {
+		return nil, fmt.Errorf("unmarshal WFS hourly forecast: %w", err)
+	}
+
+	type hourlyPoint struct {
+		t    time.Time
+		temp *float64
+		sym  *string
+	}
+	byTime := make(map[time.Time]*hourlyPoint)
+
+	for _, m := range fc.Members {
+		param := strings.ToLower(extractParam(m.Observation.ObservedProperty.Href))
+		for _, pt := range m.Observation.Result.TimeSeries.Points {
+			t, err := time.Parse(time.RFC3339, pt.TVP.Time)
+			if err != nil {
+				continue
+			}
+			val := parseFloat(pt.TVP.Value)
+			if val == nil {
+				continue
+			}
+
+			p, ok := byTime[t]
+			if !ok {
+				p = &hourlyPoint{t: t}
+				byTime[t] = p
+			}
+
+			switch param {
+			case "temperature":
+				p.temp = val
+			case "weathersymbol3":
+				s := strconv.Itoa(int(math.Round(*val)))
+				p.sym = &s
+			}
+		}
+	}
+
+	var items []hourlyPoint
+	for _, p := range byTime {
+		if p.temp == nil && p.sym == nil {
+			continue
+		}
+		items = append(items, *p)
+	}
+	slices.SortFunc(items, func(a, b hourlyPoint) int {
+		return a.t.Compare(b.t)
+	})
+
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
+	}
+
+	result := make([]weather.HourlyForecast, 0, len(items))
+	for _, p := range items {
+		result = append(result, weather.HourlyForecast{
+			Time:        p.t,
+			Temperature: p.temp,
+			Symbol:      p.sym,
+		})
+	}
+	return result, nil
+}
+
 func extractParam(href string) string {
 	for _, part := range strings.Split(href, "&") {
 		if strings.HasPrefix(part, "param=") {

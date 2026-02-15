@@ -94,3 +94,29 @@ func TestParseForecast(t *testing.T) {
 		t.Error("expected date to be set")
 	}
 }
+
+func TestParseHourlyForecast(t *testing.T) {
+	data, err := os.ReadFile("testdata/forecast.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := ParseHourlyForecast(data, 12)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result) == 0 {
+		t.Fatal("expected hourly forecast entries")
+	}
+	if len(result) > 12 {
+		t.Fatalf("expected at most 12 entries, got %d", len(result))
+	}
+	if result[0].Time.IsZero() {
+		t.Fatal("expected first hourly time to be set")
+	}
+	for i := 1; i < len(result); i++ {
+		if result[i].Time.Before(result[i-1].Time) {
+			t.Fatalf("hourly forecast not sorted: %s before %s", result[i].Time, result[i-1].Time)
+		}
+	}
+}

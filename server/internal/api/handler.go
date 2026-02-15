@@ -25,9 +25,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 type weatherJSON struct {
-	Station  stationJSON         `json:"station"`
-	Current  currentJSON         `json:"current"`
-	Forecast []dailyForecastJSON `json:"daily_forecast"`
+	Station  stationJSON          `json:"station"`
+	Current  currentJSON          `json:"current"`
+	Hourly   []hourlyForecastJSON `json:"hourly_forecast"`
+	Forecast []dailyForecastJSON  `json:"daily_forecast"`
 }
 
 type stationJSON struct {
@@ -52,6 +53,12 @@ type dailyForecastJSON struct {
 	Symbol    *string  `json:"symbol"`
 	WindSpeed *float64 `json:"wind_speed_avg"`
 	PrecipMM  *float64 `json:"precipitation_mm"`
+}
+
+type hourlyForecastJSON struct {
+	Time        time.Time `json:"time"`
+	Temperature *float64  `json:"temperature"`
+	Symbol      *string   `json:"symbol"`
 }
 
 func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +104,13 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			Symbol:    f.Symbol,
 			WindSpeed: f.WindSpeed,
 			PrecipMM:  f.PrecipMM,
+		})
+	}
+	for _, hfc := range result.Hourly {
+		resp.Hourly = append(resp.Hourly, hourlyForecastJSON{
+			Time:        hfc.Time,
+			Temperature: hfc.Temperature,
+			Symbol:      hfc.Symbol,
 		})
 	}
 

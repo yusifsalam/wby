@@ -17,12 +17,14 @@ type WeatherStore interface {
 
 type ForecastFetcher interface {
 	FetchForecast(ctx context.Context, lat, lon float64) ([]DailyForecast, error)
+	FetchHourlyForecast(ctx context.Context, lat, lon float64, limit int) ([]HourlyForecast, error)
 }
 
 type Service struct {
 	store         WeatherStore
 	fmi           ForecastFetcher
 	forecastCache *Cache[[]DailyForecast]
+	hourlyCache   *Cache[[]HourlyForecast]
 }
 
 func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL time.Duration) *Service {
@@ -30,6 +32,7 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 		store:         store,
 		fmi:           fmiClient,
 		forecastCache: NewCache[[]DailyForecast](forecastCacheTTL),
+		hourlyCache:   NewCache[[]HourlyForecast](forecastCacheTTL),
 	}
 }
 
@@ -49,6 +52,10 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 	if err != nil {
 		return nil, fmt.Errorf("forecast: %w", err)
 	}
+	hourly, err := s.getHourlyForecast(ctx, gridLat, gridLon, 12)
+	if err != nil {
+		slog.Warn("hourly forecast unavailable", "err", err, "lat", gridLat, "lon", gridLon)
+	}
 
 	return &WeatherResponse{
 		Current: CurrentWeather{
@@ -56,6 +63,7 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 			DistanceKM:  distKM,
 			Observation: obs,
 		},
+		Hourly:   hourly,
 		Forecast: forecast,
 	}, nil
 }
@@ -84,6 +92,20 @@ func (s *Service) getForecast(ctx context.Context, gridLat, gridLon float64) ([]
 	s.forecastCache.Set(cacheKey, forecasts)
 
 	return forecasts, nil
+}
+
+func (s *Service) getHourlyForecast(ctx context.Context, gridLat, gridLon float64, limit int) ([]HourlyForecast, error) {
+	cacheKey := fmt.Sprintf("%.2f,%.2f:%d", gridLat, gridLon, limit)
+	if cached, ok := s.hourlyCache.Get(cacheKey); ok {
+		return cached, nil
+	}
+
+	hourly, err := s.fmi.FetchHourlyForecast(ctx, gridLat, gridLon, limit)
+	if err != nil {
+		return nil, err
+	}
+	s.hourlyCache.Set(cacheKey, hourly)
+	return hourly, nil
 }
 
 func snapToGrid(lat, lon float64) (float64, float64) {
