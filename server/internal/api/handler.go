@@ -37,13 +37,22 @@ type stationJSON struct {
 }
 
 type currentJSON struct {
-	Temperature *float64  `json:"temperature"`
-	FeelsLike   *float64  `json:"feels_like"`
-	WindSpeed   *float64  `json:"wind_speed"`
-	WindDir     *float64  `json:"wind_direction"`
-	Humidity    *float64  `json:"humidity"`
-	Pressure    *float64  `json:"pressure"`
-	ObservedAt  time.Time `json:"observed_at"`
+	Temperature     *float64           `json:"temperature"`
+	FeelsLike       *float64           `json:"feels_like"`
+	WindSpeed       *float64           `json:"wind_speed"`
+	WindGust        *float64           `json:"wind_gust"`
+	WindDir         *float64           `json:"wind_direction"`
+	Humidity        *float64           `json:"humidity"`
+	DewPoint        *float64           `json:"dew_point"`
+	Pressure        *float64           `json:"pressure"`
+	Precip1h        *float64           `json:"precipitation_1h"`
+	PrecipIntensity *float64           `json:"precipitation_intensity"`
+	SnowDepth       *float64           `json:"snow_depth"`
+	Visibility      *float64           `json:"visibility"`
+	CloudCover      *float64           `json:"cloud_cover"`
+	WeatherCode     *float64           `json:"weather_code"`
+	Extra           map[string]float64 `json:"extra,omitempty"`
+	ObservedAt      time.Time          `json:"observed_at"`
 }
 
 type dailyForecastJSON struct {
@@ -86,13 +95,22 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			DistanceKM: result.Current.DistanceKM,
 		},
 		Current: currentJSON{
-			Temperature: result.Current.Observation.Temperature,
-			FeelsLike:   computeFeelsLike(result.Current.Observation.Temperature, result.Current.Observation.WindSpeed),
-			WindSpeed:   result.Current.Observation.WindSpeed,
-			WindDir:     result.Current.Observation.WindDir,
-			Humidity:    result.Current.Observation.Humidity,
-			Pressure:    result.Current.Observation.Pressure,
-			ObservedAt:  result.Current.Observation.ObservedAt,
+			Temperature:     result.Current.Observation.Temperature,
+			FeelsLike:       computeFeelsLike(result.Current.Observation.Temperature, result.Current.Observation.WindSpeed),
+			WindSpeed:       result.Current.Observation.WindSpeed,
+			WindGust:        result.Current.Observation.WindGust,
+			WindDir:         result.Current.Observation.WindDir,
+			Humidity:        result.Current.Observation.Humidity,
+			DewPoint:        result.Current.Observation.DewPoint,
+			Pressure:        result.Current.Observation.Pressure,
+			Precip1h:        result.Current.Observation.Precip1h,
+			PrecipIntensity: result.Current.Observation.PrecipIntensity,
+			SnowDepth:       result.Current.Observation.SnowDepth,
+			Visibility:      result.Current.Observation.Visibility,
+			CloudCover:      result.Current.Observation.TotalCloudCover,
+			WeatherCode:     result.Current.Observation.WeatherCode,
+			Extra:           result.Current.Observation.ExtraNumericParams,
+			ObservedAt:      result.Current.Observation.ObservedAt,
 		},
 	}
 

@@ -161,16 +161,39 @@ func ParseObservations(data []byte) (*ObservationResult, error) {
 			}
 
 			switch param {
-			case "temperature":
+			case "temperature", "t2m":
 				obs.Temperature = val
-			case "windspeedms":
+			case "windspeedms", "ws_10min":
 				obs.WindSpeed = val
-			case "winddirection":
+			case "windgust", "gustspeed", "maximumwind", "wg_10min":
+				obs.WindGust = val
+			case "winddirection", "wd_10min":
 				obs.WindDir = val
-			case "humidity":
+			case "humidity", "rh":
 				obs.Humidity = val
-			case "pressure":
+			case "dewpoint", "td":
+				obs.DewPoint = val
+			case "pressure", "p_sea":
 				obs.Pressure = val
+			case "precipitation1h", "precipitationamount", "r_1h":
+				obs.Precip1h = val
+			case "precipitationintensity", "ri_10min":
+				obs.PrecipIntensity = val
+			case "snowdepth", "snow_aws":
+				obs.SnowDepth = val
+			case "visibility", "vis":
+				obs.Visibility = val
+			case "totalcloudcover", "cloudcover", "n_man":
+				obs.TotalCloudCover = val
+			case "weather", "weathercode", "wawa":
+				obs.WeatherCode = val
+			default:
+				if val != nil {
+					if obs.ExtraNumericParams == nil {
+						obs.ExtraNumericParams = make(map[string]float64)
+					}
+					obs.ExtraNumericParams[param] = *val
+				}
 			}
 		}
 	}

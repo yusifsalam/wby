@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -68,12 +69,19 @@ func (s *Store) NearestStation(ctx context.Context, lat, lon float64) (weather.S
 func (s *Store) UpsertObservations(ctx context.Context, observations []weather.Observation) error {
 	batch := &pgx.Batch{}
 	for _, o := range observations {
+		extra := encodeNumericExtras(o.ExtraNumericParams)
 		batch.Queue(
-			`INSERT INTO observations (fmisid, observed_at, temperature, wind_speed, wind_dir, humidity, pressure)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7)
+			`INSERT INTO observations (
+				fmisid, observed_at, temperature, wind_speed, wind_gust, wind_dir, humidity, dew_point,
+				pressure, precip_1h, precip_intensity, snow_depth, visibility, total_cloud_cover, weather_code, extra
+			)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 			 ON CONFLICT (fmisid, observed_at) DO UPDATE SET
-			   temperature = $3, wind_speed = $4, wind_dir = $5, humidity = $6, pressure = $7`,
-			o.FMISID, o.ObservedAt, o.Temperature, o.WindSpeed, o.WindDir, o.Humidity, o.Pressure,
+			   temperature = $3, wind_speed = $4, wind_gust = $5, wind_dir = $6, humidity = $7, dew_point = $8,
+			   pressure = $9, precip_1h = $10, precip_intensity = $11, snow_depth = $12, visibility = $13,
+			   total_cloud_cover = $14, weather_code = $15, extra = $16`,
+			o.FMISID, o.ObservedAt, o.Temperature, o.WindSpeed, o.WindGust, o.WindDir, o.Humidity, o.DewPoint,
+			o.Pressure, o.Precip1h, o.PrecipIntensity, o.SnowDepth, o.Visibility, o.TotalCloudCover, o.WeatherCode, extra,
 		)
 	}
 	br := s.pool.SendBatch(ctx, batch)
@@ -88,18 +96,46 @@ func (s *Store) UpsertObservations(ctx context.Context, observations []weather.O
 
 func (s *Store) LatestObservation(ctx context.Context, fmisid int) (weather.Observation, error) {
 	var o weather.Observation
+	var extraRaw []byte
 	err := s.pool.QueryRow(ctx,
-		`SELECT fmisid, observed_at, temperature, wind_speed, wind_dir, humidity, pressure
+		`SELECT fmisid, observed_at, temperature, wind_speed, wind_gust, wind_dir, humidity, dew_point,
+		        pressure, precip_1h, precip_intensity, snow_depth, visibility, total_cloud_cover, weather_code, extra
 		 FROM observations
 		 WHERE fmisid = $1
 		 ORDER BY observed_at DESC
 		 LIMIT 1`,
 		fmisid,
-	).Scan(&o.FMISID, &o.ObservedAt, &o.Temperature, &o.WindSpeed, &o.WindDir, &o.Humidity, &o.Pressure)
+	).Scan(
+		&o.FMISID, &o.ObservedAt, &o.Temperature, &o.WindSpeed, &o.WindGust, &o.WindDir, &o.Humidity, &o.DewPoint,
+		&o.Pressure, &o.Precip1h, &o.PrecipIntensity, &o.SnowDepth, &o.Visibility, &o.TotalCloudCover, &o.WeatherCode, &extraRaw,
+	)
 	if err != nil {
 		return o, fmt.Errorf("latest observation: %w", err)
 	}
+	o.ExtraNumericParams = decodeNumericExtras(extraRaw)
 	return o, nil
+}
+
+func encodeNumericExtras(params map[string]float64) []byte {
+	if len(params) == 0 {
+		return nil
+	}
+	b, err := json.Marshal(params)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+func decodeNumericExtras(raw []byte) map[string]float64 {
+	if len(raw) == 0 {
+		return nil
+	}
+	var result map[string]float64
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil
+	}
+	return result
 }
 
 func (s *Store) UpsertForecasts(ctx context.Context, forecasts []weather.DailyForecast) error {

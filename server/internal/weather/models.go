@@ -11,13 +11,22 @@ type Station struct {
 }
 
 type Observation struct {
-	FMISID      int
-	ObservedAt  time.Time
-	Temperature *float64
-	WindSpeed   *float64
-	WindDir     *float64
-	Humidity    *float64
-	Pressure    *float64
+	FMISID             int
+	ObservedAt         time.Time
+	Temperature        *float64
+	WindSpeed          *float64
+	WindGust           *float64
+	WindDir            *float64
+	Humidity           *float64
+	DewPoint           *float64
+	Pressure           *float64
+	Precip1h           *float64
+	PrecipIntensity    *float64
+	SnowDepth          *float64
+	Visibility         *float64
+	TotalCloudCover    *float64
+	WeatherCode        *float64
+	ExtraNumericParams map[string]float64
 }
 
 type DailyForecast struct {

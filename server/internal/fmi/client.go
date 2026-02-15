@@ -34,7 +34,6 @@ func (c *Client) FetchObservations(ctx context.Context) (*ObservationResult, err
 		"version":        {"2.0.0"},
 		"request":        {"getFeature"},
 		"storedquery_id": {"fmi::observations::weather::timevaluepair"},
-		"parameters":     {"temperature,windspeedms,winddirection,humidity,pressure"},
 		"timestep":       {"10"},
 		"maxlocations":   {"200"},
 		// FMI currently returns empty results without an explicit area filter.
