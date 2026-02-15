@@ -1,0 +1,24 @@
+package config
+
+import "os"
+
+type Config struct {
+	Port        string
+	DatabaseURL string
+	FMIBaseURL  string
+}
+
+func Load() Config {
+	return Config{
+		Port:        getEnv("PORT", "8080"),
+		DatabaseURL: getEnv("DATABASE_URL", "postgres://weather:weather@localhost:5432/weather?sslmode=disable"),
+		FMIBaseURL:  getEnv("FMI_BASE_URL", "https://opendata.fmi.fi/wfs"),
+	}
+}
+
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}

@@ -24,7 +24,7 @@
 
 ```bash
 cd server
-go mod init github.com/salami-weather/server
+go mod init wby
 ```
 
 **Step 2: Create entry point**
@@ -42,7 +42,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/salami-weather/server/internal/config"
+	"wby/internal/config"
 )
 
 func main() {
@@ -420,7 +420,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/salami-weather/server/internal/weather"
+	"wby/internal/weather"
 )
 
 // WFS XML types — shared across observations and forecasts.
@@ -840,7 +840,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/salami-weather/server/internal/weather"
+	"wby/internal/weather"
 )
 
 type Client struct {
@@ -957,7 +957,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/salami-weather/server/internal/weather"
+	"wby/internal/weather"
 )
 
 func testStore(t *testing.T) *Store {
@@ -1018,7 +1018,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/salami-weather/server/internal/weather"
+	"wby/internal/weather"
 )
 
 type Store struct {
@@ -1190,8 +1190,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/salami-weather/server/internal/fmi"
-	"github.com/salami-weather/server/internal/store"
+	"wby/internal/fmi"
+	"wby/internal/store"
 )
 
 type Fetcher struct {
@@ -1379,8 +1379,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/salami-weather/server/internal/fmi"
-	"github.com/salami-weather/server/internal/store"
+	"wby/internal/fmi"
+	"wby/internal/store"
 )
 
 type Service struct {
@@ -1509,7 +1509,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/salami-weather/server/internal/weather"
+	"wby/internal/weather"
 )
 
 type Handler struct {
@@ -1650,12 +1650,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/salami-weather/server/internal/api"
-	"github.com/salami-weather/server/internal/config"
-	"github.com/salami-weather/server/internal/fetcher"
-	"github.com/salami-weather/server/internal/fmi"
-	"github.com/salami-weather/server/internal/store"
-	"github.com/salami-weather/server/internal/weather"
+	"wby/internal/api"
+	"wby/internal/config"
+	"wby/internal/fetcher"
+	"wby/internal/fmi"
+	"wby/internal/store"
+	"wby/internal/weather"
 )
 
 func main() {
