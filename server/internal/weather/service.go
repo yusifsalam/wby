@@ -72,11 +72,13 @@ func (s *Service) getForecast(ctx context.Context, gridLat, gridLon float64) ([]
 	cacheKey := fmt.Sprintf("%.2f,%.2f", gridLat, gridLon)
 
 	if cached, ok := s.forecastCache.Get(cacheKey); ok {
-		return cached, nil
+		if hasExpandedForecastData(cached) {
+			return cached, nil
+		}
 	}
 
 	forecasts, err := s.store.GetForecasts(ctx, gridLat, gridLon)
-	if err == nil && len(forecasts) > 0 && isFresh(forecasts, 3*time.Hour) {
+	if err == nil && len(forecasts) > 0 && isFresh(forecasts, 3*time.Hour) && hasExpandedForecastData(forecasts) {
 		s.forecastCache.Set(cacheKey, forecasts)
 		return forecasts, nil
 	}
@@ -120,4 +122,15 @@ func isFresh(forecasts []DailyForecast, maxAge time.Duration) bool {
 		}
 	}
 	return time.Since(oldest) < maxAge
+}
+
+func hasExpandedForecastData(forecasts []DailyForecast) bool {
+	for _, f := range forecasts {
+		// TempAvg is derived from Temperature and should be present for any day with temp data.
+		// If it's nil across all days, rows are likely from pre-migration/pre-rollout data.
+		if f.TempAvg != nil {
+			return true
+		}
+	}
+	return false
 }

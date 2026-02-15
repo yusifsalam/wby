@@ -3,7 +3,6 @@ set -euo pipefail
 
 SERVER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIGRATION_FILE="$SERVER_DIR/migrations/001_initial.sql"
-UPGRADE_MIGRATION_FILE="$SERVER_DIR/migrations/002_observation_fields.sql"
 
 POSTGRES_FORMULA="${POSTGRES_FORMULA:-postgresql@18}"
 DB_NAME="${DB_NAME:-wby}"
@@ -102,10 +101,14 @@ apply_schema_if_needed() {
     log "Base schema already initialized."
   fi
 
-  if [[ -f "$UPGRADE_MIGRATION_FILE" ]]; then
-    log "Applying migration: $UPGRADE_MIGRATION_FILE"
-    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$UPGRADE_MIGRATION_FILE" >/dev/null
-  fi
+  for migration in "$SERVER_DIR"/migrations/*.sql; do
+    [[ -e "$migration" ]] || continue
+    if [[ "$migration" == "$MIGRATION_FILE" ]]; then
+      continue
+    fi
+    log "Applying migration: $migration"
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
+  done
 }
 
 run_server() {

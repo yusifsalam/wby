@@ -142,11 +142,32 @@ func (s *Store) UpsertForecasts(ctx context.Context, forecasts []weather.DailyFo
 	batch := &pgx.Batch{}
 	for _, f := range forecasts {
 		batch.Queue(
-			`INSERT INTO forecasts (grid_lat, grid_lon, forecast_for, fetched_at, temp_high, temp_low, wind_speed, precip_mm, symbol)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			`INSERT INTO forecasts (
+				grid_lat, grid_lon, forecast_for, fetched_at, temp_high, temp_low,
+				temp_avg, wind_speed, wind_direction, humidity_avg, precip_mm, precipitation_1h_sum, symbol,
+				dew_point_avg, fog_intensity_avg, frost_probability_avg, severe_frost_probability_avg, geop_height_avg, pressure_avg,
+				high_cloud_cover_avg, low_cloud_cover_avg, medium_cloud_cover_avg, middle_and_low_cloud_cover_avg, total_cloud_cover_avg,
+				hourly_maximum_gust_max, hourly_maximum_wind_speed_max, pop_avg, probability_thunderstorm_avg,
+				potential_precipitation_form_mode, potential_precipitation_type_mode, precipitation_form_mode, precipitation_type_mode,
+				radiation_global_avg, radiation_lw_avg, weather_number_mode, weather_symbol3_mode, wind_ums_avg, wind_vms_avg, wind_vector_ms_avg
+			)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39)
 			 ON CONFLICT (grid_lat, grid_lon, forecast_for) DO UPDATE SET
-			   fetched_at = $4, temp_high = $5, temp_low = $6, wind_speed = $7, precip_mm = $8, symbol = $9`,
-			f.GridLat, f.GridLon, f.Date, f.FetchedAt, f.TempHigh, f.TempLow, f.WindSpeed, f.PrecipMM, f.Symbol,
+			   fetched_at = $4, temp_high = $5, temp_low = $6, temp_avg = $7, wind_speed = $8, wind_direction = $9,
+			   humidity_avg = $10, precip_mm = $11, precipitation_1h_sum = $12, symbol = $13, dew_point_avg = $14,
+			   fog_intensity_avg = $15, frost_probability_avg = $16, severe_frost_probability_avg = $17, geop_height_avg = $18, pressure_avg = $19,
+			   high_cloud_cover_avg = $20, low_cloud_cover_avg = $21, medium_cloud_cover_avg = $22, middle_and_low_cloud_cover_avg = $23,
+			   total_cloud_cover_avg = $24, hourly_maximum_gust_max = $25, hourly_maximum_wind_speed_max = $26, pop_avg = $27,
+			   probability_thunderstorm_avg = $28, potential_precipitation_form_mode = $29, potential_precipitation_type_mode = $30,
+			   precipitation_form_mode = $31, precipitation_type_mode = $32, radiation_global_avg = $33, radiation_lw_avg = $34,
+			   weather_number_mode = $35, weather_symbol3_mode = $36, wind_ums_avg = $37, wind_vms_avg = $38, wind_vector_ms_avg = $39`,
+			f.GridLat, f.GridLon, f.Date, f.FetchedAt, f.TempHigh, f.TempLow,
+			f.TempAvg, f.WindSpeed, f.WindDir, f.HumidityAvg, f.PrecipMM, f.Precip1hSum, f.Symbol,
+			f.DewPointAvg, f.FogIntensityAvg, f.FrostProbabilityAvg, f.SevereFrostProbabilityAvg, f.GeopHeightAvg, f.PressureAvg,
+			f.HighCloudCoverAvg, f.LowCloudCoverAvg, f.MediumCloudCoverAvg, f.MiddleAndLowCloudCoverAvg, f.TotalCloudCoverAvg,
+			f.HourlyMaximumGustMax, f.HourlyMaximumWindSpeedMax, f.PoPAvg, f.ProbabilityThunderstormAvg,
+			f.PotentialPrecipitationFormMode, f.PotentialPrecipitationTypeMode, f.PrecipitationFormMode, f.PrecipitationTypeMode,
+			f.RadiationGlobalAvg, f.RadiationLWAvg, f.WeatherNumberMode, f.WeatherSymbol3Mode, f.WindUMSAvg, f.WindVMSAvg, f.WindVectorMSAvg,
 		)
 	}
 	br := s.pool.SendBatch(ctx, batch)
@@ -161,7 +182,13 @@ func (s *Store) UpsertForecasts(ctx context.Context, forecasts []weather.DailyFo
 
 func (s *Store) GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]weather.DailyForecast, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT grid_lat, grid_lon, forecast_for, fetched_at, temp_high, temp_low, wind_speed, precip_mm, symbol
+		`SELECT grid_lat, grid_lon, forecast_for, fetched_at, temp_high, temp_low,
+		        temp_avg, wind_speed, wind_direction, humidity_avg, precip_mm, precipitation_1h_sum, symbol,
+		        dew_point_avg, fog_intensity_avg, frost_probability_avg, severe_frost_probability_avg, geop_height_avg, pressure_avg,
+		        high_cloud_cover_avg, low_cloud_cover_avg, medium_cloud_cover_avg, middle_and_low_cloud_cover_avg, total_cloud_cover_avg,
+		        hourly_maximum_gust_max, hourly_maximum_wind_speed_max, pop_avg, probability_thunderstorm_avg,
+		        potential_precipitation_form_mode, potential_precipitation_type_mode, precipitation_form_mode, precipitation_type_mode,
+		        radiation_global_avg, radiation_lw_avg, weather_number_mode, weather_symbol3_mode, wind_ums_avg, wind_vms_avg, wind_vector_ms_avg
 		 FROM forecasts
 		 WHERE grid_lat = $1 AND grid_lon = $2 AND forecast_for >= CURRENT_DATE
 		 ORDER BY forecast_for
@@ -176,7 +203,15 @@ func (s *Store) GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]w
 	var result []weather.DailyForecast
 	for rows.Next() {
 		var f weather.DailyForecast
-		if err := rows.Scan(&f.GridLat, &f.GridLon, &f.Date, &f.FetchedAt, &f.TempHigh, &f.TempLow, &f.WindSpeed, &f.PrecipMM, &f.Symbol); err != nil {
+		if err := rows.Scan(
+			&f.GridLat, &f.GridLon, &f.Date, &f.FetchedAt, &f.TempHigh, &f.TempLow,
+			&f.TempAvg, &f.WindSpeed, &f.WindDir, &f.HumidityAvg, &f.PrecipMM, &f.Precip1hSum, &f.Symbol,
+			&f.DewPointAvg, &f.FogIntensityAvg, &f.FrostProbabilityAvg, &f.SevereFrostProbabilityAvg, &f.GeopHeightAvg, &f.PressureAvg,
+			&f.HighCloudCoverAvg, &f.LowCloudCoverAvg, &f.MediumCloudCoverAvg, &f.MiddleAndLowCloudCoverAvg, &f.TotalCloudCoverAvg,
+			&f.HourlyMaximumGustMax, &f.HourlyMaximumWindSpeedMax, &f.PoPAvg, &f.ProbabilityThunderstormAvg,
+			&f.PotentialPrecipitationFormMode, &f.PotentialPrecipitationTypeMode, &f.PrecipitationFormMode, &f.PrecipitationTypeMode,
+			&f.RadiationGlobalAvg, &f.RadiationLWAvg, &f.WeatherNumberMode, &f.WeatherSymbol3Mode, &f.WindUMSAvg, &f.WindVMSAvg, &f.WindVectorMSAvg,
+		); err != nil {
 			return nil, err
 		}
 		result = append(result, f)

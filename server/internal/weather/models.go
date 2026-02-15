@@ -30,20 +30,54 @@ type Observation struct {
 }
 
 type DailyForecast struct {
-	GridLat   float64
-	GridLon   float64
-	Date      time.Time
-	FetchedAt time.Time
-	TempHigh  *float64
-	TempLow   *float64
-	WindSpeed *float64
-	PrecipMM  *float64
-	Symbol    *string
+	GridLat                         float64
+	GridLon                         float64
+	Date                            time.Time
+	FetchedAt                       time.Time
+	TempHigh                        *float64
+	TempLow                         *float64
+	TempAvg                         *float64
+	WindSpeed                       *float64
+	WindDir                         *float64
+	HumidityAvg                     *float64
+	PrecipMM                        *float64
+	Precip1hSum                     *float64
+	Symbol                          *string
+	DewPointAvg                     *float64
+	FogIntensityAvg                 *float64
+	FrostProbabilityAvg             *float64
+	SevereFrostProbabilityAvg       *float64
+	GeopHeightAvg                   *float64
+	PressureAvg                     *float64
+	HighCloudCoverAvg               *float64
+	LowCloudCoverAvg                *float64
+	MediumCloudCoverAvg             *float64
+	MiddleAndLowCloudCoverAvg       *float64
+	TotalCloudCoverAvg              *float64
+	HourlyMaximumGustMax            *float64
+	HourlyMaximumWindSpeedMax       *float64
+	PoPAvg                          *float64
+	ProbabilityThunderstormAvg      *float64
+	PotentialPrecipitationFormMode  *float64
+	PotentialPrecipitationTypeMode  *float64
+	PrecipitationFormMode           *float64
+	PrecipitationTypeMode           *float64
+	RadiationGlobalAvg              *float64
+	RadiationLWAvg                  *float64
+	WeatherNumberMode               *float64
+	WeatherSymbol3Mode              *float64
+	WindUMSAvg                      *float64
+	WindVMSAvg                      *float64
+	WindVectorMSAvg                 *float64
 }
 
 type HourlyForecast struct {
 	Time        time.Time
 	Temperature *float64
+	WindSpeed   *float64
+	WindDir     *float64
+	Humidity    *float64
+	Precip1h    *float64
 	Symbol      *string
 }
 

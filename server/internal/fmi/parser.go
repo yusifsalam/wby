@@ -217,8 +217,8 @@ func ParseObservations(data []byte) (*ObservationResult, error) {
 	return result, nil
 }
 
-// ParseForecast parses an FMI WFS Harmonie forecast response and aggregates
-// hourly values into daily forecasts (high, low, avg wind, total precip).
+// ParseForecast parses an FMI WFS forecast response and aggregates hourly
+// values into daily forecast columns.
 func ParseForecast(data []byte, gridLat, gridLon float64) ([]weather.DailyForecast, error) {
 	var fc featureCollection
 	if err := xml.Unmarshal(data, &fc); err != nil {
@@ -247,41 +247,25 @@ func ParseForecast(data []byte, gridLat, gridLon float64) ([]weather.DailyForeca
 	}
 
 	type dayBucket struct {
-		temps   []float64
-		winds   []float64
-		precip  float64
-		symbols []string
+		values map[string][]float64
 	}
 	days := make(map[string]*dayBucket)
 	dayOrder := []string{}
 
-	addDay := func(dateKey string) *dayBucket {
-		if _, ok := days[dateKey]; !ok {
-			days[dateKey] = &dayBucket{}
+	addValue := func(dateKey, param string, value float64) {
+		b, ok := days[dateKey]
+		if !ok {
+			b = &dayBucket{values: make(map[string][]float64)}
+			days[dateKey] = b
 			dayOrder = append(dayOrder, dateKey)
 		}
-		return days[dateKey]
+		b.values[param] = append(b.values[param], value)
 	}
 
-	for _, e := range params["temperature"] {
-		dk := e.t.Format("2006-01-02")
-		b := addDay(dk)
-		b.temps = append(b.temps, e.val)
-	}
-	for _, e := range params["windspeedms"] {
-		dk := e.t.Format("2006-01-02")
-		b := addDay(dk)
-		b.winds = append(b.winds, e.val)
-	}
-	for _, e := range params["precipitation1h"] {
-		dk := e.t.Format("2006-01-02")
-		b := addDay(dk)
-		b.precip += e.val
-	}
-	for _, e := range params["weathersymbol3"] {
-		dk := e.t.Format("2006-01-02")
-		b := addDay(dk)
-		b.symbols = append(b.symbols, strconv.Itoa(int(e.val)))
+	for param, entries := range params {
+		for _, e := range entries {
+			addValue(e.t.Format("2006-01-02"), param, e.val)
+		}
 	}
 
 	now := time.Now()
@@ -289,15 +273,18 @@ func ParseForecast(data []byte, gridLat, gridLon float64) ([]weather.DailyForeca
 	for _, dk := range dayOrder {
 		b := days[dk]
 		date, _ := time.Parse("2006-01-02", dk)
+		vals := func(param string) []float64 { return b.values[param] }
+
 		f := weather.DailyForecast{
 			GridLat:   gridLat,
 			GridLon:   gridLon,
 			Date:      date,
 			FetchedAt: now,
 		}
-		if len(b.temps) > 0 {
-			hi, lo := b.temps[0], b.temps[0]
-			for _, t := range b.temps[1:] {
+		tempVals := vals("temperature")
+		if len(tempVals) > 0 {
+			hi, lo := tempVals[0], tempVals[0]
+			for _, t := range tempVals[1:] {
 				if t > hi {
 					hi = t
 				}
@@ -308,19 +295,41 @@ func ParseForecast(data []byte, gridLat, gridLon float64) ([]weather.DailyForeca
 			f.TempHigh = &hi
 			f.TempLow = &lo
 		}
-		if len(b.winds) > 0 {
-			avg := 0.0
-			for _, w := range b.winds {
-				avg += w
-			}
-			avg /= float64(len(b.winds))
-			f.WindSpeed = &avg
-		}
-		precip := b.precip
-		f.PrecipMM = &precip
-		if len(b.symbols) > 0 {
-			f.Symbol = &b.symbols[len(b.symbols)/2]
-		}
+		f.TempAvg = avgPtr(tempVals)
+		f.WindSpeed = avgPtr(vals("windspeedms"))
+		f.WindDir = circularMeanDegreesPtr(vals("winddirection"))
+		f.HumidityAvg = avgPtr(vals("humidity"))
+		f.PrecipMM = sumPtr(vals("precipitation1h"))
+		f.Precip1hSum = f.PrecipMM
+		f.Symbol = modeRoundedStringPtr(vals("weathersymbol3"))
+
+		f.DewPointAvg = avgPtr(vals("dewpoint"))
+		f.FogIntensityAvg = avgPtr(vals("fogintensity"))
+		f.FrostProbabilityAvg = avgPtr(vals("frostprobability"))
+		f.SevereFrostProbabilityAvg = avgPtr(vals("severefrostprobability"))
+		f.GeopHeightAvg = avgPtr(vals("geopheight"))
+		f.PressureAvg = avgPtr(vals("pressure"))
+		f.HighCloudCoverAvg = avgPtr(vals("highcloudcover"))
+		f.LowCloudCoverAvg = avgPtr(vals("lowcloudcover"))
+		f.MediumCloudCoverAvg = avgPtr(vals("mediumcloudcover"))
+		f.MiddleAndLowCloudCoverAvg = avgPtr(vals("middleandlowcloudcover"))
+		f.TotalCloudCoverAvg = avgPtr(vals("totalcloudcover"))
+		f.HourlyMaximumGustMax = maxPtr(vals("hourlymaximumgust"))
+		f.HourlyMaximumWindSpeedMax = maxPtr(vals("hourlymaximumwindspeed"))
+		f.PoPAvg = avgPtr(vals("pop"))
+		f.ProbabilityThunderstormAvg = avgPtr(vals("probabilitythunderstorm"))
+		f.PotentialPrecipitationFormMode = modeRoundedFloatPtr(vals("potentialprecipitationform"))
+		f.PotentialPrecipitationTypeMode = modeRoundedFloatPtr(vals("potentialprecipitationtype"))
+		f.PrecipitationFormMode = modeRoundedFloatPtr(vals("precipitationform"))
+		f.PrecipitationTypeMode = modeRoundedFloatPtr(vals("precipitationtype"))
+		f.RadiationGlobalAvg = avgPtr(vals("radiationglobal"))
+		f.RadiationLWAvg = avgPtr(vals("radiationlw"))
+		f.WeatherNumberMode = modeRoundedFloatPtr(vals("weathernumber"))
+		f.WeatherSymbol3Mode = modeRoundedFloatPtr(vals("weathersymbol3"))
+		f.WindUMSAvg = avgPtr(vals("windums"))
+		f.WindVMSAvg = avgPtr(vals("windvms"))
+		f.WindVectorMSAvg = avgPtr(vals("windvectorms"))
+
 		forecasts = append(forecasts, f)
 	}
 	return forecasts, nil
@@ -334,9 +343,13 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 	}
 
 	type hourlyPoint struct {
-		t    time.Time
-		temp *float64
-		sym  *string
+		t       time.Time
+		temp    *float64
+		wind    *float64
+		windDir *float64
+		rh      *float64
+		precip  *float64
+		sym     *string
 	}
 	byTime := make(map[time.Time]*hourlyPoint)
 
@@ -361,6 +374,14 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 			switch param {
 			case "temperature":
 				p.temp = val
+			case "windspeedms":
+				p.wind = val
+			case "winddirection":
+				p.windDir = val
+			case "humidity":
+				p.rh = val
+			case "precipitation1h":
+				p.precip = val
 			case "weathersymbol3":
 				s := strconv.Itoa(int(math.Round(*val)))
 				p.sym = &s
@@ -370,7 +391,7 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 
 	var items []hourlyPoint
 	for _, p := range byTime {
-		if p.temp == nil && p.sym == nil {
+		if p.temp == nil && p.wind == nil && p.windDir == nil && p.rh == nil && p.precip == nil && p.sym == nil {
 			continue
 		}
 		items = append(items, *p)
@@ -388,10 +409,98 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 		result = append(result, weather.HourlyForecast{
 			Time:        p.t,
 			Temperature: p.temp,
+			WindSpeed:   p.wind,
+			WindDir:     p.windDir,
+			Humidity:    p.rh,
+			Precip1h:    p.precip,
 			Symbol:      p.sym,
 		})
 	}
 	return result, nil
+}
+
+func avgPtr(values []float64) *float64 {
+	if len(values) == 0 {
+		return nil
+	}
+	sum := 0.0
+	for _, v := range values {
+		sum += v
+	}
+	avg := sum / float64(len(values))
+	return &avg
+}
+
+func sumPtr(values []float64) *float64 {
+	if len(values) == 0 {
+		return nil
+	}
+	sum := 0.0
+	for _, v := range values {
+		sum += v
+	}
+	return &sum
+}
+
+func maxPtr(values []float64) *float64 {
+	if len(values) == 0 {
+		return nil
+	}
+	maxV := values[0]
+	for _, v := range values[1:] {
+		if v > maxV {
+			maxV = v
+		}
+	}
+	return &maxV
+}
+
+func modeRoundedFloatPtr(values []float64) *float64 {
+	if len(values) == 0 {
+		return nil
+	}
+	counts := make(map[int]int)
+	bestKey := 0
+	bestCount := 0
+	for _, v := range values {
+		key := int(math.Round(v))
+		counts[key]++
+		if counts[key] > bestCount || (counts[key] == bestCount && key < bestKey) {
+			bestKey = key
+			bestCount = counts[key]
+		}
+	}
+	mode := float64(bestKey)
+	return &mode
+}
+
+func modeRoundedStringPtr(values []float64) *string {
+	mode := modeRoundedFloatPtr(values)
+	if mode == nil {
+		return nil
+	}
+	s := strconv.Itoa(int(math.Round(*mode)))
+	return &s
+}
+
+func circularMeanDegreesPtr(values []float64) *float64 {
+	if len(values) == 0 {
+		return nil
+	}
+	var sinSum, cosSum float64
+	for _, v := range values {
+		rad := v * math.Pi / 180.0
+		sinSum += math.Sin(rad)
+		cosSum += math.Cos(rad)
+	}
+	if sinSum == 0 && cosSum == 0 {
+		return nil
+	}
+	mean := math.Atan2(sinSum, cosSum) * 180.0 / math.Pi
+	if mean < 0 {
+		mean += 360.0
+	}
+	return &mean
 }
 
 func extractParam(href string) string {
