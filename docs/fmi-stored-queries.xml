@@ -1,0 +1,824 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListStoredQueriesResponse xmlns="http://www.opengis.net/wfs/2.0"
+  xmlns:inspire_common="http://inspire.ec.europa.eu/schemas/common/1.0"
+  xmlns:ef="http://inspire.ec.europa.eu/schemas/ef/4.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.opengis.net/wfs/2.0 http://schemas.opengis.net/wfs/2.0/wfs.xsd
+  http://inspire.ec.europa.eu/schemas/common/1.0 https://inspire.ec.europa.eu/schemas/common/1.0/common.xsd
+  http://inspire.ec.europa.eu/schemas/ef/4.0 https://inspire.ec.europa.eu/schemas/ef/4.0/EnvironmentalMonitoringFacilities.xsd">
+
+  <StoredQuery id="ecmwf::forecast::pressure::grid">
+    <Title>ECMWF Pressure Grid</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="ecmwf::forecast::surface::cities::multipointcoverage">
+    <Title>ECMWF weather forecast for cities in Finland as multipointcoverage</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="ecmwf::forecast::surface::cities::simple">
+    <Title>ECMWF weather forecast for cities in Finland as simple features</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="ecmwf::forecast::surface::cities::timevaluepair">
+    <Title>ECMWF weather forecast for cities in Finland as time value pairs</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="ecmwf::forecast::surface::finland::grid">
+    <Title>ECMWF surface level weather forecast for Finland as a grid.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="ecmwf::forecast::surface::grid">
+    <Title>ECMWF Surface Grid</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="ecmwf::forecast::surface::obsstations::multipointcoverage">
+    <Title>ECMWF weather forecast for observation stations as multipointcoverage.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="ecmwf::forecast::surface::obsstations::simple">
+    <Title>ECMWF weather forecast for observation stations as simple feature.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="ecmwf::forecast::surface::obsstations::timevaluepair">
+    <Title>ECMWF weather forecast for observation stations as time value pairs.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="ecmwf::forecast::surface::point::multipointcoverage">
+    <Title>ECMWF Point Weather Forecast as multipointcoverage</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="ecmwf::forecast::surface::point::simple">
+    <Title>ECMWF Point Weather Forecast as simple features</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="ecmwf::forecast::surface::point::timevaluepair">
+    <Title>ECMWF Point Weather Forecast as time value pairs</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::ef::networks">
+    <Title>Environmental Monitoring Networks</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/ef/4.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/ef/4.0 https://inspire.ec.europa.eu/schemas/ef/4.0/EnvironmentalMonitoringFacilities.xsd">wfstype:EnvironmentalMonitoringNetwork</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::ef::stations">
+    <Title>Environmental Monitoring Stations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/ef/4.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/ef/4.0 https://inspire.ec.europa.eu/schemas/ef/4.0/EnvironmentalMonitoringFacilities.xsd">wfstype:EnvironmentalMonitoringFacility</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::climatology::scenario::grid">
+    <Title>Climate Scenarios</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::edited::weather::scandinavia::grid">
+    <Title>Edited Scandinavia Weather Forecast Grid</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::edited::weather::scandinavia::point::multipointcoverage">
+    <Title>Edited Scandinavia Point Weather Forecast as multipointcoverage</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::edited::weather::scandinavia::point::simple">
+    <Title>Edited Scandinavia Point Weather Forecast as simple features</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::edited::weather::scandinavia::point::timevaluepair">
+    <Title>Edited Scandinavia Point Weather Forecast as time value pairs</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::enfuser::airquality::helsinki-metropolitan::grid">
+    <Title>FMI-ENFUSER air quality forecast as grid</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::harmonie::hybrid::grid">
+    <Title>Harmonie Scandinavia Hybrid Weather Forecast as Grid data</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::harmonie::hybrid::point::multipointcoverage">
+    <Title>Harmonie Hybrid Point Weather Forecast as multipointcoverage</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::harmonie::hybrid::point::simple">
+    <Title>Harmonie Hybrid Point Weather Forecast as simple features</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::harmonie::hybrid::point::timevaluepair">
+    <Title>Harmonie Hybrid Point Weather Forecast as time value pairs</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::harmonie::pressure::grid">
+    <Title>Harmonie Scandinavia Pressure Level Weather Forecast as Grid data</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::harmonie::pressure::point::multipointcoverage">
+    <Title>Harmonie Pressure Point Weather Forecast as multipointcoverage</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::harmonie::pressure::point::simple">
+    <Title>Harmonie Pressure Point Weather Forecast as simple features</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::harmonie::pressure::point::timevaluepair">
+    <Title>Harmonie Pressure Point Weather Forecast as time value pairs</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::harmonie::surface::grid">
+    <Title>Harmonie Scandinavia Surface Level Weather Forecast as Grid data</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::harmonie::surface::point::multipointcoverage">
+    <Title>Harmonie Surface Point Weather Forecast as multipointcoverage</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::harmonie::surface::point::simple">
+    <Title>Harmonie Surface Point Weather Forecast as simple features</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::harmonie::surface::point::timevaluepair">
+    <Title>Harmonie Surface Point Weather Forecast as time value pairs</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::hydrodyn::grid">
+    <Title>Hydrodynamic Current Model Grid</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::hydrodyn::point::multipointcoverage">
+    <Title>Hydrodynamic Current Model Point</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::hydrodyn::point::simple">
+    <Title>Hydrodynamic Current Model Point</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::hydrodyn::point::timevaluepair">
+    <Title>Hydrodynamic Current Model Point</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::meps::hybrid::grid">
+    <Title>Harmonie (MEPS) Scandinavia Hybrid Weather Forecast as Grid data</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::meps::hybrid::point::multipointcoverage">
+    <Title>Harmonie (MEPS) Hybrid Point Weather Forecast as multipointcoverage</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::meps::hybrid::point::simple">
+    <Title>Harmonie (MEPS) Hybrid Point Weather Forecast as simple features</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::meps::hybrid::point::timevaluepair">
+    <Title>Harmonie (MEPS) Hybrid Point Weather Forecast as time value pairs</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::meps::pressure::grid">
+    <Title>Harmonie (MEPS) Scandinavia Pressure Level Weather Forecast as Grid data</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::meps::pressure::point::multipointcoverage">
+    <Title>Harmonie (MEPS) Pressure Point Weather Forecast as multipointcoverage</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::meps::pressure::point::simple">
+    <Title>Harmonie (MEPS) Pressure Point Weather Forecast as simple features</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::meps::pressure::point::timevaluepair">
+    <Title>Harmonie (MEPS) Pressure Point Weather Forecast as time value pairs</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::meps::surface::grid">
+    <Title>Harmonie (MEPS) Scandinavia Surface Level Weather Forecast as Grid data</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::meps::surface::point::multipointcoverage">
+    <Title>Harmonie (MEPS) Surface Point Weather Forecast as multipointcoverage</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::meps::surface::point::simple">
+    <Title>Harmonie (MEPS) Surface Point Weather Forecast as simple features</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::meps::surface::point::timevaluepair">
+    <Title>Harmonie (MEPS) Surface Point Weather Forecast as time value pairs</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::sealevel::point::multipointcoverage">
+    <Title>Sea Level Model Point</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::sealevel::point::simple">
+    <Title>Sea Level Model Point</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::sealevel::point::timevaluepair">
+    <Title>Sea Level Model Point</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::silam::airquality::surface::grid">
+    <Title>SILAM air quality forecast as grid</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::silam::airquality::surface::point::multipointcoverage">
+    <Title>SILAM air quality forecast as point data</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::silam::airquality::surface::point::simple">
+    <Title>SILAM air quality forecast as simple feature</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::silam::airquality::surface::point::timevaluepair">
+    <Title>SILAM air quality forecast as as time value pairs</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::wam::grid">
+    <Title>WAM Wave Model Grid</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::wam::point::multipointcoverage">
+    <Title>WAM Wave Model Point</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::wam::point::simple">
+    <Title>WAM Wave Model Point</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::forecast::wam::point::timevaluepair">
+    <Title>WAM Wave Model Point</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::airquality::hourly::multipointcoverage">
+    <Title>Hourly Air Quality Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::airquality::hourly::simple">
+    <Title>Hourly Air Quality Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::airquality::hourly::timevaluepair">
+    <Title>Hourly Air Quality Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::ctd::multipointcoverage">
+    <Title>Salinity and Water temperature observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::ctd::timevaluepair">
+    <Title>Salinity and Water temperature observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::lightning::multipointcoverage">
+    <Title>Lightning Strikes</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::lightning::simple">
+    <Title>Lightning Strikes</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::magnetometer::simple">
+    <Title>Magnetometer Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::daily::multipointcoverage">
+    <Title>Mareograph Water Temperature Daily Statistical Values</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::daily::simple">
+    <Title>Mareograph Water Temperature Daily Statistical Values</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::daily::timevaluepair">
+    <Title>Mareograph Water Temperature Daily Statistical Values</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::instant::multipointcoverage">
+    <Title>Sea Level and Temperature Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::instant::simple">
+    <Title>Sea Level and Temperature Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::instant::timevaluepair">
+    <Title>Sea Level and Temperature Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::monthly::30year::multipointcoverage">
+    <Title>Monthly water level and temperature observations of 30-year normal period.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::monthly::30year::simple">
+    <Title>Monthly water level and temperature observations of 30-year normal period.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::monthly::30year::timevaluepair">
+    <Title>Monthly water level and temperature observations of 30-year normal period.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::monthly::multipointcoverage">
+    <Title>Mareograph Water Temperature Monthly Statistical Values</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::monthly::simple">
+    <Title>Mareograph Water Temperature Monthly Statistical Values</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::monthly::timevaluepair">
+    <Title>Mareograph Water Temperature Monthly Statistical Values</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::multipointcoverage">
+    <Title>Sea Level and Temperature Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::simple">
+    <Title>Sea Level and Temperature Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::timevaluepair">
+    <Title>Sea Level and Temperature Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::yearly::30year::multipointcoverage">
+    <Title>Yearly water level observations of 30-year normal period.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::yearly::30year::simple">
+    <Title>Yearly water level observations of 30-year normal period.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::mareograph::yearly::30year::timevaluepair">
+    <Title>Yearly water level observations of 30-year normal period.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::radiation::multipointcoverage">
+    <Title>Sun Radiation Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::radiation::simple">
+    <Title>Sun Radiation Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::radiation::timevaluepair">
+    <Title>Sun Radiation Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::seaice::manual::timevaluepair">
+    <Title>Manual Sea Ice Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::soil::hourly::multipointcoverage">
+    <Title>Hourly Soil Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::soil::hourly::simple">
+    <Title>Hourly Soil Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::soil::hourly::timevaluepair">
+    <Title>Hourly Soil Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::surfacetemperature::daily::simple">
+    <Title>Sea Surface Temperature Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::surfacetemperature::monthly::simple">
+    <Title>Sea Surface Temperature Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::surfacetemperature::simple">
+    <Title>Sea Surface Temperature Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::wave::daily::multipointcoverage">
+    <Title>Buoy Water Temperature Daily Statistical Values</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::wave::daily::simple">
+    <Title>Buoy Water Temperature Daily Statistical Values</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::wave::daily::timevaluepair">
+    <Title>Buoy Water Temperature Daily Statistical Values</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::wave::monthly::multipointcoverage">
+    <Title>Buoy Water Temperature Monthly Statistical Values</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::wave::monthly::simple">
+    <Title>Buoy Water Temperature Monthly Statistical Values</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::wave::monthly::timevaluepair">
+    <Title>Buoy Water Temperature Monthly Statistical Values</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::wave::multipointcoverage">
+    <Title>Wave and Water temperature observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::wave::simple">
+    <Title>Wave and Water temperature observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::wave::timevaluepair">
+    <Title>Wave and Water temperature observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::cities::multipointcoverage">
+    <Title>Weather observations for cities as multipointcoverage.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::cities::simple">
+    <Title>Weather observations for cities as simple feature.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::cities::timevaluepair">
+    <Title>Weather observations for cities as time value pairs.</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::daily::multipointcoverage">
+    <Title>Daily Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::daily::simple">
+    <Title>Daily Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::daily::timevaluepair">
+    <Title>Daily Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::dropsonde::multipointcoverage">
+    <Title>Dropsonde observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/2.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/2.0 https://inspire.ec.europa.eu/schemas/omso/2.0/SpecialisedObservations.xsd">wfstype:TrajectoryObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::hourly::multipointcoverage">
+    <Title>Hourly Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::hourly::simple">
+    <Title>Hourly Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::hourly::timevaluepair">
+    <Title>Hourly Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::mast::multipointcoverage">
+    <Title>Instantaneous profile observations from masts</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:ProfileObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::monthly::30year::multipointcoverage">
+    <Title>Monthly weather observations of 30-year normal period</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::monthly::30year::simple">
+    <Title>Monthly weather observations of 30-year normal period</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::monthly::30year::timevaluepair">
+    <Title>Monthly weather observations of 30-year normal period</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::monthly::grid">
+    <Title>Monthly Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::monthly::multipointcoverage">
+    <Title>Monthly Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::monthly::simple">
+    <Title>Monthly Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::monthly::timevaluepair">
+    <Title>Monthly Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::multipointcoverage">
+    <Title>Instantaneous Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::simple">
+    <Title>Instantaneous Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::sounding::multipointcoverage">
+    <Title>Sounding observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/2.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/2.0 https://inspire.ec.europa.eu/schemas/omso/2.0/SpecialisedObservations.xsd">wfstype:TrajectoryObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::timevaluepair">
+    <Title>Instantaneous Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::yearly::30year::multipointcoverage">
+    <Title>Yearly weather observations of 30-year normal period</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::yearly::30year::simple">
+    <Title>Yearly weather observations of 30-year normal period</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::observations::weather::yearly::30year::timevaluepair">
+    <Title>Yearly weather observations of 30-year normal period</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::radar">
+    <Title>Radar</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::radar::composite::dbz">
+    <Title>Radar Reflectivity Composite</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::radar::composite::rr">
+    <Title>Precipitation Rate Composite</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::radar::composite::rr12h">
+    <Title>Precipitation Amount 12h Composite</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::radar::composite::rr1h">
+    <Title>Precipitation Amount 1h Composite</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::radar::composite::rr24h">
+    <Title>Precipitation Amount 24h Composite</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::radar::single::dbz">
+    <Title>Radar Reflectivity Single</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::radar::single::etop_20">
+    <Title>Echo Top Single</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::radar::single::hclass">
+    <Title>Hydro Class Single</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::radar::single::vrad">
+    <Title>Doppler Speed Single</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="fmi::transportmodel::hilatar::surface::scandinavia::grid">
+    <Title>Surface level Hilatar model deposition data</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="GetDataSetById">
+    <Title>GetDataSetById</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/ef/4.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/ef/4.0 https://inspire.ec.europa.eu/schemas/ef/4.0/EnvironmentalMonitoringFacilities.xsd">wfstype:EnvironmentalMonitoringFacility</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/ef/4.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/ef/4.0 https://inspire.ec.europa.eu/schemas/ef/4.0/EnvironmentalMonitoringFacilities.xsd">wfstype:EnvironmentalMonitoringNetwork</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointObservation</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:ProfileObservation</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/2.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/2.0 https://inspire.ec.europa.eu/schemas/omso/2.0/SpecialisedObservations.xsd">wfstype:TrajectoryObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="livi::observations::road::default::multipointcoverage">
+    <Title>Instantaneous Road Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="livi::observations::road::default::simple">
+    <Title>Instantaneous Road Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="livi::observations::road::default::timevaluepair">
+    <Title>Instantaneous Road Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="livi::observations::road::finland::multipointcoverage">
+    <Title>Instantaneous Road Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="livi::observations::road::finland::simple">
+    <Title>Instantaneous Road Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="livi::observations::road::finland::timevaluepair">
+    <Title>Instantaneous Road Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="livi::observations::road::multipointcoverage">
+    <Title>Instantaneous Road Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="livi::observations::road::simple">
+    <Title>Instantaneous Road Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="livi::observations::road::timevaluepair">
+    <Title>Instantaneous Road Weather Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="stuk::observations::air::radionuclide-activity-concentration::latest::multipointcoverage">
+    <Title>Radioactivity in outdoor air</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="stuk::observations::air::radionuclide-activity-concentration::latest::simple">
+    <Title>Radioactivity in outdoor air</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="stuk::observations::air::radionuclide-activity-concentration::multipointcoverage">
+    <Title>Radioactivity in outdoor air</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="stuk::observations::external-radiation::latest::multipointcoverage">
+    <Title>Latest dose rate of external radiation in Finland</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="stuk::observations::external-radiation::latest::simple">
+    <Title>Latest dose rate of external radiation in Finland</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="stuk::observations::external-radiation::multipointcoverage">
+    <Title>Dose rate of external radiation in Finland</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="urban::observations::airquality::hourly::multipointcoverage">
+    <Title>Hourly Air Quality Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="urban::observations::airquality::hourly::simple">
+    <Title>Hourly Air Quality Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="urban::observations::airquality::hourly::timevaluepair">
+    <Title>Hourly Air Quality Observations</Title>
+    <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  </StoredQuery>
+
+  <StoredQuery id="urn:ogc:def:query:OGC-WFS::GetFeatureById">
+    <Title>GetFeatureById</Title>
+    <ReturnFeatureType xmlns:wfstype="http://xml.fmi.fi/schema/wfs/2.0"  xsi:schemaLocation="http://xml.fmi.fi/schema/wfs/2.0 http://xml.fmi.fi/schema/wfs/2.0/fmi_wfs_simplefeature.xsd">wfstype:BsWfsElement</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/ef/4.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/ef/4.0 https://inspire.ec.europa.eu/schemas/ef/4.0/EnvironmentalMonitoringFacilities.xsd">wfstype:EnvironmentalMonitoringFacility</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/ef/4.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/ef/4.0 https://inspire.ec.europa.eu/schemas/ef/4.0/EnvironmentalMonitoringFacilities.xsd">wfstype:EnvironmentalMonitoringNetwork</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:GridSeriesObservation</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointObservation</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:PointTimeSeriesObservation</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/3.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd">wfstype:ProfileObservation</ReturnFeatureType>
+  <ReturnFeatureType xmlns:wfstype="http://inspire.ec.europa.eu/schemas/omso/2.0"  xsi:schemaLocation="http://inspire.ec.europa.eu/schemas/omso/2.0 https://inspire.ec.europa.eu/schemas/omso/2.0/SpecialisedObservations.xsd">wfstype:TrajectoryObservation</ReturnFeatureType>
+  </StoredQuery>
+
+</ListStoredQueriesResponse>
