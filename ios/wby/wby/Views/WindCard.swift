@@ -2,7 +2,6 @@ import SwiftUI
 
 struct WindCard: View {
     let current: CurrentConditions
-    let gustSpeed: Double?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -21,11 +20,11 @@ struct WindCard: View {
 
     private var metricsColumn: some View {
         VStack(spacing: 0) {
-            metricRow(title: "Wind", value: speedText(current.windSpeed))
+            metricRow(title: "Wind", value: speedText(current.resolvedWindSpeed))
             Divider().overlay(Color.white.opacity(0.16))
-            metricRow(title: "Gusts", value: speedText(gustSpeed))
+            metricRow(title: "Gusts", value: speedText(current.resolvedWindGust))
             Divider().overlay(Color.white.opacity(0.16))
-            metricRow(title: "Direction", value: directionText(current.windDirection))
+            metricRow(title: "Direction", value: directionText(current.resolvedWindDirection))
         }
         .frame(maxWidth: .infinity)
     }
@@ -53,7 +52,7 @@ struct WindCard: View {
                 .zIndex(1)
 
             VStack(spacing: -2) {
-                Text(speedNumber(current.windSpeed))
+                Text(speedNumber(current.resolvedWindSpeed))
                     .font(.system(size: 22, weight: .light))
                     .foregroundStyle(.white)
                 Text("m/s")
@@ -97,7 +96,7 @@ struct WindCard: View {
     private var directionVector: some View {
         // FMI direction is where wind comes FROM (0=N, 90=E).
         // The arrow should point where wind goes TO, mapped to screen rotation.
-        let angle = -((current.windDirection ?? 0) + 90)
+        let angle = -((current.resolvedWindDirection ?? 0) + 90)
         return ZStack {
             Capsule()
                 .fill(Color.white)
@@ -180,8 +179,7 @@ struct WindCard: View {
                 humidity: 84.0,
                 pressure: 1012.0,
                 observedAt: .now
-            ),
-            gustSpeed: 2.0
+            )
         )
         .padding()
     }

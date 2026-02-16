@@ -41,15 +41,7 @@ struct DailyForecastRow: View {
     }
 
     private var symbolName: String {
-        switch forecast.symbol {
-        case "1": return "sun.max.fill"
-        case "2": return "cloud.sun.fill"
-        case "3": return "cloud.fill"
-        case "21", "22", "23": return "cloud.rain.fill"
-        case "41", "42", "43": return "cloud.snow.fill"
-        case "61", "62", "63": return "cloud.bolt.rain.fill"
-        default: return "cloud.fill"
-        }
+        SmartSymbol.systemImageName(for: forecast.symbol)
     }
 
     private var temperatureBar: some View {

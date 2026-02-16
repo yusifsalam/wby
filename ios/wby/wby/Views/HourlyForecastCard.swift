@@ -28,15 +28,27 @@ struct HourlyForecastCard: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.82))
 
-            Image(systemName: symbolName(for: hour.symbol))
+            Image(systemName: SmartSymbol.systemImageName(for: hour.symbol))
                 .frame(height: 20)
                 .symbolRenderingMode(.multicolor)
 
             Text(formatTemp(hour.temperature))
                 .font(.headline)
                 .foregroundStyle(.white)
+
+            Text(formatWind(hour.windSpeed))
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.72))
+
+            Text(formatPrecip(hour.precipitation1h))
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.72))
+
+            Text(formatHumidity(hour.humidity))
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.72))
         }
-        .frame(minWidth: 36)
+        .frame(minWidth: 48)
     }
 
     private var cardBackground: some View {
@@ -63,17 +75,24 @@ struct HourlyForecastCard: View {
         return "\(Int(temp.rounded()))°"
     }
 
-    private func symbolName(for code: String?) -> String {
-        switch code {
-        case "1": return "sun.max.fill"
-        case "2": return "cloud.sun.fill"
-        case "3": return "cloud.fill"
-        case "21", "22", "23": return "cloud.rain.fill"
-        case "41", "42", "43": return "cloud.snow.fill"
-        case "61", "62", "63": return "cloud.bolt.rain.fill"
-        default: return "cloud.fill"
-        }
+    private func formatWind(_ speed: Double?) -> String {
+        guard let speed else { return "-- m/s" }
+        return "\(Int(speed.rounded())) m/s"
     }
+
+    private func formatPrecip(_ mm: Double?) -> String {
+        guard let mm else { return "-- mm" }
+        if abs(mm.rounded() - mm) < 0.05 {
+            return "\(Int(mm.rounded())) mm"
+        }
+        return String(format: "%.1f mm", mm)
+    }
+
+    private func formatHumidity(_ value: Double?) -> String {
+        guard let value else { return "--%" }
+        return "\(Int(value.rounded()))%"
+    }
+
 }
 
 #Preview {

@@ -32,12 +32,14 @@ struct ContentView: View {
                         dailyForecastSection(weather.dailyForecast)
                         HStack(alignment: .top, spacing: 12) {
                             FeelsLikeCard(current: weather.current)
-                            UVIndexCard(value: 0)
+                            UVIndexCard(
+                                uvIndex: weather.hourlyForecast.compactMap(\.uvCumulated).first
+                                    ?? weather.dailyForecast.compactMap(\.uvIndexAvg).first,
+                                radiationGlobal: weather.current.resolvedRadiationGlobal
+                                    ?? dailyResolvedRadiationGlobal(weather.dailyForecast)
+                            )
                         }
-                        WindCard(
-                            current: weather.current,
-                            gustSpeed: weather.current.windGust
-                        )
+                        WindCard(current: weather.current)
                         HStack(alignment: .top, spacing: 12) {
                             SunriseCard(
                                 coordinate: locationService.coordinate ?? fallbackCoordinate,
@@ -84,12 +86,12 @@ struct ContentView: View {
             Text(locationService.placeName ?? weather.station.name)
                 .font(.title2)
                 .foregroundStyle(.white)
-            if let temp = weather.current.temperature {
+            if let temp = weather.current.resolvedTemperature {
                 Text("\(Int(temp.rounded()))°")
                     .font(.system(size: 72, weight: .thin))
                     .foregroundStyle(.white)
             }
-            if let feelsLike = weather.current.feelsLike {
+            if let feelsLike = weather.current.resolvedFeelsLike {
                 Text("Feels like \(Int(feelsLike.rounded()))°")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.78))
@@ -167,6 +169,13 @@ struct ContentView: View {
             }
         }
     }
+
+    private func dailyResolvedRadiationGlobal(_ daily: [DailyForecast]) -> Double? {
+        if let dailyValue = daily.compactMap(\.radiationGlobalAvg).first {
+            return max(0, dailyValue)
+        }
+        return nil
+    }
 }
 
 #Preview {
@@ -184,6 +193,7 @@ private enum PreviewWeatherData {
             windDirection: 250.0,
             humidity: 84.0,
             pressure: 1012.0,
+            extra: ["glob_1min": 48.0],
             observedAt: .now
         ),
         hourlyForecast: [

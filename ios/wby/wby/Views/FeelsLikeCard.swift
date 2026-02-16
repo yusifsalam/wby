@@ -26,12 +26,12 @@ struct FeelsLikeCard: View {
     }
 
     private var feelsLikeValue: String {
-        guard let value = current.feelsLike ?? current.temperature else { return "--" }
+        guard let value = current.resolvedFeelsLike ?? current.resolvedTemperature else { return "--" }
         return "\(Int(value.rounded()))°"
     }
 
     private var feelsLikeMessage: String {
-        guard let temp = current.temperature, let feelsLike = current.feelsLike else {
+        guard let temp = current.resolvedTemperature, let feelsLike = current.resolvedFeelsLike else {
             return "No feels-like data available."
         }
         let delta = feelsLike - temp
