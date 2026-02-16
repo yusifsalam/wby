@@ -8,7 +8,7 @@ Weather app with:
 
 - `server/cmd/server/`: API entrypoint
 - `server/internal/api/`: HTTP handlers (`/v1/weather`, `/health`)
-- `server/internal/fmi/`: FMI WFS client/parsers + XML fixtures
+- `server/internal/fmi/`: FMI WFS client/parsers + XML fixtures, Timeseries UV client
 - `server/internal/store/`: Postgres/PostGIS storage
 - `server/internal/weather/`: service/domain/cache logic
 - `server/migrations/`: DB schema
@@ -33,7 +33,7 @@ The script will:
 1. Start local PostgreSQL if needed (`brew services`)
 2. Create DB role/database (defaults: `wby` / `wby`)
 3. Ensure PostGIS extension exists
-4. Apply `migrations/001_initial.sql` if not initialized
+4. Apply all migrations from `migrations/`
 5. Run API on `:8080`
 
 Useful variants:
@@ -43,7 +43,18 @@ Useful variants:
 ./scripts/local-dev.sh run-server
 ```
 
-Env vars you can override: `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `PORT`, `DATABASE_URL`, `FMI_BASE_URL`.
+The script sources `server/.env` if present. Env vars you can override:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_NAME` | `wby` | Postgres database name |
+| `DB_USER` | `wby` | Postgres role |
+| `DB_PASSWORD` | `wby` | Postgres password |
+| `PORT` | `8080` | Server listen port |
+| `DATABASE_URL` | (derived) | Full Postgres connection string |
+| `FMI_BASE_URL` | `https://opendata.fmi.fi/wfs` | FMI WFS endpoint |
+| `FMI_API_KEY` | (empty) | FMI API key for `data.fmi.fi` (enables UV forecasts) |
+| `FMI_TIMESERIES_URL` | `https://data.fmi.fi` | FMI Timeseries API base URL |
 
 ## iOS App
 
@@ -88,5 +99,6 @@ go test ./internal/fmi -v
 
 ## Notes
 
-- Weather data source: Finnish Meteorological Institute (FMI) open WFS API.
+- Weather data from Finnish Meteorological Institute (FMI): observations and forecasts via the public WFS API (`opendata.fmi.fi`), UV forecasts via the Timeseries API (`data.fmi.fi`, requires API key).
 - The server continuously refreshes station observations in the background.
+- UV forecast data is merged into hourly and daily forecasts at request time. When no API key is configured, UV fields are omitted gracefully.
