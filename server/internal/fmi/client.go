@@ -2,8 +2,10 @@ package fmi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -12,16 +14,20 @@ import (
 )
 
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL       string
+	apiKey        string
+	timeseriesURL string
+	httpClient    *http.Client
 }
 
 const forecastDays = 11
 const hourlyForecastHours = 12
 
-func NewClient(baseURL string) *Client {
+func NewClient(baseURL, apiKey, timeseriesURL string) *Client {
 	return &Client{
-		baseURL: baseURL,
+		baseURL:       baseURL,
+		apiKey:        apiKey,
+		timeseriesURL: timeseriesURL,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -92,6 +98,60 @@ func (c *Client) FetchHourlyForecast(ctx context.Context, lat, lon float64, limi
 		return nil, fmt.Errorf("fetch hourly forecast: %w", err)
 	}
 	return ParseHourlyForecast(data, hours)
+}
+
+func (c *Client) FetchUVForecast(ctx context.Context, lat, lon float64) ([]weather.UVDataPoint, error) {
+	if c.apiKey == "" {
+		return nil, nil
+	}
+
+	startTime := time.Now().UTC().Truncate(time.Hour).Format(time.RFC3339)
+	reqURL := fmt.Sprintf(
+		"%s/fmi-apikey/%s/timeseries?param=epochtime,uvCumulated&producer=uv&format=json&latlon=%f,%f&timesteps=30&starttime=%s",
+		c.timeseriesURL, c.apiKey, lat, lon, startTime,
+	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build UV request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch UV forecast: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("UV API returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read UV response: %w", err)
+	}
+
+	var raw []struct {
+		EpochTime   int64    `json:"epochtime"`
+		UVCumulated *float64 `json:"uvCumulated"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		slog.Warn("failed to parse UV response", "err", err, "body", string(body))
+		return nil, nil
+	}
+
+	var points []weather.UVDataPoint
+	for _, r := range raw {
+		if r.UVCumulated == nil {
+			continue
+		}
+		points = append(points, weather.UVDataPoint{
+			Time:        time.Unix(r.EpochTime, 0).UTC(),
+			UVCumulated: *r.UVCumulated,
+		})
+	}
+	return points, nil
 }
 
 func forecastTimeWindowUTC(days int) (start, end string) {

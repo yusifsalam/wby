@@ -4,6 +4,13 @@ set -euo pipefail
 SERVER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIGRATION_FILE="$SERVER_DIR/migrations/001_initial.sql"
 
+# Source .env if present (does not override existing env vars)
+if [[ -f "$SERVER_DIR/.env" ]]; then
+  set -a
+  source "$SERVER_DIR/.env"
+  set +a
+fi
+
 POSTGRES_FORMULA="${POSTGRES_FORMULA:-postgresql@18}"
 DB_NAME="${DB_NAME:-wby}"
 DB_USER="${DB_USER:-wby}"
@@ -11,6 +18,7 @@ DB_PASSWORD="${DB_PASSWORD:-wby}"
 PORT="${PORT:-8080}"
 DATABASE_URL="${DATABASE_URL:-}"
 FMI_BASE_URL="${FMI_BASE_URL:-https://opendata.fmi.fi/wfs}"
+FMI_API_KEY="${FMI_API_KEY:-}"
 
 usage() {
   cat <<'EOF'
@@ -113,7 +121,7 @@ apply_schema_if_needed() {
 
 run_server() {
   require_cmd go
-  export PORT DATABASE_URL FMI_BASE_URL
+  export PORT DATABASE_URL FMI_BASE_URL FMI_API_KEY
   log "Starting server on :$PORT"
   cd "$SERVER_DIR"
   exec go run ./cmd/server

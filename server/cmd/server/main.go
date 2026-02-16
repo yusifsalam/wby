@@ -35,7 +35,7 @@ func main() {
 	}
 	defer db.Close()
 
-	fmiClient := fmi.NewClient(cfg.FMIBaseURL)
+	fmiClient := fmi.NewClient(cfg.FMIBaseURL, cfg.FMIAPIKey, cfg.FMITimeseriesURL)
 
 	svc := weather.NewService(db, fmiClient, 10*time.Minute)
 

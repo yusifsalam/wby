@@ -73,15 +73,20 @@ Migrations in `server/migrations/` (numbered SQL files, applied sequentially by 
 - `forecasts` — keyed by grid lat/lon + date, 20+ forecast parameter columns
 - `hourly_forecasts` — keyed by grid lat/lon + forecast time
 
-## FMI Data Source
+## FMI Data Sources
 
-Sole data source is FMI Open Data WFS. Four stored queries used:
+### WFS (opendata.fmi.fi)
+
+Three stored queries used via the public WFS endpoint:
 
 | Query | Purpose |
 |-------|---------|
 | `fmi::observations::weather::timevaluepair` | All Finnish station observations (bbox 19,59,32,71) |
 | `fmi::observations::radiation::timevaluepair` | Radiation data (merged by station/time) |
 | `fmi::forecast::edited::weather::scandinavia::point::timevaluepair` | Point forecasts (Harmonie model, 11-day window) |
-| `fmi::forecast::uv::scandinavia::point::timevaluepair` | UV index forecasts |
 
 Radiation observations come from a separate query and are merged into the nearest station's data as a fallback when the primary station lacks a radiometer.
+
+### Timeseries (data.fmi.fi)
+
+UV forecast data is fetched from the Smartmet Timeseries API at `data.fmi.fi` using `producer=uv`. Requires `FMI_API_KEY` env var. When no API key is configured, UV data is gracefully skipped.

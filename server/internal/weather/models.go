@@ -69,6 +69,7 @@ type DailyForecast struct {
 	WindUMSAvg                      *float64
 	WindVMSAvg                      *float64
 	WindVectorMSAvg                 *float64
+	UVIndexAvg                      *float64
 }
 
 type HourlyForecast struct {
@@ -80,6 +81,12 @@ type HourlyForecast struct {
 	Humidity    *float64
 	Precip1h    *float64
 	Symbol      *string
+	UVCumulated *float64
+}
+
+type UVDataPoint struct {
+	Time        time.Time
+	UVCumulated float64
 }
 
 type CurrentWeather struct {

@@ -150,9 +150,10 @@ func (s *Store) UpsertForecasts(ctx context.Context, forecasts []weather.DailyFo
 				high_cloud_cover_avg, low_cloud_cover_avg, medium_cloud_cover_avg, middle_and_low_cloud_cover_avg, total_cloud_cover_avg,
 				hourly_maximum_gust_max, hourly_maximum_wind_speed_max, pop_avg, probability_thunderstorm_avg,
 				potential_precipitation_form_mode, potential_precipitation_type_mode, precipitation_form_mode, precipitation_type_mode,
-				radiation_global_avg, radiation_lw_avg, weather_number_mode, weather_symbol3_mode, wind_ums_avg, wind_vms_avg, wind_vector_ms_avg
+				radiation_global_avg, radiation_lw_avg, weather_number_mode, weather_symbol3_mode, wind_ums_avg, wind_vms_avg, wind_vector_ms_avg,
+				uv_index_avg
 			)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40)
 			 ON CONFLICT (grid_lat, grid_lon, forecast_for) DO UPDATE SET
 			   fetched_at = $4, temp_high = $5, temp_low = $6, temp_avg = $7, wind_speed = $8, wind_direction = $9,
 			   humidity_avg = $10, precip_mm = $11, precipitation_1h_sum = $12, symbol = $13, dew_point_avg = $14,
@@ -161,7 +162,8 @@ func (s *Store) UpsertForecasts(ctx context.Context, forecasts []weather.DailyFo
 			   total_cloud_cover_avg = $24, hourly_maximum_gust_max = $25, hourly_maximum_wind_speed_max = $26, pop_avg = $27,
 			   probability_thunderstorm_avg = $28, potential_precipitation_form_mode = $29, potential_precipitation_type_mode = $30,
 			   precipitation_form_mode = $31, precipitation_type_mode = $32, radiation_global_avg = $33, radiation_lw_avg = $34,
-			   weather_number_mode = $35, weather_symbol3_mode = $36, wind_ums_avg = $37, wind_vms_avg = $38, wind_vector_ms_avg = $39`,
+			   weather_number_mode = $35, weather_symbol3_mode = $36, wind_ums_avg = $37, wind_vms_avg = $38, wind_vector_ms_avg = $39,
+			   uv_index_avg = $40`,
 			f.GridLat, f.GridLon, f.Date, f.FetchedAt, f.TempHigh, f.TempLow,
 			f.TempAvg, f.WindSpeed, f.WindDir, f.HumidityAvg, f.PrecipMM, f.Precip1hSum, f.Symbol,
 			f.DewPointAvg, f.FogIntensityAvg, f.FrostProbabilityAvg, f.SevereFrostProbabilityAvg, f.GeopHeightAvg, f.PressureAvg,
@@ -169,6 +171,7 @@ func (s *Store) UpsertForecasts(ctx context.Context, forecasts []weather.DailyFo
 			f.HourlyMaximumGustMax, f.HourlyMaximumWindSpeedMax, f.PoPAvg, f.ProbabilityThunderstormAvg,
 			f.PotentialPrecipitationFormMode, f.PotentialPrecipitationTypeMode, f.PrecipitationFormMode, f.PrecipitationTypeMode,
 			f.RadiationGlobalAvg, f.RadiationLWAvg, f.WeatherNumberMode, f.WeatherSymbol3Mode, f.WindUMSAvg, f.WindVMSAvg, f.WindVectorMSAvg,
+			f.UVIndexAvg,
 		)
 	}
 	br := s.pool.SendBatch(ctx, batch)
@@ -189,7 +192,8 @@ func (s *Store) GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]w
 		        high_cloud_cover_avg, low_cloud_cover_avg, medium_cloud_cover_avg, middle_and_low_cloud_cover_avg, total_cloud_cover_avg,
 		        hourly_maximum_gust_max, hourly_maximum_wind_speed_max, pop_avg, probability_thunderstorm_avg,
 		        potential_precipitation_form_mode, potential_precipitation_type_mode, precipitation_form_mode, precipitation_type_mode,
-		        radiation_global_avg, radiation_lw_avg, weather_number_mode, weather_symbol3_mode, wind_ums_avg, wind_vms_avg, wind_vector_ms_avg
+		        radiation_global_avg, radiation_lw_avg, weather_number_mode, weather_symbol3_mode, wind_ums_avg, wind_vms_avg, wind_vector_ms_avg,
+		        uv_index_avg
 		 FROM forecasts
 		 WHERE grid_lat = $1 AND grid_lon = $2 AND forecast_for >= CURRENT_DATE
 		 ORDER BY forecast_for
@@ -212,6 +216,7 @@ func (s *Store) GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]w
 			&f.HourlyMaximumGustMax, &f.HourlyMaximumWindSpeedMax, &f.PoPAvg, &f.ProbabilityThunderstormAvg,
 			&f.PotentialPrecipitationFormMode, &f.PotentialPrecipitationTypeMode, &f.PrecipitationFormMode, &f.PrecipitationTypeMode,
 			&f.RadiationGlobalAvg, &f.RadiationLWAvg, &f.WeatherNumberMode, &f.WeatherSymbol3Mode, &f.WindUMSAvg, &f.WindVMSAvg, &f.WindVectorMSAvg,
+			&f.UVIndexAvg,
 		); err != nil {
 			return nil, err
 		}
@@ -231,14 +236,14 @@ func (s *Store) UpsertHourlyForecasts(ctx context.Context, gridLat, gridLon floa
 		batch.Queue(
 			`INSERT INTO hourly_forecasts (
 				grid_lat, grid_lon, forecast_time, fetched_at,
-				temperature, wind_speed, wind_direction, humidity, precipitation_1h, symbol
+				temperature, wind_speed, wind_direction, humidity, precipitation_1h, symbol, uv_cumulated
 			)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			 ON CONFLICT (grid_lat, grid_lon, forecast_time) DO UPDATE SET
 			   fetched_at = $4, temperature = $5, wind_speed = $6, wind_direction = $7,
-			   humidity = $8, precipitation_1h = $9, symbol = $10`,
+			   humidity = $8, precipitation_1h = $9, symbol = $10, uv_cumulated = $11`,
 			gridLat, gridLon, h.Time, fetchedAt,
-			h.Temperature, h.WindSpeed, h.WindDir, h.Humidity, h.Precip1h, h.Symbol,
+			h.Temperature, h.WindSpeed, h.WindDir, h.Humidity, h.Precip1h, h.Symbol, h.UVCumulated,
 		)
 	}
 	br := s.pool.SendBatch(ctx, batch)
@@ -260,7 +265,7 @@ func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64
 		limit = 12
 	}
 	rows, err := s.pool.Query(ctx,
-		`SELECT forecast_time, fetched_at, temperature, wind_speed, wind_direction, humidity, precipitation_1h, symbol
+		`SELECT forecast_time, fetched_at, temperature, wind_speed, wind_direction, humidity, precipitation_1h, symbol, uv_cumulated
 		 FROM hourly_forecasts
 		 WHERE grid_lat = $1 AND grid_lon = $2 AND forecast_time >= date_trunc('hour', NOW())
 		 ORDER BY forecast_time
@@ -276,7 +281,7 @@ func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64
 	for rows.Next() {
 		var h weather.HourlyForecast
 		if err := rows.Scan(
-			&h.Time, &h.FetchedAt, &h.Temperature, &h.WindSpeed, &h.WindDir, &h.Humidity, &h.Precip1h, &h.Symbol,
+			&h.Time, &h.FetchedAt, &h.Temperature, &h.WindSpeed, &h.WindDir, &h.Humidity, &h.Precip1h, &h.Symbol, &h.UVCumulated,
 		); err != nil {
 			return nil, err
 		}

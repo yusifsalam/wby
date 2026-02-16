@@ -92,6 +92,7 @@ type dailyForecastJSON struct {
 	WindUMSAvg                    *float64 `json:"wind_ums_avg"`
 	WindVMSAvg                    *float64 `json:"wind_vms_avg"`
 	WindVectorMSAvg               *float64 `json:"wind_vector_ms_avg"`
+	UVIndexAvg                    *float64 `json:"uv_index_avg"`
 }
 
 type hourlyForecastJSON struct {
@@ -102,6 +103,7 @@ type hourlyForecastJSON struct {
 	Humidity    *float64  `json:"humidity"`
 	Precip1h    *float64  `json:"precipitation_1h"`
 	Symbol      *string   `json:"symbol"`
+	UVCumulated *float64  `json:"uv_cumulated"`
 }
 
 func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
@@ -186,6 +188,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			WindUMSAvg:                 f.WindUMSAvg,
 			WindVMSAvg:                 f.WindVMSAvg,
 			WindVectorMSAvg:            f.WindVectorMSAvg,
+			UVIndexAvg:                 f.UVIndexAvg,
 		})
 	}
 	for _, hfc := range result.Hourly {
@@ -197,6 +200,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			Humidity:    hfc.Humidity,
 			Precip1h:    hfc.Precip1h,
 			Symbol:      hfc.Symbol,
+			UVCumulated: hfc.UVCumulated,
 		})
 	}
 

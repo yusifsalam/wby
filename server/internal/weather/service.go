@@ -20,6 +20,7 @@ type WeatherStore interface {
 type ForecastFetcher interface {
 	FetchForecast(ctx context.Context, lat, lon float64) ([]DailyForecast, error)
 	FetchHourlyForecast(ctx context.Context, lat, lon float64, limit int) ([]HourlyForecast, error)
+	FetchUVForecast(ctx context.Context, lat, lon float64) ([]UVDataPoint, error)
 }
 
 type Service struct {
@@ -27,6 +28,7 @@ type Service struct {
 	fmi           ForecastFetcher
 	forecastCache *Cache[[]DailyForecast]
 	hourlyCache   *Cache[[]HourlyForecast]
+	uvCache       *Cache[[]UVDataPoint]
 }
 
 func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL time.Duration) *Service {
@@ -35,6 +37,7 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 		fmi:           fmiClient,
 		forecastCache: NewCache[[]DailyForecast](forecastCacheTTL),
 		hourlyCache:   NewCache[[]HourlyForecast](forecastCacheTTL),
+		uvCache:       NewCache[[]UVDataPoint](forecastCacheTTL),
 	}
 }
 
@@ -57,6 +60,18 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 	hourly, err := s.getHourlyForecast(ctx, gridLat, gridLon, 12)
 	if err != nil {
 		slog.Warn("hourly forecast unavailable", "err", err, "lat", gridLat, "lon", gridLon)
+	}
+
+	uvPoints := s.getUVData(ctx, gridLat, gridLon)
+	if len(uvPoints) > 0 {
+		applyUVToHourly(uvPoints, hourly)
+		applyUVToDaily(uvPoints, forecast)
+		if err := s.store.UpsertHourlyForecasts(ctx, gridLat, gridLon, hourly); err != nil {
+			slog.Warn("failed to persist UV-enriched hourly forecasts", "err", err)
+		}
+		if err := s.store.UpsertForecasts(ctx, forecast); err != nil {
+			slog.Warn("failed to persist UV-enriched daily forecasts", "err", err)
+		}
 	}
 
 	return &WeatherResponse{
@@ -124,6 +139,7 @@ func (s *Service) getHourlyForecast(ctx context.Context, gridLat, gridLon float6
 	for i := range hourly {
 		hourly[i].FetchedAt = fetchedAt
 	}
+
 	if upsertErr := s.store.UpsertHourlyForecasts(ctx, gridLat, gridLon, hourly); upsertErr != nil {
 		slog.Warn("failed to store hourly forecasts", "err", upsertErr)
 	}
@@ -154,6 +170,61 @@ func hasExpandedForecastData(forecasts []DailyForecast) bool {
 		}
 	}
 	return false
+}
+
+func (s *Service) getUVData(ctx context.Context, gridLat, gridLon float64) []UVDataPoint {
+	cacheKey := fmt.Sprintf("uv:%.2f,%.2f", gridLat, gridLon)
+	if cached, ok := s.uvCache.Get(cacheKey); ok {
+		return cached
+	}
+
+	points, err := s.fmi.FetchUVForecast(ctx, gridLat, gridLon)
+	if err != nil {
+		slog.Warn("UV forecast fetch failed", "err", err)
+		return nil
+	}
+	slog.Info("fetched UV forecast from FMI", "lat", gridLat, "lon", gridLon, "points", len(points), "data", points)
+	if len(points) > 0 {
+		s.uvCache.Set(cacheKey, points)
+	}
+	return points
+}
+
+func applyUVToHourly(uvPoints []UVDataPoint, hourly []HourlyForecast) {
+	uvByHour := make(map[int64]float64, len(uvPoints))
+	for _, p := range uvPoints {
+		uvByHour[p.Time.Truncate(time.Hour).Unix()] = p.UVCumulated
+	}
+	for i := range hourly {
+		if uv, ok := uvByHour[hourly[i].Time.Truncate(time.Hour).Unix()]; ok {
+			hourly[i].UVCumulated = &uv
+		}
+	}
+}
+
+func applyUVToDaily(uvPoints []UVDataPoint, forecasts []DailyForecast) {
+	type dailyUV struct {
+		sum   float64
+		count int
+	}
+	byDate := make(map[string]*dailyUV)
+	for _, p := range uvPoints {
+		date := p.Time.UTC().Format("2006-01-02")
+		d, ok := byDate[date]
+		if !ok {
+			d = &dailyUV{}
+			byDate[date] = d
+		}
+		d.sum += p.UVCumulated
+		d.count++
+	}
+	for i := range forecasts {
+		date := forecasts[i].Date.UTC().Format("2006-01-02")
+		if d, ok := byDate[date]; ok && d.count > 0 {
+			avg := d.sum / float64(d.count)
+			forecasts[i].UVIndexAvg = &avg
+		}
+	}
 }
 
 func isHourlyFresh(hourly []HourlyForecast, maxAge time.Duration) bool {
