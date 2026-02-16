@@ -68,6 +68,7 @@ struct ContentView: View {
                 }
                 .padding()
             }
+            .scrollBounceBehavior(.always)
             .refreshable { await loadWeather() }
         }
         .task {
