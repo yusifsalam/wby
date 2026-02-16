@@ -203,6 +203,9 @@ func ParseObservations(data []byte) (*ObservationResult, error) {
 		result.Stations = append(result.Stations, *s)
 	}
 	for _, o := range obsMap {
+		if !hasAnyValue(o) {
+			continue
+		}
 		result.Observations = append(result.Observations, *o)
 	}
 
@@ -602,4 +605,12 @@ func parseFloat(s string) *float64 {
 		return nil
 	}
 	return &v
+}
+
+func hasAnyValue(o *weather.Observation) bool {
+	return o.Temperature != nil || o.WindSpeed != nil || o.WindGust != nil ||
+		o.WindDir != nil || o.Humidity != nil || o.DewPoint != nil ||
+		o.Pressure != nil || o.Precip1h != nil || o.PrecipIntensity != nil ||
+		o.SnowDepth != nil || o.Visibility != nil || o.TotalCloudCover != nil ||
+		o.WeatherCode != nil || len(o.ExtraNumericParams) > 0
 }
