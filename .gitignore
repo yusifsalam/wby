@@ -47,4 +47,5 @@ logs/
 .zed/
 
 .env
-ios/wby/wby/Keys.plist
+ios/wby/config/Keys.Debug.plist
+ios/wby/config/Keys.Release.plist

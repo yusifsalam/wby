@@ -55,6 +55,7 @@
 				F92339712F41BF440025D4E9 /* Sources */,
 				F92339722F41BF440025D4E9 /* Frameworks */,
 				F92339732F41BF440025D4E9 /* Resources */,
+				FA1000012F5000010025D4E9 /* Inject Keys.plist */,
 			);
 			buildRules = (
 			);
@@ -113,6 +114,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		FA1000012F5000010025D4E9 /* Inject Keys.plist */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/config/Keys.$(CONFIGURATION).plist",
+			);
+			name = "Inject Keys.plist";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Keys.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\n\nSRC=\"$SRCROOT/config/Keys.$CONFIGURATION.plist\"\nDST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Keys.plist\"\n\nif [ ! -f \"$SRC\" ]; then\n  echo \"error: Missing keys file: $SRC\"\n  echo \"error: Create it from config/Keys.$CONFIGURATION.example.plist\"\n  exit 1\nfi\n\ncp \"$SRC\" \"$DST\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		F92339712F41BF440025D4E9 /* Sources */ = {
