@@ -26,6 +26,8 @@ services:
       FMI_BASE_URL: "${FMI_BASE_URL:-https://opendata.fmi.fi/wfs}"
       FMI_API_KEY: "${FMI_API_KEY:-}"
       FMI_TIMESERIES_URL: "${FMI_TIMESERIES_URL:-https://data.fmi.fi}"
+      CLIENT_SECRETS: "${CLIENT_SECRETS:?CLIENT_SECRETS must be set}"
+      REQUEST_SIGNATURE_MAX_AGE_SECONDS: "${REQUEST_SIGNATURE_MAX_AGE_SECONDS:-300}"
     depends_on:
       db:
         condition: service_healthy
