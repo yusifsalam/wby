@@ -1,0 +1,14 @@
+api.yourweatherapp.fi {
+    encode gzip zstd
+    root * /srv
+
+    @api path /v1/* /health
+    handle @api {
+        reverse_proxy server:{$PORT}
+    }
+
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+}

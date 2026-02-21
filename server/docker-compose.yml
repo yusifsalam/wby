@@ -2,16 +2,16 @@ services:
   db:
     image: postgis/postgis:18-3.6
     environment:
-      POSTGRES_USER: weather
-      POSTGRES_PASSWORD: weather
-      POSTGRES_DB: weather
+      POSTGRES_USER: "${POSTGRES_USER:-weather}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-weather}"
+      POSTGRES_DB: "${POSTGRES_DB:-weather}"
     ports:
-      - "5432:5432"
+      - "${DB_PORT_HOST:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql
       - ./migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U weather"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -19,22 +19,29 @@ services:
   server:
     build: .
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:${PORT:-8080}"
     environment:
-      PORT: "8080"
-      DATABASE_URL: "postgres://weather:weather@db:5432/weather?sslmode=disable"
-      FMI_BASE_URL: "https://opendata.fmi.fi/wfs"
+      PORT: "${PORT:-8080}"
+      DATABASE_URL: "postgres://${POSTGRES_USER:-weather}:${POSTGRES_PASSWORD:-weather}@db:5432/${POSTGRES_DB:-weather}?sslmode=disable"
+      FMI_BASE_URL: "${FMI_BASE_URL:-https://opendata.fmi.fi/wfs}"
+      FMI_API_KEY: "${FMI_API_KEY:-}"
+      FMI_TIMESERIES_URL: "${FMI_TIMESERIES_URL:-https://data.fmi.fi}"
     depends_on:
       db:
         condition: service_healthy
 
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2.11
+    restart: unless-stopped
+    environment:
+      PORT: "${PORT:-8080}"
     ports:
       - "80:80"
       - "443:443"
+      - "443:443/udp"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./conf:/etc/caddy
+      - ./site:/srv
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
