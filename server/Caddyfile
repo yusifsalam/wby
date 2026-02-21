@@ -1,3 +1,0 @@
-api.yourweatherapp.fi {
-    reverse_proxy server:8080
-}
