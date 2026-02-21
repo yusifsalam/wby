@@ -47,3 +47,4 @@ logs/
 .zed/
 
 .env
+ios/wby/wby/Keys.plist
