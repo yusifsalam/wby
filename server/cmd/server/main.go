@@ -45,10 +45,11 @@ func main() {
 	mux := http.NewServeMux()
 	handler := api.NewHandler(svc)
 	handler.RegisterRoutes(mux)
+	signedMux := api.NewRequestSignatureMiddleware(cfg.ClientSecrets, cfg.RequestSignatureMaxAge)(mux)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      mux,
+		Handler:      signedMux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
