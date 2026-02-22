@@ -40,6 +40,7 @@ struct ContentView: View {
                             )
                         }
                         WindCard(current: weather.current)
+
                         HStack(alignment: .top, spacing: 12) {
                             SunriseCard(
                                 coordinate: locationService.coordinate ?? fallbackCoordinate,
@@ -48,6 +49,11 @@ struct ContentView: View {
                             )
                             PrecipitationCard(forecasts: weather.dailyForecast)
                         }
+                        HStack(alignment: .top, spacing: 12) {
+                            VisibilityCard(current: weather.current)
+                            HumidityCard(current: weather.current)
+                        }
+
                         if let lastUpdated {
                             Text("Updated \(lastUpdated, style: .relative) ago")
                                 .font(.caption)
@@ -177,8 +183,10 @@ private enum PreviewWeatherData {
             windSpeed: 3.2,
             windGust: 5.6,
             windDirection: 250.0,
-            humidity: 84.0,
+            humidity: 76.0,
+            dewPoint: -9.0,
             pressure: 1012.0,
+            visibility: 37000,
             extra: ["glob_1min": 48.0],
             observedAt: .now
         ),
