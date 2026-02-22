@@ -164,9 +164,6 @@ struct ContentView: View {
             await weatherService.saveToCache(response)
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-            if weather == nil {
-                weather = await weatherService.loadFromCache()
-            }
         }
     }
 
