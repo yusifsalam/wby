@@ -48,7 +48,7 @@ struct FullCard<Visual: View>: View {
             }
         }
         .weatherCard()
-        .frame(maxHeight: 300)
+        .frame(minHeight: 200, maxHeight: 300)
     }
 }
 
