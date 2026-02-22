@@ -119,18 +119,7 @@ struct ContentView: View {
                 }
             }
         }
-        .padding()
-        .background(forecastCardBackground)
-    }
-
-    private var forecastCardBackground: some View {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(.clear)
-            .background(.ultraThinMaterial.opacity(0.38), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-            )
+        .weatherCard()
     }
 
     private var mainBackground: some View {

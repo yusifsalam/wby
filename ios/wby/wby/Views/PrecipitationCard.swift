@@ -4,36 +4,14 @@ struct PrecipitationCard: View {
     let forecasts: [DailyForecast]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("PRECIPITATION", systemImage: "drop.fill")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.78))
-
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(todayAmountText)
-                    .font(.system(size: 34, weight: .light))
-                    .minimumScaleFactor(0.75)
-                    .foregroundStyle(.white)
-                Text("mm")
-                    .font(.system(size: 22, weight: .regular))
-                    .foregroundStyle(.white)
-            }
-
-            Text(todaySummaryText)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-
-            Spacer(minLength: 0)
-
-            Text(nextMessage)
-                .font(.system(size: 14, weight: .regular))
-                .foregroundStyle(.white)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(16)
-        .frame(height: 220, alignment: .topLeading)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(cardBackground)
+        HalfCard(
+            title: "PRECIPITATION",
+            icon: "drop.fill",
+            keyValue: todayAmountText,
+            keyValueUnit: "mm",
+            subtitle: todaySummaryText,
+            description: nextMessage
+        )
     }
 
     private var todayAmountText: String {
@@ -134,19 +112,6 @@ struct PrecipitationCard: View {
         case 71, 74, 77: return "thundershowers"
         default: return "precipitation"
         }
-    }
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 24, style: .continuous)
-            .fill(.clear)
-            .background(
-                .ultraThinMaterial.opacity(0.38),
-                in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-            )
     }
 }
 

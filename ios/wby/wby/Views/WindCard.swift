@@ -4,43 +4,17 @@ struct WindCard: View {
     let current: CurrentConditions
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Label("WIND", systemImage: "wind")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.8))
-
-            HStack(alignment: .center, spacing: 22) {
-                metricsColumn
-                dial
-            }
+        FullCard(
+            title: "WIND",
+            icon: "wind",
+            rows: [
+                ("Wind", speedText(current.resolvedWindSpeed)),
+                ("Gusts", speedText(current.resolvedWindGust)),
+                ("Direction", directionText(current.resolvedWindDirection)),
+            ]
+        ) {
+            dial
         }
-        .padding()
-        .background(cardBackground)
-    }
-
-    private var metricsColumn: some View {
-        VStack(spacing: 0) {
-            metricRow(title: "Wind", value: speedText(current.resolvedWindSpeed))
-            Divider().overlay(Color.white.opacity(0.16))
-            metricRow(title: "Gusts", value: speedText(current.resolvedWindGust))
-            Divider().overlay(Color.white.opacity(0.16))
-            metricRow(title: "Direction", value: directionText(current.resolvedWindDirection))
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private func metricRow(title: String, value: String) -> some View {
-        HStack {
-            Text(title)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(.white)
-            Spacer()
-            Text(value)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(.white.opacity(0.45))
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 13)
     }
 
     private var dial: some View {
@@ -130,19 +104,6 @@ struct WindCard: View {
             .font(.system(size: 14, weight: .bold))
             .foregroundStyle(.white.opacity(0.8))
             .offset(x: x, y: y)
-    }
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 24, style: .continuous)
-            .fill(.clear)
-            .background(
-                .ultraThinMaterial.opacity(0.38),
-                in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-            )
     }
 
     private func speedText(_ speed: Double?) -> String {

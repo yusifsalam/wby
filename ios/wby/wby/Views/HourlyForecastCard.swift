@@ -17,8 +17,7 @@ struct HourlyForecastCard: View {
                 }
             }
         }
-        .padding()
-        .background(cardBackground)
+        .weatherCard()
     }
 
     @ViewBuilder
@@ -49,16 +48,6 @@ struct HourlyForecastCard: View {
                 .foregroundStyle(.white.opacity(0.72))
         }
         .frame(minWidth: 48)
-    }
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(.clear)
-            .background(.ultraThinMaterial.opacity(0.38), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-            )
     }
 
     private func hourLabel(_ date: Date) -> String {

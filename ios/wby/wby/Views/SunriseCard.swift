@@ -25,26 +25,14 @@ struct SunriseCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("SUNRISE", systemImage: "sunrise")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.78))
-
-            Text(timeText(sunTimes.sunrise))
-                .font(.system(size: 34, weight: .light))
-                .minimumScaleFactor(0.75)
-                .foregroundStyle(.white)
-
+        HalfCard(
+            title: "SUNRISE",
+            icon: "sunrise",
+            keyValue: timeText(sunTimes.sunrise),
+            description: "Sunset: \(timeText(sunTimes.sunset))"
+        ) {
             sunCurve
-
-            Text("Sunset: \(timeText(sunTimes.sunset))")
-                .font(.system(size: 16, weight: .regular))
-                .foregroundStyle(.white)
         }
-        .padding(16)
-        .frame(height: 220, alignment: .topLeading)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(cardBackground)
     }
 
     private var sunCurve: some View {
@@ -109,19 +97,6 @@ struct SunriseCard: View {
         formatter.dateFormat = "H.mm"
         formatter.timeZone = .current
         return formatter.string(from: date)
-    }
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 24, style: .continuous)
-            .fill(.clear)
-            .background(
-                .ultraThinMaterial.opacity(0.38),
-                in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-            )
     }
 
     private static func calculateSunTimes(

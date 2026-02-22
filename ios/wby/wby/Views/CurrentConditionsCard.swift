@@ -10,8 +10,7 @@ struct CurrentConditionsCard: View {
                 conditionItem(title: item.title, value: item.value, icon: item.icon)
             }
         }
-        .padding()
-        .background(cardBackground)
+        .weatherCard()
     }
 
     @ViewBuilder
@@ -42,16 +41,6 @@ struct CurrentConditionsCard: View {
             ("WIND DIR", formatWindDir(current.resolvedWindDirection), "location.north.line"),
             ("WEATHER CODE", formatWeatherCode(current.resolvedWeatherCode), "info.circle")
         ]
-    }
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(.clear)
-            .background(.ultraThinMaterial.opacity(0.38), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-            )
     }
 
     private func formatSpeed(_ speed: Double?) -> String {

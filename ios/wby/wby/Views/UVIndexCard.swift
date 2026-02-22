@@ -3,7 +3,7 @@ import SwiftUI
 struct UVIndexCard: View {
     let uvIndex: Double?
     let radiationGlobal: Double?
-    
+
     // Fallback conversion when only global radiation is available.
     // This keeps card UX consistent (UV index + category) without showing units.
     private var effectiveUVIndex: Double? {
@@ -17,32 +17,15 @@ struct UVIndexCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label(titleText, systemImage: "sun.max")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.78))
-
-            VStack(alignment: .leading, spacing: 0) {
-                Text(primaryValueText)
-                    .font(.system(size: 44, weight: .light))
-                    .minimumScaleFactor(0.75)
-                    .foregroundStyle(.white)
-                Text(secondaryValueText)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-
+        HalfCard(
+            title: "UV INDEX",
+            icon: "sun.max",
+            keyValue: primaryValueText,
+            subtitle: secondaryValueText,
+            description: category.message
+        ) {
             uvBar
-
-            Text(category.message)
-                .font(.system(size: 14, weight: .regular))
-                .foregroundStyle(.white)
-                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(16)
-        .frame(height: 190, alignment: .topLeading)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(cardBackground)
     }
 
     private var uvBar: some View {
@@ -74,10 +57,6 @@ struct UVIndexCard: View {
         }
         .frame(height: 2)
         .padding(.vertical, 6)
-    }
-
-    private var titleText: String {
-        "UV INDEX"
     }
 
     private var primaryValueText: String {
@@ -117,19 +96,6 @@ struct UVIndexCard: View {
             }
         }
         return ("No Data", "No UV or radiation data available.")
-    }
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 24, style: .continuous)
-            .fill(.clear)
-            .background(
-                .ultraThinMaterial.opacity(0.38),
-                in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-            )
     }
 }
 
