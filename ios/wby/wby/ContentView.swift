@@ -22,7 +22,7 @@ struct ContentView: View {
         ZStack {
             mainBackground
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 8) {
                     if let weather {
                         headerSection(weather)
                         if !weather.hourlyForecast.isEmpty {
@@ -88,7 +88,7 @@ struct ContentView: View {
                 .foregroundStyle(.white)
             if let temp = weather.current.resolvedTemperature {
                 Text("\(Int(temp.rounded()))°")
-                    .font(.system(size: 72, weight: .thin))
+                    .font(.system(size: 92, weight: .thin))
                     .foregroundStyle(.white)
             }
             if let feelsLike = weather.current.resolvedFeelsLike {
