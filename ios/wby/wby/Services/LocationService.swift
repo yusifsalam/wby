@@ -10,20 +10,28 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     var placeName: String?
     var error: Error?
 
+    private var pendingContinuations: [CheckedContinuation<CLLocationCoordinate2D?, Never>] = []
+
     override init() {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyKilometer
     }
 
-    func requestLocation() {
+    /// One-shot location request. If authorized, suspends until CLLocationManager delivers a fix.
+    /// If not yet authorized, triggers the permission prompt and returns the last known coordinate.
+    func requestFreshLocation() async -> CLLocationCoordinate2D? {
         switch manager.authorizationStatus {
         case .notDetermined:
             manager.requestWhenInUseAuthorization()
+            return coordinate
         case .authorizedWhenInUse, .authorizedAlways:
-            manager.requestLocation()
+            return await withCheckedContinuation { continuation in
+                pendingContinuations.append(continuation)
+                manager.requestLocation()
+            }
         default:
-            break
+            return coordinate
         }
     }
 
@@ -41,10 +49,16 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         coordinate = location.coordinate
         altitudeMeters = Self.validAltitude(from: location)
         reverseGeocode(location)
+        let waiting = pendingContinuations
+        pendingContinuations.removeAll()
+        for c in waiting { c.resume(returning: location.coordinate) }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         self.error = error
+        let waiting = pendingContinuations
+        pendingContinuations.removeAll()
+        for c in waiting { c.resume(returning: nil) }
     }
 
     private func reverseGeocode(_ location: CLLocation) {

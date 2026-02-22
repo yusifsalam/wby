@@ -73,7 +73,6 @@ struct ContentView: View {
         }
         .task {
             guard !disableAutoLoad else { return }
-            locationService.requestLocation()
             await loadWeather()
         }
         .onChange(of: locationService.coordinate?.latitude) {
@@ -149,7 +148,7 @@ struct ContentView: View {
 
     private func loadWeather() async {
         guard !disableAutoLoad else { return }
-        let coord = locationService.coordinate ?? fallbackCoordinate
+        let coord = await locationService.requestFreshLocation() ?? fallbackCoordinate
         await fetchWeather(lat: coord.latitude, lon: coord.longitude)
     }
 
