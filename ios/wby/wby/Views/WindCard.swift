@@ -95,8 +95,9 @@ struct WindCard: View {
 
     private var directionVector: some View {
         // FMI direction is where wind comes FROM (0=N, 90=E).
-        // The arrow should point where wind goes TO, mapped to screen rotation.
-        let angle = -((current.resolvedWindDirection ?? 0) + 90)
+        // Arrow default orientation is ← (West = 270°). To point where wind goes TO
+        // (FROM - 180°), rotation = (windDirection - 180°) - 270° = windDirection - 90°.
+        let angle = (current.resolvedWindDirection ?? 0) - 90
         return ZStack {
             Capsule()
                 .fill(Color.white)
@@ -175,7 +176,7 @@ struct WindCard: View {
                 feelsLike: -11.0,
                 windSpeed: 1.0,
                 windGust: 2.0,
-                windDirection: 266.0,
+                windDirection: 353.0,
                 humidity: 84.0,
                 pressure: 1012.0,
                 observedAt: .now
