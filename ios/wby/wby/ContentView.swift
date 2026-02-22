@@ -181,7 +181,7 @@ struct ContentView: View {
 
 private enum PreviewWeatherData {
     static let response = WeatherResponse(
-        station: StationInfo(name: "Kallio", distanceKm: 0.8),
+        station: StationInfo(name: "Helsinki Kaisaniemi", distanceKm: 0.8),
         current: CurrentConditions(
             temperature: -6.0,
             feelsLike: -11.0,
@@ -194,18 +194,18 @@ private enum PreviewWeatherData {
             observedAt: .now
         ),
         hourlyForecast: [
-            HourlyForecast(time: .now, temperature: -11.0, symbol: "2"),
-            HourlyForecast(time: .now.addingTimeInterval(3600), temperature: -11.0, symbol: "2"),
-            HourlyForecast(time: .now.addingTimeInterval(7200), temperature: -11.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(10800), temperature: -10.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(14400), temperature: -10.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(18000), temperature: -10.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(21600), temperature: -9.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(25200), temperature: -9.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(28800), temperature: -9.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(32400), temperature: -8.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(36000), temperature: -8.0, symbol: "2"),
-            HourlyForecast(time: .now.addingTimeInterval(39600), temperature: -8.0, symbol: "2"),
+            HourlyForecast(time: .now, temperature: -11.0, windSpeed: 2.0, humidity: 70.0, precipitation1h: 0.0, symbol: "2"),
+            HourlyForecast(time: .now.addingTimeInterval(3600), temperature: -11.0, windSpeed: 2.5, humidity: 70.0, precipitation1h: 0.4, symbol: "2"),
+            HourlyForecast(time: .now.addingTimeInterval(7200), temperature: -11.0, windSpeed: 2.5, humidity: 72.0, precipitation1h: 0.2, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(10800), temperature: -10.0, windSpeed: 2.8, humidity: 73.0, precipitation1h: 0.1, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(14400), temperature: -10.0, windSpeed: 3.0, humidity: 74.0, precipitation1h: 0.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(18000), temperature: -10.0, windSpeed: 3.1, humidity: 75.0, precipitation1h: 0.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(21600), temperature: -9.0, windSpeed: 3.2, humidity: 74.0, precipitation1h: 0.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(25200), temperature: -9.0, windSpeed: 3.0, humidity: 73.0, precipitation1h: 0.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(28800), temperature: -9.0, windSpeed: 2.8, humidity: 72.0, precipitation1h: 0.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(32400), temperature: -8.0, windSpeed: 2.6, humidity: 71.0, precipitation1h: 0.0, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(36000), temperature: -8.0, windSpeed: 2.4, humidity: 70.0, precipitation1h: 0.0, symbol: "2"),
+            HourlyForecast(time: .now.addingTimeInterval(39600), temperature: -8.0, windSpeed: 2.2, humidity: 69.0, precipitation1h: 0.0, symbol: "2"),
         ],
         dailyForecast: [
             DailyForecast(date: "2026-02-15", high: -5, low: -8, symbol: "3", windSpeedAvg: 3.1, precipitationMm: 0.0),
