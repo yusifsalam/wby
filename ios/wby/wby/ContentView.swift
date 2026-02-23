@@ -49,10 +49,16 @@ struct ContentView: View {
                             )
                             PrecipitationCard(forecasts: weather.dailyForecast)
                         }
+
                         HStack(alignment: .top, spacing: 12) {
                             VisibilityCard(current: weather.current)
                             HumidityCard(current: weather.current)
                         }
+
+                        MoonPhaseCard(
+                            coordinate: locationService.coordinate ?? fallbackCoordinate,
+                            referenceDate: weather.current.observedAt
+                        )
 
                         if let lastUpdated {
                             Text("Updated \(lastUpdated, style: .relative) ago")
