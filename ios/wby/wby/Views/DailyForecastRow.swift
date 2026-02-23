@@ -11,7 +11,7 @@ struct DailyForecastRow: View {
     var body: some View {
         HStack {
             Text(dayName)
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .frame(width: 64, alignment: .leading)
 
             Image(systemName: symbolName)
@@ -19,14 +19,14 @@ struct DailyForecastRow: View {
                 .symbolRenderingMode(.multicolor)
 
             Text(formatTemp(forecast.low))
-                .foregroundStyle(.white.opacity(0.72))
+                .foregroundStyle(.secondary)
                 .frame(width: 36, alignment: .trailing)
 
             temperatureBar
                 .frame(height: 4)
 
             Text(formatTemp(forecast.high))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .frame(width: 36, alignment: .trailing)
         }
         .padding(.vertical, 8)
@@ -56,7 +56,7 @@ struct DailyForecastRow: View {
             let endFraction = max(rawEndFraction, min(startFraction + minimumBarFraction, 1))
 
             Capsule()
-                .fill(Color.black.opacity(0.24))
+                .fill(Color.primary.opacity(0.16))
                 .overlay(alignment: .leading) {
                     windowTemperatureGradient
                         .frame(width: geo.size.width, height: geo.size.height)

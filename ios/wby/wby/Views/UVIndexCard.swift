@@ -50,7 +50,7 @@ struct UVIndexCard: View {
                     )
 
                 Circle()
-                    .fill(.white)
+                    .fill(.primary)
                     .frame(width: 6, height: 6)
                     .offset(x: min(max(x - 3, 0), width - 6))
             }

@@ -25,7 +25,7 @@ struct MoonPhaseCard: View {
         ) {
             Image(systemName: data.sfSymbolName)
                 .symbolRenderingMode(.palette)
-                .foregroundStyle(.white, Color(white: 0.35))
+                .foregroundStyle(.primary, .secondary)
                 .font(.system(size: 110))
                 .frame(width: 120, height: 120)
         }

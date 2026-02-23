@@ -18,10 +18,10 @@ struct CurrentConditionsCard: View {
         VStack(alignment: .leading, spacing: 4) {
             Label(title, systemImage: icon)
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.78))
+                .foregroundStyle(.secondary)
             Text(value)
                 .font(.title3)
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

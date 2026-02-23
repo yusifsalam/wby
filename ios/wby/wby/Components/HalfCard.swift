@@ -31,25 +31,25 @@ struct HalfCard<AdditionalContent: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             Label(title, systemImage: icon)
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.78))
+                .foregroundStyle(.secondary)
 
             VStack(alignment: .leading) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(keyValue)
                         .font(.largeTitle)
                         .minimumScaleFactor(0.75)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                     if let keyValueUnit {
                         Text(keyValueUnit)
                             .font(.title)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.primary)
                     }
                 }
 
                 if let subtitle {
                     Text(subtitle)
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                 }
             }
 
@@ -60,7 +60,7 @@ struct HalfCard<AdditionalContent: View>: View {
             if let description {
                 Text(description)
                     .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

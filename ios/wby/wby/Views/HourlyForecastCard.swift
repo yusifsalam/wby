@@ -10,7 +10,7 @@ struct HourlyForecastCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("HOURLY FORECAST", systemImage: "clock")
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.8))
+                .foregroundStyle(.secondary)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 18) {
@@ -28,7 +28,7 @@ struct HourlyForecastCard: View {
         VStack(spacing: 8) {
             Text(hourLabel(hour.time))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.82))
+                .foregroundStyle(.secondary)
 
             Image(systemName: SmartSymbol.systemImageName(for: nightAdjusted(hour.symbol, at: hour.time)))
                 .frame(height: 20)
@@ -36,19 +36,19 @@ struct HourlyForecastCard: View {
 
             Text(formatTemp(hour.temperature))
                 .font(.headline)
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
 
             Text(formatWind(hour.windSpeed))
                 .font(.caption2)
-                .foregroundStyle(.white.opacity(0.72))
+                .foregroundStyle(.secondary)
 
             Text(formatPrecip(hour.precipitation1h))
                 .font(.caption2)
-                .foregroundStyle(.white.opacity(0.72))
+                .foregroundStyle(.secondary)
 
             Text(formatHumidity(hour.humidity))
                 .font(.caption2)
-                .foregroundStyle(.white.opacity(0.72))
+                .foregroundStyle(.secondary)
         }
         .frame(minWidth: 48)
     }

@@ -22,22 +22,22 @@ struct FullCard<Visual: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             Label(title, systemImage: icon)
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.78))
+                .foregroundStyle(.secondary)
 
             HStack(alignment: .center, spacing: 22) {
                 VStack(spacing: 0) {
                     ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
                         if index > 0 {
-                            Divider().overlay(Color.white.opacity(0.16))
+                            Divider().overlay(Color.primary.opacity(0.16))
                         }
                         HStack {
                             Text(row.0)
                                 .font(.subheadline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(.primary)
                             Spacer()
                             Text(row.1)
                                 .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.45))
+                                .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 13)
                     }

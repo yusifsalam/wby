@@ -51,7 +51,7 @@ struct SunriseCard: View {
                     p.move(to: CGPoint(x: 0, y: midY))
                     p.addLine(to: CGPoint(x: width, y: midY))
                 }
-                .stroke(Color.white.opacity(0.45), lineWidth: 2)
+                .stroke(Color.primary.opacity(0.35), lineWidth: 2)
 
                 Path { p in
                     p.move(to: CGPoint(x: 0, y: curveY(x: 0, width: width, midY: midY, amplitude: amp)))
@@ -62,7 +62,7 @@ struct SunriseCard: View {
                         x += step
                     }
                 }
-                .stroke(Color.black.opacity(0.18), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .stroke(Color.primary.opacity(0.14), style: StrokeStyle(lineWidth: 4, lineCap: .round))
 
                 Path { p in
                     p.move(to: CGPoint(x: dayStartX, y: curveY(x: dayStartX, width: width, midY: midY, amplitude: amp)))
@@ -73,12 +73,12 @@ struct SunriseCard: View {
                         x += step
                     }
                 }
-                .stroke(Color.white.opacity(0.26), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .stroke(Color.primary.opacity(0.24), style: StrokeStyle(lineWidth: 4, lineCap: .round))
 
                 Circle()
                     .fill(Color(red: 0.22, green: 0.24, blue: 0.32))
                     .frame(width: 12, height: 12)
-                    .overlay(Circle().stroke(Color.white.opacity(0.8), lineWidth: 1.2))
+                    .overlay(Circle().stroke(Color.primary.opacity(0.75), lineWidth: 1.2))
                     .position(x: markerX, y: markerY)
             }
         }

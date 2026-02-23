@@ -89,4 +89,13 @@ enum WeatherScene: Equatable {
             ]
         }
     }
+
+    var prefersLightForeground: Bool {
+        switch self {
+        case .clearNight, .partlyCloudyNight, .overcast, .rain, .storm:
+            return true
+        case .clearDay, .partlyCloudy, .snow:
+            return false
+        }
+    }
 }

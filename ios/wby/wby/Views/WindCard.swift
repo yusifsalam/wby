@@ -28,10 +28,10 @@ struct WindCard: View {
             VStack(spacing: -2) {
                 Text(speedNumber(current.resolvedWindSpeed))
                     .font(.system(size: 22, weight: .light))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                 Text("m/s")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
             }
             .zIndex(2)
 
@@ -50,7 +50,7 @@ struct WindCard: View {
             .background(.ultraThinMaterial.opacity(0.38), in: Circle())
             .overlay(
                 Circle()
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    .stroke(Color.primary.opacity(0.12), lineWidth: 1)
             )
     }
 
@@ -59,7 +59,7 @@ struct WindCard: View {
             ForEach(0..<72, id: \.self) { index in
                 let major = index % 6 == 0
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(Color.white.opacity(major ? 0.22 : 0.12))
+                    .fill(Color.primary.opacity(major ? 0.24 : 0.14))
                     .frame(width: major ? 1.5 : 1, height: major ? 10 : 6)
                     .offset(y: major ? -62 : -60)
                     .rotationEffect(.degrees(Double(index) * 5))
@@ -74,19 +74,19 @@ struct WindCard: View {
         let angle = (current.resolvedWindDirection ?? 0) - 90
         return ZStack {
             Capsule()
-                .fill(Color.white)
+                .fill(Color.primary)
                 .frame(width: 28, height: 3)
                 .offset(x: -46)
             Capsule()
-                .fill(Color.white)
+                .fill(Color.primary)
                 .frame(width: 34, height: 3)
                 .offset(x: 32)
             Image(systemName: "arrowtriangle.left.fill")
                 .font(.system(size: 14))
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .offset(x: -50)
             Circle()
-                .fill(Color.white)
+                .fill(Color.primary)
                 .frame(width: 14, height: 14)
                 .offset(x: 52)
         }
@@ -102,7 +102,7 @@ struct WindCard: View {
     private func cardinalMark(_ letter: String, x: CGFloat, y: CGFloat) -> some View {
         Text(letter)
             .font(.system(size: 14, weight: .bold))
-            .foregroundStyle(.white.opacity(0.8))
+            .foregroundStyle(.secondary)
             .offset(x: x, y: y)
     }
 

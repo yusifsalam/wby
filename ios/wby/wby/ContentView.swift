@@ -84,12 +84,12 @@ struct ContentView: View {
                         if let lastUpdated {
                             Text("Updated \(lastUpdated, style: .relative) ago")
                                 .font(.caption)
-                                .foregroundStyle(.white.opacity(0.75))
+                                .foregroundStyle(.secondary)
                         }
                     } else if isLoading {
                         ProgressView("Loading weather...")
-                            .tint(.white)
-                            .foregroundStyle(.white)
+                            .tint(.primary)
+                            .foregroundStyle(.primary)
                             .padding(.top, 100)
                     } else {
                         ContentUnavailableView(
@@ -115,19 +115,22 @@ struct ContentView: View {
     }
 
     private func headerSection(_ weather: WeatherResponse) -> some View {
-        VStack(spacing: 4) {
+        let primaryHeaderColor: Color = currentScene.prefersLightForeground ? .white : .primary
+        let secondaryHeaderColor: Color = currentScene.prefersLightForeground ? .white.opacity(0.78) : .secondary
+
+        return VStack(spacing: 4) {
             Text(locationService.placeName ?? weather.station.name)
                 .font(.title2)
-                .foregroundStyle(.white)
+                .foregroundStyle(primaryHeaderColor)
             if let temp = weather.current.resolvedTemperature {
                 Text("\(Int(temp.rounded()))°")
                     .font(.system(size: 92, weight: .thin))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(primaryHeaderColor)
             }
             if let feelsLike = weather.current.resolvedFeelsLike {
                 Text("Feels like \(Int(feelsLike.rounded()))°")
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.78))
+                    .foregroundStyle(secondaryHeaderColor)
             }
         }
         .padding(.top, 20)
@@ -137,7 +140,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 0) {
             Label("\(forecasts.count - 1)-DAY FORECAST", systemImage: "calendar")
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.8))
+                .foregroundStyle(.secondary)
                 .padding(.bottom, 8)
 
             ForEach(forecasts) { day in
@@ -148,7 +151,7 @@ struct ContentView: View {
                 )
                 if day.id != forecasts.last?.id {
                     Divider()
-                        .overlay(Color.white.opacity(0.18))
+                        .overlay(Color.primary.opacity(0.18))
                 }
             }
         }
@@ -225,7 +228,7 @@ private enum PreviewWeatherData {
             observedAt: .now
         ),
         hourlyForecast: [
-            HourlyForecast(time: .now, temperature: -11.0, windSpeed: 2.0, humidity: 70.0, precipitation1h: 5.0, symbol: "2"),
+            HourlyForecast(time: .now, temperature: -11.0, windSpeed: 2.0, humidity: 70.0, precipitation1h: 5.0, symbol: "51"),
             HourlyForecast(time: .now.addingTimeInterval(3600), temperature: -11.0, windSpeed: 2.5, humidity: 70.0, precipitation1h: 0.4, symbol: "2"),
             HourlyForecast(time: .now.addingTimeInterval(7200), temperature: -11.0, windSpeed: 2.5, humidity: 72.0, precipitation1h: 0.2, symbol: "3"),
             HourlyForecast(time: .now.addingTimeInterval(10800), temperature: -10.0, windSpeed: 2.8, humidity: 73.0, precipitation1h: 0.1, symbol: "3"),
