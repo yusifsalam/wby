@@ -28,6 +28,13 @@ final class WeatherSKScene: SKScene {
         setupParticles(for: newScene)
     }
 
+    override func didChangeSize(_ oldSize: CGSize) {
+        guard size != oldSize, size != .zero else { return }
+        removeAllChildren()
+        removeAllActions()
+        setupParticles(for: currentWeatherScene)
+    }
+
     // MARK: - Scene Setup
 
     private func setupParticles(for scene: WeatherScene) {
@@ -170,7 +177,7 @@ final class WeatherSKScene: SKScene {
         emitter.particleSpeed = 120
         emitter.particleSpeedRange = 40
         emitter.emissionAngle = -.pi / 2
-        emitter.emissionAngleRange = 0.3
+        emitter.emissionAngleRange = 0.6
         emitter.particleScale = 0.15
         emitter.particleScaleRange = 0.08
         emitter.particleAlpha = 0.8
@@ -178,7 +185,7 @@ final class WeatherSKScene: SKScene {
         emitter.particleColor = .white
         emitter.particleColorBlendFactor = 1.0
         emitter.yAcceleration = -30
-        emitter.xAcceleration = CGFloat.random(in: -20...20)
+        emitter.xAcceleration = -10
         return emitter
     }
 

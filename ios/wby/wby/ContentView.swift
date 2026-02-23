@@ -12,6 +12,12 @@ struct ContentView: View {
 
     private let fallbackCoordinate = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
 
+    private var currentScene: WeatherScene {
+        let symbol = weather?.hourlyForecast.first?.symbol
+            ?? weather?.dailyForecast.first?.symbol
+        return WeatherScene.from(symbolCode: symbol)
+    }
+
     init(previewWeather: WeatherResponse? = nil, disableAutoLoad: Bool = false) {
         self._weather = State(initialValue: previewWeather)
         self._lastUpdated = State(initialValue: previewWeather == nil ? nil : Date())
@@ -135,16 +141,20 @@ struct ContentView: View {
     }
 
     private var mainBackground: some View {
-        LinearGradient(
-            colors: [
-                Color(red: 0.38, green: 0.74, blue: 0.99),
-                Color(red: 0.23, green: 0.54, blue: 0.94),
-                Color(red: 0.11, green: 0.33, blue: 0.73),
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .ignoresSafeArea()
+        ZStack {
+            LinearGradient(
+                colors: currentScene.gradientColors,
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            .id(currentScene)
+            .transition(.opacity)
+
+            WeatherSceneView(weatherScene: currentScene)
+                .ignoresSafeArea()
+        }
+        .animation(.easeInOut(duration: 1.5), value: currentScene)
     }
 
     private func loadWeather() async {
