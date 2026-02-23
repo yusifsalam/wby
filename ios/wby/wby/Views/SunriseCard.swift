@@ -99,6 +99,18 @@ struct SunriseCard: View {
         return formatter.string(from: date)
     }
 
+    static func isNight(coordinate: CLLocationCoordinate2D, date: Date, elevationMeters: Double) -> Bool {
+        let times = calculateSunTimes(
+            date: date,
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            timeZone: .current,
+            elevationMeters: elevationMeters
+        )
+        guard let sunrise = times.sunrise, let sunset = times.sunset else { return false }
+        return date < sunrise || date > sunset
+    }
+
     private static func calculateSunTimes(
         date: Date,
         latitude: Double,

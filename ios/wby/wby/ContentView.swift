@@ -15,7 +15,18 @@ struct ContentView: View {
     private var currentScene: WeatherScene {
         let symbol = weather?.hourlyForecast.first?.symbol
             ?? weather?.dailyForecast.first?.symbol
-        return WeatherScene.from(symbolCode: symbol)
+        return WeatherScene.from(symbolCode: nightAdjusted(symbol))
+    }
+
+    private func nightAdjusted(_ symbolCode: String?) -> String? {
+        guard let code = symbolCode.flatMap(Int.init), code < 100 else { return symbolCode }
+        let coordinate = locationService.coordinate ?? fallbackCoordinate
+        let isNight = SunriseCard.isNight(
+            coordinate: coordinate,
+            date: .now,
+            elevationMeters: locationService.altitudeMeters ?? 0
+        )
+        return isNight ? String(code + 100) : symbolCode
     }
 
     init(previewWeather: WeatherResponse? = nil, disableAutoLoad: Bool = false) {
@@ -32,7 +43,11 @@ struct ContentView: View {
                     if let weather {
                         headerSection(weather)
                         if !weather.hourlyForecast.isEmpty {
-                            HourlyForecastCard(hourly: weather.hourlyForecast)
+                            HourlyForecastCard(
+                                hourly: weather.hourlyForecast,
+                                coordinate: locationService.coordinate ?? fallbackCoordinate,
+                                elevationMeters: locationService.altitudeMeters ?? 0
+                            )
                         }
                         CurrentConditionsCard(current: weather.current)
                         dailyForecastSection(weather.dailyForecast)
@@ -151,8 +166,11 @@ struct ContentView: View {
             .id(currentScene)
             .transition(.opacity)
 
-            WeatherSceneView(weatherScene: currentScene)
-                .ignoresSafeArea()
+            WeatherSceneView(
+                weatherScene: currentScene,
+                precipitation1h: weather?.hourlyForecast.first?.precipitation1h
+            )
+            .ignoresSafeArea()
         }
         .animation(.easeInOut(duration: 1.5), value: currentScene)
     }
@@ -207,7 +225,7 @@ private enum PreviewWeatherData {
             observedAt: .now
         ),
         hourlyForecast: [
-            HourlyForecast(time: .now, temperature: -11.0, windSpeed: 2.0, humidity: 70.0, precipitation1h: 0.0, symbol: "2"),
+            HourlyForecast(time: .now, temperature: -11.0, windSpeed: 2.0, humidity: 70.0, precipitation1h: 5.0, symbol: "2"),
             HourlyForecast(time: .now.addingTimeInterval(3600), temperature: -11.0, windSpeed: 2.5, humidity: 70.0, precipitation1h: 0.4, symbol: "2"),
             HourlyForecast(time: .now.addingTimeInterval(7200), temperature: -11.0, windSpeed: 2.5, humidity: 72.0, precipitation1h: 0.2, symbol: "3"),
             HourlyForecast(time: .now.addingTimeInterval(10800), temperature: -10.0, windSpeed: 2.8, humidity: 73.0, precipitation1h: 0.1, symbol: "3"),

@@ -1,7 +1,10 @@
+import CoreLocation
 import SwiftUI
 
 struct HourlyForecastCard: View {
     let hourly: [HourlyForecast]
+    var coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
+    var elevationMeters: Double = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -27,7 +30,7 @@ struct HourlyForecastCard: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.82))
 
-            Image(systemName: SmartSymbol.systemImageName(for: hour.symbol))
+            Image(systemName: SmartSymbol.systemImageName(for: nightAdjusted(hour.symbol, at: hour.time)))
                 .frame(height: 20)
                 .symbolRenderingMode(.multicolor)
 
@@ -48,6 +51,12 @@ struct HourlyForecastCard: View {
                 .foregroundStyle(.white.opacity(0.72))
         }
         .frame(minWidth: 48)
+    }
+
+    private func nightAdjusted(_ symbolCode: String?, at date: Date) -> String? {
+        guard let code = symbolCode.flatMap(Int.init), code < 100 else { return symbolCode }
+        let isNight = SunriseCard.isNight(coordinate: coordinate, date: date, elevationMeters: elevationMeters)
+        return isNight ? String(code + 100) : symbolCode
     }
 
     private func hourLabel(_ date: Date) -> String {
