@@ -49,3 +49,4 @@ logs/
 .env
 ios/wby/config/Keys.Debug.plist
 ios/wby/config/Keys.Release.plist
+.worktrees/
