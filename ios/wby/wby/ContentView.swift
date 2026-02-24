@@ -124,7 +124,7 @@ struct ContentView: View {
                 .foregroundStyle(primaryHeaderColor)
             if let temp = weather.current.resolvedTemperature {
                 Text("\(Int(temp.rounded()))°")
-                    .font(.system(size: 92, weight: .thin))
+                    .font(.system(size: 92, weight: .light))
                     .foregroundStyle(primaryHeaderColor)
             }
             if let feelsLike = weather.current.resolvedFeelsLike {
@@ -228,7 +228,7 @@ private enum PreviewWeatherData {
             observedAt: .now
         ),
         hourlyForecast: [
-            HourlyForecast(time: .now, temperature: -11.0, windSpeed: 2.0, humidity: 70.0, precipitation1h: 5.0, symbol: "51"),
+            HourlyForecast(time: .now, temperature: -11.0, windSpeed: 2.0, humidity: 70.0, precipitation1h: 5.0, symbol: "2"),
             HourlyForecast(time: .now.addingTimeInterval(3600), temperature: -11.0, windSpeed: 2.5, humidity: 70.0, precipitation1h: 0.4, symbol: "2"),
             HourlyForecast(time: .now.addingTimeInterval(7200), temperature: -11.0, windSpeed: 2.5, humidity: 72.0, precipitation1h: 0.2, symbol: "3"),
             HourlyForecast(time: .now.addingTimeInterval(10800), temperature: -10.0, windSpeed: 2.8, humidity: 73.0, precipitation1h: 0.1, symbol: "3"),
