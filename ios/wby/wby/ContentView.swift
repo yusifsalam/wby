@@ -114,6 +114,7 @@ struct ContentView: View {
                                 .foregroundStyle(
                                     currentScene.prefersLightForeground ? Color.white : Color.primary
                                 )
+                                .accessibilityLabel("Settings")
                         }
                     }
                 }
