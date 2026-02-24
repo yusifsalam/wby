@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var isLoading = false
     @State private var lastUpdated: Date?
     @State private var errorMessage: String?
+    @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
     private let disableAutoLoad: Bool
 
     private let fallbackCoordinate = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
@@ -36,81 +37,97 @@ struct ContentView: View {
     }
 
     var body: some View {
-        ZStack {
-            mainBackground
-            ScrollView {
-                VStack(spacing: 8) {
-                    if let weather {
-                        headerSection(weather)
-                        if !weather.hourlyForecast.isEmpty {
-                            HourlyForecastCard(
-                                hourly: weather.hourlyForecast,
+        NavigationStack {
+            ZStack {
+                mainBackground
+                ScrollView {
+                    VStack(spacing: 8) {
+                        if let weather {
+                            headerSection(weather)
+                            if !weather.hourlyForecast.isEmpty {
+                                HourlyForecastCard(
+                                    hourly: weather.hourlyForecast,
+                                    coordinate: locationService.coordinate ?? fallbackCoordinate,
+                                    elevationMeters: locationService.altitudeMeters ?? 0
+                                )
+                            }
+                            CurrentConditionsCard(current: weather.current)
+                            dailyForecastSection(weather.dailyForecast)
+                            HStack(alignment: .top, spacing: 12) {
+                                FeelsLikeCard(current: weather.current)
+                                UVIndexCard(
+                                    uvIndex: weather.hourlyForecast.compactMap(\.uvCumulated).first
+                                        ?? weather.dailyForecast.compactMap(\.uvIndexAvg).first,
+                                    radiationGlobal: weather.current.resolvedRadiationGlobal
+                                        ?? dailyResolvedRadiationGlobal(weather.dailyForecast)
+                                )
+                            }
+                            WindCard(current: weather.current)
+
+                            HStack(alignment: .top, spacing: 12) {
+                                SunriseCard(
+                                    coordinate: locationService.coordinate ?? fallbackCoordinate,
+                                    referenceDate: weather.current.observedAt,
+                                    elevationMeters: locationService.altitudeMeters
+                                )
+                                PrecipitationCard(forecasts: weather.dailyForecast)
+                            }
+
+                            HStack(alignment: .top, spacing: 12) {
+                                VisibilityCard(current: weather.current)
+                                HumidityCard(current: weather.current)
+                            }
+
+                            MoonPhaseCard(
                                 coordinate: locationService.coordinate ?? fallbackCoordinate,
-                                elevationMeters: locationService.altitudeMeters ?? 0
+                                referenceDate: weather.current.observedAt
+                            )
+
+                            if let lastUpdated {
+                                Text("Updated \(lastUpdated, style: .relative) ago")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else if isLoading {
+                            ProgressView("Loading weather...")
+                                .tint(.primary)
+                                .foregroundStyle(.primary)
+                                .padding(.top, 100)
+                        } else {
+                            ContentUnavailableView(
+                                "No Weather Data",
+                                systemImage: "cloud",
+                                description: Text(errorMessage ?? "Pull down to refresh")
                             )
                         }
-                        CurrentConditionsCard(current: weather.current)
-                        dailyForecastSection(weather.dailyForecast)
-                        HStack(alignment: .top, spacing: 12) {
-                            FeelsLikeCard(current: weather.current)
-                            UVIndexCard(
-                                uvIndex: weather.hourlyForecast.compactMap(\.uvCumulated).first
-                                    ?? weather.dailyForecast.compactMap(\.uvIndexAvg).first,
-                                radiationGlobal: weather.current.resolvedRadiationGlobal
-                                    ?? dailyResolvedRadiationGlobal(weather.dailyForecast)
-                            )
+                    }
+                    .padding()
+                }
+                .scrollBounceBehavior(.always)
+                .refreshable { await loadWeather() }
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink {
+                            SettingsView()
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .foregroundStyle(
+                                    currentScene.prefersLightForeground ? Color.white : Color.primary
+                                )
                         }
-                        WindCard(current: weather.current)
-
-                        HStack(alignment: .top, spacing: 12) {
-                            SunriseCard(
-                                coordinate: locationService.coordinate ?? fallbackCoordinate,
-                                referenceDate: weather.current.observedAt,
-                                elevationMeters: locationService.altitudeMeters
-                            )
-                            PrecipitationCard(forecasts: weather.dailyForecast)
-                        }
-
-                        HStack(alignment: .top, spacing: 12) {
-                            VisibilityCard(current: weather.current)
-                            HumidityCard(current: weather.current)
-                        }
-
-                        MoonPhaseCard(
-                            coordinate: locationService.coordinate ?? fallbackCoordinate,
-                            referenceDate: weather.current.observedAt
-                        )
-
-                        if let lastUpdated {
-                            Text("Updated \(lastUpdated, style: .relative) ago")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else if isLoading {
-                        ProgressView("Loading weather...")
-                            .tint(.primary)
-                            .foregroundStyle(.primary)
-                            .padding(.top, 100)
-                    } else {
-                        ContentUnavailableView(
-                            "No Weather Data",
-                            systemImage: "cloud",
-                            description: Text(errorMessage ?? "Pull down to refresh")
-                        )
                     }
                 }
-                .padding()
+                .toolbarBackground(.clear, for: .navigationBar)
+                .navigationTitle("")
             }
-            .scrollBounceBehavior(.always)
-            .refreshable { await loadWeather() }
-        }
-        .task {
-            guard !disableAutoLoad else { return }
-            await loadWeather()
-        }
-        .onChange(of: locationService.coordinate?.latitude) {
-            guard !disableAutoLoad else { return }
-            Task { await loadWeather() }
+            .task {
+                guard !disableAutoLoad else { return }
+                await loadWeather()
+            }
+            .onChange(of: locationService.coordinate?.latitude) {
+                guard !disableAutoLoad else { return }
+                Task { await loadWeather() }
+            }
         }
     }
 
@@ -169,11 +186,13 @@ struct ContentView: View {
             .id(currentScene)
             .transition(.opacity)
 
-            WeatherSceneView(
-                weatherScene: currentScene,
-                precipitation1h: weather?.hourlyForecast.first?.precipitation1h
-            )
-            .ignoresSafeArea()
+            if dynamicEffectsEnabled {
+                WeatherSceneView(
+                    weatherScene: currentScene,
+                    precipitation1h: weather?.hourlyForecast.first?.precipitation1h
+                )
+                .ignoresSafeArea()
+            }
         }
         .animation(.easeInOut(duration: 1.5), value: currentScene)
     }
@@ -230,7 +249,7 @@ private enum PreviewWeatherData {
         hourlyForecast: [
             HourlyForecast(time: .now, temperature: -11.0, windSpeed: 2.0, humidity: 70.0, precipitation1h: 5.0, symbol: "2"),
             HourlyForecast(time: .now.addingTimeInterval(3600), temperature: -11.0, windSpeed: 2.5, humidity: 70.0, precipitation1h: 0.4, symbol: "2"),
-            HourlyForecast(time: .now.addingTimeInterval(7200), temperature: -11.0, windSpeed: 2.5, humidity: 72.0, precipitation1h: 0.2, symbol: "3"),
+            HourlyForecast(time: .now.addingTimeInterval(7200), temperature: -11.0, windSpeed: 2.5, humidity: 72.0, precipitation1h: 0.3, symbol: "3"),
             HourlyForecast(time: .now.addingTimeInterval(10800), temperature: -10.0, windSpeed: 2.8, humidity: 73.0, precipitation1h: 0.1, symbol: "3"),
             HourlyForecast(time: .now.addingTimeInterval(14400), temperature: -10.0, windSpeed: 3.0, humidity: 74.0, precipitation1h: 0.0, symbol: "3"),
             HourlyForecast(time: .now.addingTimeInterval(18000), temperature: -10.0, windSpeed: 3.1, humidity: 75.0, precipitation1h: 0.0, symbol: "3"),
