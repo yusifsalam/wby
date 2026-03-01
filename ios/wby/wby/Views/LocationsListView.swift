@@ -16,7 +16,6 @@ struct LocationsListView: View {
     @State private var favoriteWeathers: [UUID: WeatherResponse] = [:]
     @State private var searchText = ""
     @State private var completer = LocationSearchCompleter()
-    @State private var isEditing = false
     @State private var swipeOffsets: [UUID: CGFloat] = [:]
 
     var body: some View {
@@ -33,7 +32,7 @@ struct LocationsListView: View {
                                 isMyLocation: true,
                                 weather: myLocationWeather
                             )
-                            .onTapGesture { if !isEditing { onSelect(nil); dismiss() } }
+                            .onTapGesture { onSelect(nil); dismiss() }
 
                             ForEach(favoritesStore.favorites) { favorite in
                                 let swipeOffset = swipeOffsets[favorite.id] ?? 0
@@ -47,50 +46,30 @@ struct LocationsListView: View {
                                                 .font(.title2)
                                                 .padding(.trailing, 24)
                                         }
-                                        .opacity(isEditing ? 0 : min(1, -swipeOffset / 60))
+                                        .opacity(min(1, -swipeOffset / 60))
 
-                                    ZStack(alignment: .topLeading) {
-                                        locationCard(
-                                            name: favorite.name,
-                                            isMyLocation: false,
-                                            weather: favoriteWeathers[favorite.id]
-                                        )
-                                        .onTapGesture {
-                                            if swipeOffset != 0 {
-                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                                    swipeOffsets[favorite.id] = 0
-                                                }
-                                            } else if !isEditing {
-                                                onSelect(favorite); dismiss()
+                                    locationCard(
+                                        name: favorite.name,
+                                        isMyLocation: false,
+                                        weather: favoriteWeathers[favorite.id]
+                                    )
+                                    .onTapGesture {
+                                        if swipeOffset != 0 {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                swipeOffsets[favorite.id] = 0
                                             }
-                                        }
-
-                                        if isEditing {
-                                            Button {
-                                                withAnimation {
-                                                    if let i = favoritesStore.favorites.firstIndex(where: { $0.id == favorite.id }) {
-                                                        favoritesStore.remove(at: IndexSet(integer: i))
-                                                    }
-                                                }
-                                            } label: {
-                                                Image(systemName: "minus.circle.fill")
-                                                    .font(.title2)
-                                                    .foregroundStyle(.red)
-                                                    .background(Color.white, in: Circle())
-                                            }
-                                            .offset(x: -10, y: -10)
+                                        } else {
+                                            onSelect(favorite); dismiss()
                                         }
                                     }
-                                    .offset(x: isEditing ? 0 : swipeOffset)
+                                    .offset(x: swipeOffset)
                                     .gesture(DragGesture(minimumDistance: 10)
                                         .onChanged { value in
-                                            guard !isEditing else { return }
                                             guard abs(value.translation.width) > abs(value.translation.height) else { return }
                                             guard value.translation.width < 0 else { return }
                                             swipeOffsets[favorite.id] = max(value.translation.width, -110)
                                         }
                                         .onEnded { value in
-                                            guard !isEditing else { return }
                                             if value.translation.width < -80 {
                                                 withAnimation(.easeOut(duration: 0.2)) {
                                                     swipeOffsets[favorite.id] = -500
@@ -122,23 +101,13 @@ struct LocationsListView: View {
             }
             .searchable(text: $searchText, prompt: "Search city or place")
             .onChange(of: searchText) {
-                if !searchText.isEmpty { isEditing = false }
                 completer.update(query: searchText)
             }
             .navigationTitle("Weather")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if !favoritesStore.favorites.isEmpty && searchText.isEmpty {
-                        Button(isEditing ? "Done" : "Edit") {
-                            withAnimation { isEditing.toggle() }
-                        }
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    if !isEditing {
-                        Button("Done") { dismiss() }
-                    }
+                    Button("Done") { dismiss() }
                 }
             }
         }
