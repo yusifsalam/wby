@@ -59,21 +59,23 @@ actor WeatherService {
         }
     }
 
-    func saveToCache(_ response: WeatherResponse) {
+    func saveToCache(_ response: WeatherResponse, lat: Double, lon: Double) {
         guard let data = try? JSONEncoder().encode(response) else { return }
-        try? data.write(to: cacheURL)
+        try? data.write(to: cacheURL(lat: lat, lon: lon))
     }
 
-    func loadFromCache() -> WeatherResponse? {
-        guard let data = try? Data(contentsOf: cacheURL) else { return nil }
+    func loadFromCache(lat: Double, lon: Double) -> WeatherResponse? {
+        guard let data = try? Data(contentsOf: cacheURL(lat: lat, lon: lon)) else { return nil }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try? decoder.decode(WeatherResponse.self, from: data)
     }
 
-    private var cacheURL: URL {
-        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("weather_cache.json")
+    private func cacheURL(lat: Double, lon: Double) -> URL {
+        let latStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lat)
+        let lonStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lon)
+        return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("weather_cache_\(latStr)_\(lonStr).json")
     }
 
     private static func resolveBaseURL() -> URL? {

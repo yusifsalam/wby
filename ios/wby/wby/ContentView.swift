@@ -9,6 +9,9 @@ struct ContentView: View {
     @State private var lastUpdated: Date?
     @State private var errorMessage: String?
     @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
+    @State private var favoritesStore = FavoritesStore()
+    @State private var selectedFavorite: FavoriteLocation? = nil
+    @State private var showingLocations = false
     private let disableAutoLoad: Bool
 
     private let fallbackCoordinate = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
@@ -106,6 +109,13 @@ struct ContentView: View {
                 .scrollBounceBehavior(.always)
                 .refreshable { await loadWeather() }
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showingLocations = true } label: {
+                            Image(systemName: "list.bullet")
+                                .foregroundStyle(currentScene.prefersLightForeground ? Color.white : Color.primary)
+                                .accessibilityLabel("Locations")
+                        }
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
                             SettingsView()
@@ -126,8 +136,21 @@ struct ContentView: View {
                 await loadWeather()
             }
             .onChange(of: locationService.coordinate?.latitude) {
-                guard !disableAutoLoad else { return }
+                guard !disableAutoLoad, selectedFavorite == nil else { return }
                 Task { await loadWeather() }
+            }
+            .sheet(isPresented: $showingLocations) {
+                LocationsListView(
+                    favoritesStore: favoritesStore,
+                    weatherService: weatherService,
+                    currentLocationName: locationService.placeName,
+                    currentCoordinate: locationService.coordinate,
+                    activeWeather: weather,
+                    selectedFavoriteId: selectedFavorite?.id
+                ) { selected in
+                    selectedFavorite = selected
+                    Task { await loadWeather() }
+                }
             }
         }
     }
@@ -137,7 +160,7 @@ struct ContentView: View {
         let secondaryHeaderColor: Color = currentScene.prefersLightForeground ? .white.opacity(0.78) : .secondary
 
         return VStack(spacing: 4) {
-            Text(locationService.placeName ?? weather.station.name)
+            Text(selectedFavorite?.name ?? locationService.placeName ?? weather.station.name)
                 .font(.title2)
                 .foregroundStyle(primaryHeaderColor)
             if let temp = weather.current.resolvedTemperature {
@@ -200,8 +223,12 @@ struct ContentView: View {
 
     private func loadWeather() async {
         guard !disableAutoLoad else { return }
-        let coord = await locationService.requestFreshLocation() ?? fallbackCoordinate
-        await fetchWeather(lat: coord.latitude, lon: coord.longitude)
+        if let favorite = selectedFavorite {
+            await fetchWeather(lat: favorite.latitude, lon: favorite.longitude)
+        } else {
+            let coord = await locationService.requestFreshLocation() ?? fallbackCoordinate
+            await fetchWeather(lat: coord.latitude, lon: coord.longitude)
+        }
     }
 
     private func fetchWeather(lat: Double, lon: Double) async {
@@ -213,7 +240,7 @@ struct ContentView: View {
             weather = response
             lastUpdated = Date()
             errorMessage = nil
-            await weatherService.saveToCache(response)
+            await weatherService.saveToCache(response, lat: lat, lon: lon)
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
