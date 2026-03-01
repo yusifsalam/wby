@@ -35,8 +35,7 @@ struct ContentView: View {
         .ignoresSafeArea()
         .overlay(alignment: .bottom) {
             pageIndicator
-                .padding(.bottom, 8)
-                .safeAreaPadding(.bottom)
+                .padding(.bottom, 4)
         }
         .onChange(of: pages.count) {
             if currentPage >= pages.count {
@@ -67,11 +66,11 @@ struct ContentView: View {
                 if case .gps = location {
                     Image(systemName: "location.fill")
                         .font(.system(size: 8))
-                        .foregroundStyle(index == currentPage ? .white : .white.opacity(0.4))
+                        .foregroundStyle(index == currentPage ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
                 } else {
-                    Circle()
-                        .fill(index == currentPage ? Color.white : Color.white.opacity(0.4))
-                        .frame(width: 7, height: 7)
+                    Image(systemName: "circle.fill")
+                        .font(.system(size: 7))
+                        .foregroundStyle(index == currentPage ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
                 }
             }
         }
