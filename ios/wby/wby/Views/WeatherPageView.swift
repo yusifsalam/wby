@@ -6,20 +6,23 @@ struct WeatherPageView: View {
     let locationService: LocationService
     let weatherService: WeatherService
     let disableAutoLoad: Bool
+    let pageIndex: Int
+    var onSceneChange: ((Int, WeatherScene, Double?) -> Void)?
 
     @State private var weather: WeatherResponse?
     @State private var isLoading = false
     @State private var lastUpdated: Date?
     @State private var errorMessage: String?
-    @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
 
     private let fallbackCoordinate = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
 
-    init(location: WeatherLocation, locationService: LocationService, weatherService: WeatherService, disableAutoLoad: Bool = false) {
+    init(location: WeatherLocation, locationService: LocationService, weatherService: WeatherService, disableAutoLoad: Bool = false, pageIndex: Int = 0, onSceneChange: ((Int, WeatherScene, Double?) -> Void)? = nil) {
         self.location = location
         self.locationService = locationService
         self.weatherService = weatherService
         self.disableAutoLoad = disableAutoLoad
+        self.pageIndex = pageIndex
+        self.onSceneChange = onSceneChange
     }
 
     // MARK: - Computed coordinate/name/elevation
@@ -65,9 +68,7 @@ struct WeatherPageView: View {
     // MARK: - Body
 
     var body: some View {
-        ZStack {
-            mainBackground
-            ScrollView {
+        ScrollView {
                 VStack(spacing: 8) {
                     if let weather {
                         headerSection(weather)
@@ -128,10 +129,16 @@ struct WeatherPageView: View {
             }
             .scrollBounceBehavior(.always)
             .refreshable { await fetchWeather() }
-        }
+            .toolbarBackground(.hidden, for: .navigationBar)
         .task {
             guard !disableAutoLoad else { return }
             await loadWeather()
+        }
+        .onAppear {
+            onSceneChange?(pageIndex, currentScene, weather?.hourlyForecast.first?.precipitation1h)
+        }
+        .onChange(of: weather?.current.observedAt) { _, _ in
+            onSceneChange?(pageIndex, currentScene, weather?.hourlyForecast.first?.precipitation1h)
         }
         .onChange(of: locationService.coordinate?.latitude) {
             guard case .gps = location, !disableAutoLoad else { return }
@@ -189,30 +196,6 @@ struct WeatherPageView: View {
             }
         }
         .weatherCard()
-    }
-
-    // MARK: - Background
-
-    private var mainBackground: some View {
-        ZStack {
-            LinearGradient(
-                colors: currentScene.gradientColors,
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            .id(currentScene)
-            .transition(.opacity)
-
-            if dynamicEffectsEnabled {
-                WeatherSceneView(
-                    weatherScene: currentScene,
-                    precipitation1h: weather?.hourlyForecast.first?.precipitation1h
-                )
-                .ignoresSafeArea()
-            }
-        }
-        .animation(.easeInOut(duration: 1.5), value: currentScene)
     }
 
     // MARK: - Loading
