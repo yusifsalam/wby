@@ -6,23 +6,22 @@ struct WeatherPageView: View {
     let locationService: LocationService
     let weatherService: WeatherService
     let disableAutoLoad: Bool
-    let pageIndex: Int
-    var onSceneChange: ((Int, WeatherScene, Double?) -> Void)?
+    @Binding var showingLocations: Bool
 
     @State private var weather: WeatherResponse?
     @State private var isLoading = false
     @State private var lastUpdated: Date?
     @State private var errorMessage: String?
+    @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
 
     private let fallbackCoordinate = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
 
-    init(location: WeatherLocation, locationService: LocationService, weatherService: WeatherService, disableAutoLoad: Bool = false, pageIndex: Int = 0, onSceneChange: ((Int, WeatherScene, Double?) -> Void)? = nil) {
+    init(location: WeatherLocation, locationService: LocationService, weatherService: WeatherService, disableAutoLoad: Bool = false, showingLocations: Binding<Bool> = .constant(false)) {
         self.location = location
         self.locationService = locationService
         self.weatherService = weatherService
         self.disableAutoLoad = disableAutoLoad
-        self.pageIndex = pageIndex
-        self.onSceneChange = onSceneChange
+        self._showingLocations = showingLocations
     }
 
     // MARK: - Computed coordinate/name/elevation
@@ -68,82 +67,124 @@ struct WeatherPageView: View {
     // MARK: - Body
 
     var body: some View {
-        ScrollView {
-                VStack(spacing: 8) {
-                    if let weather {
-                        headerSection(weather)
-                        if !weather.hourlyForecast.isEmpty {
-                            HourlyForecastCard(
-                                hourly: weather.hourlyForecast,
+        NavigationStack {
+            ZStack {
+                mainBackground
+                ScrollView {
+                    VStack(spacing: 8) {
+                        if let weather {
+                            headerSection(weather)
+                            if !weather.hourlyForecast.isEmpty {
+                                HourlyForecastCard(
+                                    hourly: weather.hourlyForecast,
+                                    coordinate: coordinate,
+                                    elevationMeters: elevationMeters ?? 0
+                                )
+                            }
+                            CurrentConditionsCard(current: weather.current)
+                            dailyForecastSection(weather.dailyForecast)
+                            HStack(alignment: .top, spacing: 12) {
+                                FeelsLikeCard(current: weather.current)
+                                UVIndexCard(
+                                    uvIndex: weather.hourlyForecast.compactMap(\.uvCumulated).first
+                                        ?? weather.dailyForecast.compactMap(\.uvIndexAvg).first,
+                                    radiationGlobal: weather.current.resolvedRadiationGlobal
+                                        ?? dailyResolvedRadiationGlobal(weather.dailyForecast)
+                                )
+                            }
+                            WindCard(current: weather.current)
+                            HStack(alignment: .top, spacing: 12) {
+                                SunriseCard(
+                                    coordinate: coordinate,
+                                    referenceDate: weather.current.observedAt,
+                                    elevationMeters: elevationMeters
+                                )
+                                PrecipitationCard(forecasts: weather.dailyForecast)
+                            }
+                            HStack(alignment: .top, spacing: 12) {
+                                VisibilityCard(current: weather.current)
+                                HumidityCard(current: weather.current)
+                            }
+                            MoonPhaseCard(
                                 coordinate: coordinate,
-                                elevationMeters: elevationMeters ?? 0
+                                referenceDate: weather.current.observedAt
+                            )
+                            if let lastUpdated {
+                                Text("Updated \(lastUpdated, style: .relative) ago")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else if isLoading {
+                            ProgressView("Loading weather...")
+                                .tint(.primary)
+                                .foregroundStyle(.primary)
+                                .padding(.top, 100)
+                        } else {
+                            ContentUnavailableView(
+                                "No Weather Data",
+                                systemImage: "cloud",
+                                description: Text(errorMessage ?? "Pull down to refresh")
                             )
                         }
-                        CurrentConditionsCard(current: weather.current)
-                        dailyForecastSection(weather.dailyForecast)
-                        HStack(alignment: .top, spacing: 12) {
-                            FeelsLikeCard(current: weather.current)
-                            UVIndexCard(
-                                uvIndex: weather.hourlyForecast.compactMap(\.uvCumulated).first
-                                    ?? weather.dailyForecast.compactMap(\.uvIndexAvg).first,
-                                radiationGlobal: weather.current.resolvedRadiationGlobal
-                                    ?? dailyResolvedRadiationGlobal(weather.dailyForecast)
-                            )
-                        }
-                        WindCard(current: weather.current)
-                        HStack(alignment: .top, spacing: 12) {
-                            SunriseCard(
-                                coordinate: coordinate,
-                                referenceDate: weather.current.observedAt,
-                                elevationMeters: elevationMeters
-                            )
-                            PrecipitationCard(forecasts: weather.dailyForecast)
-                        }
-                        HStack(alignment: .top, spacing: 12) {
-                            VisibilityCard(current: weather.current)
-                            HumidityCard(current: weather.current)
-                        }
-                        MoonPhaseCard(
-                            coordinate: coordinate,
-                            referenceDate: weather.current.observedAt
-                        )
-                        if let lastUpdated {
-                            Text("Updated \(lastUpdated, style: .relative) ago")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else if isLoading {
-                        ProgressView("Loading weather...")
-                            .tint(.primary)
-                            .foregroundStyle(.primary)
-                            .padding(.top, 100)
-                    } else {
-                        ContentUnavailableView(
-                            "No Weather Data",
-                            systemImage: "cloud",
-                            description: Text(errorMessage ?? "Pull down to refresh")
-                        )
+                    }
+                    .padding()
+                }
+                .scrollBounceBehavior(.always)
+                .refreshable { await fetchWeather() }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showingLocations = true } label: {
+                        Image(systemName: "list.bullet")
+                            .foregroundStyle(.white)
+                            .accessibilityLabel("Locations")
                     }
                 }
-                .padding()
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .foregroundStyle(.white)
+                            .accessibilityLabel("Settings")
+                    }
+                }
             }
-            .scrollBounceBehavior(.always)
-            .refreshable { await fetchWeather() }
             .toolbarBackground(.hidden, for: .navigationBar)
-        .task {
-            guard !disableAutoLoad else { return }
-            await loadWeather()
+            .navigationTitle("")
+            .task {
+                guard !disableAutoLoad else { return }
+                await loadWeather()
+            }
+            .onChange(of: locationService.coordinate?.latitude) {
+                guard case .gps = location, !disableAutoLoad else { return }
+                Task { await loadWeather() }
+            }
         }
-        .onAppear {
-            onSceneChange?(pageIndex, currentScene, weather?.hourlyForecast.first?.precipitation1h)
+    }
+
+    // MARK: - Background
+
+    private var mainBackground: some View {
+        ZStack {
+            LinearGradient(
+                colors: currentScene.gradientColors,
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            .id(currentScene)
+            .transition(.opacity)
+
+            if dynamicEffectsEnabled {
+                WeatherSceneView(
+                    weatherScene: currentScene,
+                    precipitation1h: weather?.hourlyForecast.first?.precipitation1h
+                )
+                .ignoresSafeArea()
+            }
         }
-        .onChange(of: weather?.current.observedAt) { _, _ in
-            onSceneChange?(pageIndex, currentScene, weather?.hourlyForecast.first?.precipitation1h)
-        }
-        .onChange(of: locationService.coordinate?.latitude) {
-            guard case .gps = location, !disableAutoLoad else { return }
-            Task { await loadWeather() }
-        }
+        .animation(.easeInOut(duration: 1.5), value: currentScene)
     }
 
     // MARK: - Header
@@ -202,11 +243,9 @@ struct WeatherPageView: View {
 
     private func loadWeather() async {
         let coord = coordinate
-        // Show cache immediately
         if let cached = await weatherService.loadFromCache(lat: coord.latitude, lon: coord.longitude) {
             weather = cached
         }
-        // Then refresh in background
         await fetchWeather(coord: coord)
     }
 
