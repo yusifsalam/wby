@@ -20,14 +20,14 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             TabView(selection: $currentPage) {
-                ForEach(Array(pages.enumerated()), id: \.offset) { index, location in
+                ForEach(pages, id: \.self) { location in
                     WeatherPageView(
                         location: location,
                         locationService: locationService,
                         weatherService: weatherService,
                         disableAutoLoad: disableAutoLoad
                     )
-                    .tag(index)
+                    .tag(pages.firstIndex(of: location) ?? 0)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
@@ -81,7 +81,8 @@ struct ContentView: View {
 
     private var pageIndicator: some View {
         HStack(spacing: 8) {
-            ForEach(Array(pages.enumerated()), id: \.offset) { index, location in
+            ForEach(pages, id: \.self) { location in
+                let index = pages.firstIndex(of: location) ?? 0
                 if case .gps = location {
                     Image(systemName: "location.fill")
                         .font(.system(size: 8))

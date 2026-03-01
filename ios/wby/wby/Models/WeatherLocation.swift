@@ -1,6 +1,6 @@
 import CoreLocation
 
-enum WeatherLocation {
+enum WeatherLocation: Sendable, Equatable, Hashable {
     case gps
     case favorite(FavoriteLocation)
 }
