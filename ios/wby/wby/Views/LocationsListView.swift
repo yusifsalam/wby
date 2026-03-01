@@ -7,8 +7,6 @@ struct LocationsListView: View {
     let weatherService: WeatherService
     let currentLocationName: String?
     let currentCoordinate: CLLocationCoordinate2D?
-    let activeWeather: WeatherResponse?
-    let selectedFavoriteId: UUID?
     let onSelect: (FavoriteLocation?) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -208,15 +206,6 @@ struct LocationsListView: View {
     // MARK: - Data loading
 
     private func loadWeathers() async {
-        // Seed active location's weather immediately from already-loaded data
-        if let active = activeWeather {
-            if let id = selectedFavoriteId {
-                favoriteWeathers[id] = active
-            } else {
-                myLocationWeather = active
-            }
-        }
-
         // Load My Location: cache first, then fetch if missing
         if let coord = currentCoordinate, myLocationWeather == nil {
             if let cached = await weatherService.loadFromCache(lat: coord.latitude, lon: coord.longitude) {
@@ -380,8 +369,6 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
         weatherService: WeatherService(),
         currentLocationName: "Helsinki",
         currentCoordinate: nil,
-        activeWeather: mockWeather,
-        selectedFavoriteId: nil,
         onSelect: { _ in }
     )
 }

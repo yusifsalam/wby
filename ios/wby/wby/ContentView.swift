@@ -4,302 +4,93 @@ import SwiftUI
 struct ContentView: View {
     @State private var locationService = LocationService()
     @State private var weatherService = WeatherService()
-    @State private var weather: WeatherResponse?
-    @State private var isLoading = false
-    @State private var lastUpdated: Date?
-    @State private var errorMessage: String?
-    @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
     @State private var favoritesStore = FavoritesStore()
-    @State private var selectedFavorite: FavoriteLocation? = nil
+    @State private var currentPage: Int = 0
     @State private var showingLocations = false
     private let disableAutoLoad: Bool
 
-    private let fallbackCoordinate = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
-
-    private var currentScene: WeatherScene {
-        let symbol = weather?.hourlyForecast.first?.symbol
-            ?? weather?.dailyForecast.first?.symbol
-        return WeatherScene.from(symbolCode: nightAdjusted(symbol))
+    private var pages: [WeatherLocation] {
+        [.gps] + favoritesStore.favorites.map { .favorite($0) }
     }
 
-    private func nightAdjusted(_ symbolCode: String?) -> String? {
-        guard let code = symbolCode.flatMap(Int.init), code < 100 else { return symbolCode }
-        let coordinate = locationService.coordinate ?? fallbackCoordinate
-        let isNight = SunriseCard.isNight(
-            coordinate: coordinate,
-            date: .now,
-            elevationMeters: locationService.altitudeMeters ?? 0
-        )
-        return isNight ? String(code + 100) : symbolCode
-    }
-
-    init(previewWeather: WeatherResponse? = nil, disableAutoLoad: Bool = false) {
-        self._weather = State(initialValue: previewWeather)
-        self._lastUpdated = State(initialValue: previewWeather == nil ? nil : Date())
+    init(disableAutoLoad: Bool = false) {
         self.disableAutoLoad = disableAutoLoad
     }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                mainBackground
-                ScrollView {
-                    VStack(spacing: 8) {
-                        if let weather {
-                            headerSection(weather)
-                            if !weather.hourlyForecast.isEmpty {
-                                HourlyForecastCard(
-                                    hourly: weather.hourlyForecast,
-                                    coordinate: locationService.coordinate ?? fallbackCoordinate,
-                                    elevationMeters: locationService.altitudeMeters ?? 0
-                                )
-                            }
-                            CurrentConditionsCard(current: weather.current)
-                            dailyForecastSection(weather.dailyForecast)
-                            HStack(alignment: .top, spacing: 12) {
-                                FeelsLikeCard(current: weather.current)
-                                UVIndexCard(
-                                    uvIndex: weather.hourlyForecast.compactMap(\.uvCumulated).first
-                                        ?? weather.dailyForecast.compactMap(\.uvIndexAvg).first,
-                                    radiationGlobal: weather.current.resolvedRadiationGlobal
-                                        ?? dailyResolvedRadiationGlobal(weather.dailyForecast)
-                                )
-                            }
-                            WindCard(current: weather.current)
-
-                            HStack(alignment: .top, spacing: 12) {
-                                SunriseCard(
-                                    coordinate: locationService.coordinate ?? fallbackCoordinate,
-                                    referenceDate: weather.current.observedAt,
-                                    elevationMeters: locationService.altitudeMeters
-                                )
-                                PrecipitationCard(forecasts: weather.dailyForecast)
-                            }
-
-                            HStack(alignment: .top, spacing: 12) {
-                                VisibilityCard(current: weather.current)
-                                HumidityCard(current: weather.current)
-                            }
-
-                            MoonPhaseCard(
-                                coordinate: locationService.coordinate ?? fallbackCoordinate,
-                                referenceDate: weather.current.observedAt
-                            )
-
-                            if let lastUpdated {
-                                Text("Updated \(lastUpdated, style: .relative) ago")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        } else if isLoading {
-                            ProgressView("Loading weather...")
-                                .tint(.primary)
-                                .foregroundStyle(.primary)
-                                .padding(.top, 100)
-                        } else {
-                            ContentUnavailableView(
-                                "No Weather Data",
-                                systemImage: "cloud",
-                                description: Text(errorMessage ?? "Pull down to refresh")
-                            )
-                        }
-                    }
-                    .padding()
+            TabView(selection: $currentPage) {
+                ForEach(Array(pages.enumerated()), id: \.offset) { index, location in
+                    WeatherPageView(
+                        location: location,
+                        locationService: locationService,
+                        weatherService: weatherService,
+                        disableAutoLoad: disableAutoLoad
+                    )
+                    .tag(index)
                 }
-                .scrollBounceBehavior(.always)
-                .refreshable { await loadWeather() }
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button { showingLocations = true } label: {
-                            Image(systemName: "list.bullet")
-                                .foregroundStyle(currentScene.prefersLightForeground ? Color.white : Color.primary)
-                                .accessibilityLabel("Locations")
-                        }
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink {
-                            SettingsView()
-                        } label: {
-                            Image(systemName: "gearshape")
-                                .foregroundStyle(
-                                    currentScene.prefersLightForeground ? Color.white : Color.primary
-                                )
-                                .accessibilityLabel("Settings")
-                        }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .ignoresSafeArea()
+            .overlay(alignment: .bottom) {
+                pageIndicator
+                    .padding(.bottom, 8)
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showingLocations = true } label: {
+                        Image(systemName: "list.bullet")
+                            .foregroundStyle(.white)
+                            .accessibilityLabel("Locations")
                     }
                 }
-                .toolbarBackground(.clear, for: .navigationBar)
-                .navigationTitle("")
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .foregroundStyle(.white)
+                            .accessibilityLabel("Settings")
+                    }
+                }
             }
-            .task {
-                guard !disableAutoLoad else { return }
-                await loadWeather()
-            }
-            .onChange(of: locationService.coordinate?.latitude) {
-                guard !disableAutoLoad, selectedFavorite == nil else { return }
-                Task { await loadWeather() }
-            }
+            .toolbarBackground(.clear, for: .navigationBar)
+            .navigationTitle("")
             .sheet(isPresented: $showingLocations) {
                 LocationsListView(
                     favoritesStore: favoritesStore,
                     weatherService: weatherService,
                     currentLocationName: locationService.placeName,
-                    currentCoordinate: locationService.coordinate,
-                    activeWeather: weather,
-                    selectedFavoriteId: selectedFavorite?.id
+                    currentCoordinate: locationService.coordinate
                 ) { selected in
-                    selectedFavorite = selected
-                    Task { await loadWeather() }
+                    if let selected {
+                        let idx = favoritesStore.favorites.firstIndex(where: { $0.id == selected.id })
+                        currentPage = (idx ?? -1) + 1
+                    } else {
+                        currentPage = 0
+                    }
                 }
             }
         }
     }
 
-    private func headerSection(_ weather: WeatherResponse) -> some View {
-        let primaryHeaderColor: Color = currentScene.prefersLightForeground ? .white : .primary
-        let secondaryHeaderColor: Color = currentScene.prefersLightForeground ? .white.opacity(0.78) : .secondary
-
-        return VStack(spacing: 4) {
-            Text(selectedFavorite?.name ?? locationService.placeName ?? weather.station.name)
-                .font(.title2)
-                .foregroundStyle(primaryHeaderColor)
-            if let temp = weather.current.resolvedTemperature {
-                Text("\(Int(temp.rounded()))°")
-                    .font(.system(size: 92, weight: .light))
-                    .foregroundStyle(primaryHeaderColor)
-            }
-            if let feelsLike = weather.current.resolvedFeelsLike {
-                Text("Feels like \(Int(feelsLike.rounded()))°")
-                    .font(.subheadline)
-                    .foregroundStyle(secondaryHeaderColor)
-            }
-        }
-        .padding(.top, 20)
-    }
-
-    private func dailyForecastSection(_ forecasts: [DailyForecast]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Label("\(forecasts.count - 1)-DAY FORECAST", systemImage: "calendar")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 8)
-
-            ForEach(forecasts) { day in
-                DailyForecastRow(
-                    forecast: day,
-                    overallLow: forecasts.compactMap(\.low).min() ?? 0,
-                    overallHigh: forecasts.compactMap(\.high).max() ?? 0
-                )
-                if day.id != forecasts.last?.id {
-                    Divider()
-                        .overlay(Color.primary.opacity(0.18))
+    private var pageIndicator: some View {
+        HStack(spacing: 8) {
+            ForEach(Array(pages.enumerated()), id: \.offset) { index, location in
+                if case .gps = location {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(index == currentPage ? .white : .white.opacity(0.4))
+                } else {
+                    Circle()
+                        .fill(index == currentPage ? Color.white : Color.white.opacity(0.4))
+                        .frame(width: 7, height: 7)
                 }
             }
         }
-        .weatherCard()
-    }
-
-    private var mainBackground: some View {
-        ZStack {
-            LinearGradient(
-                colors: currentScene.gradientColors,
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            .id(currentScene)
-            .transition(.opacity)
-
-            if dynamicEffectsEnabled {
-                WeatherSceneView(
-                    weatherScene: currentScene,
-                    precipitation1h: weather?.hourlyForecast.first?.precipitation1h
-                )
-                .ignoresSafeArea()
-            }
-        }
-        .animation(.easeInOut(duration: 1.5), value: currentScene)
-    }
-
-    private func loadWeather() async {
-        guard !disableAutoLoad else { return }
-        if let favorite = selectedFavorite {
-            await fetchWeather(lat: favorite.latitude, lon: favorite.longitude)
-        } else {
-            let coord = await locationService.requestFreshLocation() ?? fallbackCoordinate
-            await fetchWeather(lat: coord.latitude, lon: coord.longitude)
-        }
-    }
-
-    private func fetchWeather(lat: Double, lon: Double) async {
-        isLoading = true
-        defer { isLoading = false }
-
-        do {
-            let response = try await weatherService.fetchWeather(lat: lat, lon: lon)
-            weather = response
-            lastUpdated = Date()
-            errorMessage = nil
-            await weatherService.saveToCache(response, lat: lat, lon: lon)
-        } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-        }
-    }
-
-    private func dailyResolvedRadiationGlobal(_ daily: [DailyForecast]) -> Double? {
-        if let dailyValue = daily.compactMap(\.radiationGlobalAvg).first {
-            return max(0, dailyValue)
-        }
-        return nil
     }
 }
 
 #Preview {
-    ContentView(previewWeather: PreviewWeatherData.response, disableAutoLoad: true)
-}
-
-private enum PreviewWeatherData {
-    static let response = WeatherResponse(
-        station: StationInfo(name: "Helsinki Kaisaniemi", distanceKm: 0.8),
-        current: CurrentConditions(
-            temperature: -6.0,
-            feelsLike: -11.0,
-            windSpeed: 3.2,
-            windGust: 5.6,
-            windDirection: 250.0,
-            humidity: 76.0,
-            dewPoint: -9.0,
-            pressure: 1012.0,
-            visibility: 37000,
-            extra: ["glob_1min": 48.0],
-            observedAt: .now
-        ),
-        hourlyForecast: [
-            HourlyForecast(time: .now, temperature: -11.0, windSpeed: 2.0, humidity: 70.0, precipitation1h: 5.0, symbol: "2"),
-            HourlyForecast(time: .now.addingTimeInterval(3600), temperature: -11.0, windSpeed: 2.5, humidity: 70.0, precipitation1h: 0.4, symbol: "2"),
-            HourlyForecast(time: .now.addingTimeInterval(7200), temperature: -11.0, windSpeed: 2.5, humidity: 72.0, precipitation1h: 0.3, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(10800), temperature: -10.0, windSpeed: 2.8, humidity: 73.0, precipitation1h: 0.1, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(14400), temperature: -10.0, windSpeed: 3.0, humidity: 74.0, precipitation1h: 0.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(18000), temperature: -10.0, windSpeed: 3.1, humidity: 75.0, precipitation1h: 0.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(21600), temperature: -9.0, windSpeed: 3.2, humidity: 74.0, precipitation1h: 0.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(25200), temperature: -9.0, windSpeed: 3.0, humidity: 73.0, precipitation1h: 0.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(28800), temperature: -9.0, windSpeed: 2.8, humidity: 72.0, precipitation1h: 0.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(32400), temperature: -8.0, windSpeed: 2.6, humidity: 71.0, precipitation1h: 0.0, symbol: "3"),
-            HourlyForecast(time: .now.addingTimeInterval(36000), temperature: -8.0, windSpeed: 2.4, humidity: 70.0, precipitation1h: 0.0, symbol: "2"),
-            HourlyForecast(time: .now.addingTimeInterval(39600), temperature: -8.0, windSpeed: 2.2, humidity: 69.0, precipitation1h: 0.0, symbol: "2"),
-        ],
-        dailyForecast: [
-            DailyForecast(date: "2026-02-15", high: -5, low: -8, symbol: "3", windSpeedAvg: 3.1, precipitationMm: 0.0),
-            DailyForecast(date: "2026-02-16", high: -3, low: -9, symbol: "2", windSpeedAvg: 2.7, precipitationMm: 0.2),
-            DailyForecast(date: "2026-02-17", high: -1, low: -6, symbol: "21", windSpeedAvg: 4.2, precipitationMm: 1.1),
-            DailyForecast(date: "2026-02-18", high: 1, low: -4, symbol: "1", windSpeedAvg: 2.3, precipitationMm: 0.0),
-            DailyForecast(date: "2026-02-19", high: 0, low: -5, symbol: "41", windSpeedAvg: 3.9, precipitationMm: 0.8),
-            DailyForecast(date: "2026-02-20", high: -2, low: -7, symbol: "43", windSpeedAvg: 4.4, precipitationMm: 1.6),
-            DailyForecast(date: "2026-02-21", high: -4, low: -9, symbol: "3", windSpeedAvg: 3.5, precipitationMm: 0.1),
-            DailyForecast(date: "2026-02-22", high: -1, low: -6, symbol: "2", windSpeedAvg: 3.0, precipitationMm: 0.0),
-            DailyForecast(date: "2026-02-23", high: 2, low: -3, symbol: "21", windSpeedAvg: 4.1, precipitationMm: 1.4),
-            DailyForecast(date: "2026-02-24", high: 1, low: -2, symbol: "3", windSpeedAvg: 2.8, precipitationMm: 0.3),
-            DailyForecast(date: "2026-02-25", high: 0, low: -4, symbol: "1", windSpeedAvg: 2.1, precipitationMm: 0.0),
-        ]
-    )
+    ContentView(disableAutoLoad: true)
 }
