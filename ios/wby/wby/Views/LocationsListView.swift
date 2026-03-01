@@ -72,7 +72,8 @@ struct LocationsListView: View {
                                                 withAnimation(.easeOut(duration: 0.2)) {
                                                     swipeOffsets[favorite.id] = -500
                                                 }
-                                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                                Task { @MainActor in
+                                                    try? await Task.sleep(for: .seconds(0.2))
                                                     if let i = favoritesStore.favorites.firstIndex(where: { $0.id == favorite.id }) {
                                                         favoritesStore.remove(at: IndexSet(integer: i))
                                                     }
@@ -274,7 +275,8 @@ struct LocationsListView: View {
     }
 
     private func favoriteLocation(from item: MKMapItem) -> FavoriteLocation? {
-        guard let coordinate = item.placemark.location?.coordinate else { return nil }
+        let coordinate = item.placemark.coordinate
+        guard CLLocationCoordinate2DIsValid(coordinate) else { return nil }
         return FavoriteLocation(
             id: UUID(),
             name: item.name ?? item.placemark.locality ?? "Unknown",
@@ -338,31 +340,6 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
     let store = FavoritesStore()
     store.add(FavoriteLocation(id: UUID(), name: "Tampere", subtitle: "Finland", latitude: 61.4978, longitude: 23.7610))
     store.add(FavoriteLocation(id: UUID(), name: "Turku", subtitle: "Finland", latitude: 60.4518, longitude: 22.2666))
-
-    let mockCurrent = CurrentConditions(
-        temperature: -3,
-        feelsLike: -8,
-        windSpeed: 5,
-        windGust: 9,
-        windDirection: 220,
-        humidity: 82,
-        pressure: 1013,
-        observedAt: Date()
-    )
-    let mockDaily = DailyForecast(
-        date: "2026-02-26",
-        high: 1,
-        low: -6,
-        symbol: "1",
-        windSpeedAvg: 4,
-        precipitationMm: 0
-    )
-    let mockWeather = WeatherResponse(
-        station: StationInfo(name: "Helsinki-Vantaa", distanceKm: 2.1),
-        current: mockCurrent,
-        hourlyForecast: [],
-        dailyForecast: [mockDaily]
-    )
 
     return LocationsListView(
         favoritesStore: store,

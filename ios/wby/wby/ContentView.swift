@@ -56,6 +56,11 @@ struct ContentView: View {
             }
             .toolbarBackground(.clear, for: .navigationBar)
             .navigationTitle("")
+            .onChange(of: pages.count) {
+                if currentPage >= pages.count {
+                    currentPage = max(0, pages.count - 1)
+                }
+            }
             .sheet(isPresented: $showingLocations) {
                 LocationsListView(
                     favoritesStore: favoritesStore,
