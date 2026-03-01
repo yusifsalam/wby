@@ -173,7 +173,7 @@ struct WeatherPageView: View {
 
     private func dailyForecastSection(_ forecasts: [DailyForecast]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Label("\(forecasts.count - 1)-DAY FORECAST", systemImage: "calendar")
+            Label("\(max(0, forecasts.count - 1))-DAY FORECAST", systemImage: "calendar")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 8)
@@ -218,23 +218,25 @@ struct WeatherPageView: View {
     // MARK: - Loading
 
     private func loadWeather() async {
+        let coord = coordinate
         // Show cache immediately
-        if let cached = await weatherService.loadFromCache(lat: coordinate.latitude, lon: coordinate.longitude) {
+        if let cached = await weatherService.loadFromCache(lat: coord.latitude, lon: coord.longitude) {
             weather = cached
         }
         // Then refresh in background
-        await fetchWeather()
+        await fetchWeather(coord: coord)
     }
 
-    private func fetchWeather() async {
+    private func fetchWeather(coord: CLLocationCoordinate2D? = nil) async {
+        let coord = coord ?? coordinate
         isLoading = weather == nil
         defer { isLoading = false }
         do {
-            let response = try await weatherService.fetchWeather(lat: coordinate.latitude, lon: coordinate.longitude)
+            let response = try await weatherService.fetchWeather(lat: coord.latitude, lon: coord.longitude)
             weather = response
             lastUpdated = Date()
             errorMessage = nil
-            await weatherService.saveToCache(response, lat: coordinate.latitude, lon: coordinate.longitude)
+            await weatherService.saveToCache(response, lat: coord.latitude, lon: coord.longitude)
         } catch {
             if weather == nil {
                 errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
