@@ -12,6 +12,7 @@ struct WeatherPageView: View {
     @State private var isLoading = false
     @State private var lastUpdated: Date?
     @State private var errorMessage: String?
+    @State private var showingSettings = false
     @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
 
     private let fallbackCoordinate = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
@@ -141,9 +142,7 @@ struct WeatherPageView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        SettingsView()
-                    } label: {
+                    Button { showingSettings = true } label: {
                         Image(systemName: "gearshape")
                             .foregroundStyle(.white)
                             .accessibilityLabel("Settings")
@@ -155,6 +154,11 @@ struct WeatherPageView: View {
             .task {
                 guard !disableAutoLoad else { return }
                 await loadWeather()
+            }
+            .sheet(isPresented: $showingSettings) {
+                NavigationStack {
+                    SettingsView()
+                }
             }
             .onChange(of: locationService.coordinate?.latitude) {
                 guard case .gps = location, !disableAutoLoad else { return }
