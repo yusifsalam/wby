@@ -17,7 +17,7 @@ struct LocationsListView: View {
     @State private var completer = LocationSearchCompleter()
     @State private var swipeOffsets: [UUID: CGFloat] = [:]
     @State private var isEditing: Bool
-    
+
     init(
         favoritesStore: FavoritesStore,
         weatherService: WeatherService,
@@ -33,6 +33,7 @@ struct LocationsListView: View {
         self.onSelect = onSelect
         self._isEditing = State(initialValue: previewEditing)
     }
+
     @State private var draggingItem: FavoriteLocation?
 
     var body: some View {
@@ -125,8 +126,7 @@ struct LocationsListView: View {
                                                         swipeOffsets[favorite.id] = 0
                                                     }
                                                 }
-                                            }
-                                        )
+                                            })
                                     }
                                     .clipped()
 
@@ -184,8 +184,6 @@ struct LocationsListView: View {
                                 .symbolRenderingMode(.monochrome)
                                 .foregroundStyle(.white.opacity(0.7))
                         }
-                    } else {
-                        Button("Done") { dismiss() }
                     }
                 }
             }
@@ -240,7 +238,8 @@ struct LocationsListView: View {
                     }
                     Spacer()
                     if let high = weather?.dailyForecast.first?.high,
-                       let low = weather?.dailyForecast.first?.low {
+                       let low = weather?.dailyForecast.first?.low
+                    {
                         Text("H:\(Int(high.rounded()))°  L:\(Int(low.rounded()))°")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.85))
@@ -258,7 +257,8 @@ struct LocationsListView: View {
                 let request = MKLocalSearch.Request(completion: completion)
                 let response = try? await MKLocalSearch(request: request).start()
                 if let item = response?.mapItems.first,
-                   let favorite = favoriteLocation(from: item) {
+                   let favorite = favoriteLocation(from: item)
+                {
                     favoritesStore.add(favorite)
                     onSelect(favorite)
                 }
@@ -324,8 +324,7 @@ struct LocationsListView: View {
 
     private func sceneFor(_ weather: WeatherResponse?) -> WeatherScene {
         WeatherScene.from(symbolCode:
-            weather?.hourlyForecast.first?.symbol ?? weather?.dailyForecast.first?.symbol
-        )
+            weather?.hourlyForecast.first?.symbol ?? weather?.dailyForecast.first?.symbol)
     }
 
     private func conditionDescription(_ weather: WeatherResponse?) -> String? {
@@ -333,27 +332,27 @@ struct LocationsListView: View {
         guard let code = symbol.flatMap(Int.init) else { return nil }
         let n = code >= 100 ? code - 100 : code
         switch n {
-        case 1:        return "Clear"
-        case 2:        return "Partly Cloudy"
-        case 3:        return "Mostly Cloudy"
-        case 4, 5, 7:  return "Overcast"
-        case 6, 9:     return "Fog"
-        case 11:       return "Showers"
-        case 21:       return "Light Showers"
-        case 22:       return "Showers"
-        case 23:       return "Heavy Showers"
-        case 31:       return "Light Rain"
-        case 32:       return "Rain"
-        case 33:       return "Heavy Rain"
-        case 41:       return "Light Snow"
-        case 42:       return "Snow"
-        case 43:       return "Heavy Snow"
-        case 51:       return "Light Sleet"
-        case 52:       return "Sleet"
-        case 53:       return "Heavy Sleet"
-        case 61, 64:   return "Thunderstorms"
-        case 71, 74:   return "Hail"
-        default:       return nil
+        case 1: return "Clear"
+        case 2: return "Partly Cloudy"
+        case 3: return "Mostly Cloudy"
+        case 4, 5, 7: return "Overcast"
+        case 6, 9: return "Fog"
+        case 11: return "Showers"
+        case 21: return "Light Showers"
+        case 22: return "Showers"
+        case 23: return "Heavy Showers"
+        case 31: return "Light Rain"
+        case 32: return "Rain"
+        case 33: return "Heavy Rain"
+        case 41: return "Light Snow"
+        case 42: return "Snow"
+        case 43: return "Heavy Snow"
+        case 51: return "Light Sleet"
+        case 52: return "Sleet"
+        case 53: return "Heavy Sleet"
+        case 61, 64: return "Thunderstorms"
+        case 71, 74: return "Hail"
+        default: return nil
         }
     }
 
@@ -499,4 +498,3 @@ struct FavoriteCancelDropDelegate: DropDelegate {
         previewEditing: true
     )
 }
-
