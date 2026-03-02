@@ -1,6 +1,7 @@
 import CoreLocation
 import MapKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct LocationsListView: View {
     let favoritesStore: FavoritesStore
@@ -15,12 +16,34 @@ struct LocationsListView: View {
     @State private var searchText = ""
     @State private var completer = LocationSearchCompleter()
     @State private var swipeOffsets: [UUID: CGFloat] = [:]
+    @State private var isEditing: Bool
+    
+    init(
+        favoritesStore: FavoritesStore,
+        weatherService: WeatherService,
+        currentLocationName: String?,
+        currentCoordinate: CLLocationCoordinate2D?,
+        onSelect: @escaping (FavoriteLocation?) -> Void,
+        previewEditing: Bool = false
+    ) {
+        self.favoritesStore = favoritesStore
+        self.weatherService = weatherService
+        self.currentLocationName = currentLocationName
+        self.currentCoordinate = currentCoordinate
+        self.onSelect = onSelect
+        self._isEditing = State(initialValue: previewEditing)
+    }
+    @State private var draggingItem: FavoriteLocation?
 
     var body: some View {
         NavigationStack {
             ZStack {
                 Color(red: 0.07, green: 0.07, blue: 0.10)
                     .ignoresSafeArea()
+                    .onDrop(
+                        of: [UTType.text],
+                        delegate: FavoriteCancelDropDelegate(draggingItem: $draggingItem)
+                    )
 
                 ScrollView {
                     VStack(spacing: 12) {
@@ -33,60 +56,99 @@ struct LocationsListView: View {
                             .onTapGesture { onSelect(nil); dismiss() }
 
                             ForEach(favoritesStore.favorites) { favorite in
-                                let swipeOffset = swipeOffsets[favorite.id] ?? 0
-                                ZStack(alignment: .trailing) {
-                                    // Delete background revealed on swipe
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .fill(.red)
-                                        .overlay(alignment: .trailing) {
-                                            Image(systemName: "trash")
-                                                .foregroundStyle(.white)
-                                                .font(.title2)
-                                                .padding(.trailing, 24)
-                                        }
-                                        .opacity(min(1, -swipeOffset / 60))
+                                let swipeOffset = isEditing ? 0 : (swipeOffsets[favorite.id] ?? 0)
 
-                                    locationCard(
-                                        name: favorite.name,
-                                        isMyLocation: false,
-                                        weather: favoriteWeathers[favorite.id]
-                                    )
-                                    .onTapGesture {
-                                        if swipeOffset != 0 {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                                swipeOffsets[favorite.id] = 0
+                                HStack(spacing: 10) {
+                                    if isEditing {
+                                        Button {
+                                            withAnimation {
+                                                if let i = favoritesStore.favorites.firstIndex(of: favorite) {
+                                                    favoritesStore.remove(at: IndexSet(integer: i))
+                                                }
                                             }
-                                        } else {
-                                            onSelect(favorite); dismiss()
+                                        } label: {
+                                            Image(systemName: "minus.circle.fill")
+                                                .font(.title2)
+                                                .foregroundStyle(.red)
                                         }
+                                        .transition(.move(edge: .leading).combined(with: .opacity))
                                     }
-                                    .offset(x: swipeOffset)
-                                    .gesture(DragGesture(minimumDistance: 10)
-                                        .onChanged { value in
-                                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                                            guard value.translation.width < 0 else { return }
-                                            swipeOffsets[favorite.id] = max(value.translation.width, -110)
-                                        }
-                                        .onEnded { value in
-                                            if value.translation.width < -80 {
-                                                withAnimation(.easeOut(duration: 0.2)) {
-                                                    swipeOffsets[favorite.id] = -500
-                                                }
-                                                Task { @MainActor in
-                                                    try? await Task.sleep(for: .seconds(0.2))
-                                                    if let i = favoritesStore.favorites.firstIndex(where: { $0.id == favorite.id }) {
-                                                        favoritesStore.remove(at: IndexSet(integer: i))
-                                                    }
-                                                }
-                                            } else {
+
+                                    ZStack(alignment: .trailing) {
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .fill(.red)
+                                            .overlay(alignment: .trailing) {
+                                                Image(systemName: "trash")
+                                                    .foregroundStyle(.white)
+                                                    .font(.title2)
+                                                    .padding(.trailing, 24)
+                                            }
+                                            .opacity(isEditing ? 0 : min(1, -swipeOffset / 60))
+
+                                        locationCard(
+                                            name: favorite.name,
+                                            isMyLocation: false,
+                                            weather: favoriteWeathers[favorite.id]
+                                        )
+                                        .onTapGesture {
+                                            guard !isEditing else { return }
+                                            if swipeOffset != 0 {
                                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                                     swipeOffsets[favorite.id] = 0
                                                 }
+                                            } else {
+                                                onSelect(favorite); dismiss()
                                             }
                                         }
-                                    )
+                                        .offset(x: swipeOffset)
+                                        .gesture(DragGesture(minimumDistance: 10)
+                                            .onChanged { value in
+                                                guard !isEditing else { return }
+                                                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                                                guard value.translation.width < 0 else { return }
+                                                swipeOffsets[favorite.id] = max(value.translation.width, -110)
+                                            }
+                                            .onEnded { value in
+                                                guard !isEditing else { return }
+                                                if value.translation.width < -80 {
+                                                    withAnimation(.easeOut(duration: 0.2)) {
+                                                        swipeOffsets[favorite.id] = -500
+                                                    }
+                                                    Task { @MainActor in
+                                                        try? await Task.sleep(for: .seconds(0.2))
+                                                        if let i = favoritesStore.favorites.firstIndex(where: { $0.id == favorite.id }) {
+                                                            favoritesStore.remove(at: IndexSet(integer: i))
+                                                        }
+                                                    }
+                                                } else {
+                                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                        swipeOffsets[favorite.id] = 0
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }
+                                    .clipped()
+
+                                    if isEditing {
+                                        Image(systemName: "line.3.horizontal")
+                                            .foregroundStyle(.white.opacity(0.4))
+                                            .font(.title3)
+                                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                                    }
                                 }
-                                .clipped()
+                                .onDrag {
+                                    draggingItem = favorite
+                                    return NSItemProvider(object: favorite.id.uuidString as NSString)
+                                }
+                                .onDrop(
+                                    of: [UTType.text],
+                                    delegate: FavoriteReorderDelegate(
+                                        item: favorite,
+                                        favoritesStore: favoritesStore,
+                                        draggingItem: $draggingItem
+                                    )
+                                )
                             }
                         } else {
                             ForEach(completer.results, id: \.self) { completion in
@@ -105,13 +167,34 @@ struct LocationsListView: View {
             .navigationTitle("Weather")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                if !isEditing && !favoritesStore.favorites.isEmpty && searchText.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Edit") {
+                            withAnimation { isEditing = true }
+                        }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    if isEditing {
+                        Button {
+                            withAnimation { isEditing = false }
+                        } label: {
+                            Image(systemName: "checkmark.circle")
+                                .font(.title2)
+                                .symbolRenderingMode(.monochrome)
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                    } else {
+                        Button("Done") { dismiss() }
+                    }
                 }
             }
         }
         .preferredColorScheme(.dark)
         .task { await loadWeathers() }
+        .onChange(of: isEditing) {
+            if isEditing { swipeOffsets.removeAll() }
+        }
     }
 
     // MARK: - Cards
@@ -334,6 +417,58 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
     }
 }
 
+// MARK: - Reorder Drop Delegate
+
+struct FavoriteReorderDelegate: DropDelegate {
+    let item: FavoriteLocation
+    let favoritesStore: FavoritesStore
+    @Binding var draggingItem: FavoriteLocation?
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingItem = nil
+        return true
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging = draggingItem,
+              dragging != item,
+              let fromIndex = favoritesStore.favorites.firstIndex(of: dragging),
+              let toIndex = favoritesStore.favorites.firstIndex(of: item)
+        else { return }
+        withAnimation {
+            favoritesStore.move(
+                from: IndexSet(integer: fromIndex),
+                to: toIndex > fromIndex ? toIndex + 1 : toIndex
+            )
+        }
+    }
+
+    func dropExited(info: DropInfo) {
+        // Clear if drag left all targets (e.g. cancelled or dropped outside)
+        if !favoritesStore.favorites.contains(where: { $0 == draggingItem }) {
+            draggingItem = nil
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+}
+
+/// Placed on the ScrollView background to catch drops outside any card and clear drag state.
+struct FavoriteCancelDropDelegate: DropDelegate {
+    @Binding var draggingItem: FavoriteLocation?
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingItem = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .cancel)
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
@@ -347,6 +482,21 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
         currentLocationName: "Helsinki",
         currentCoordinate: nil,
         onSelect: { _ in }
+    )
+}
+
+#Preview("Edit Mode") {
+    let store = FavoritesStore()
+    store.add(FavoriteLocation(id: UUID(), name: "Tampere", subtitle: "Finland", latitude: 61.4978, longitude: 23.7610))
+    store.add(FavoriteLocation(id: UUID(), name: "Turku", subtitle: "Finland", latitude: 60.4518, longitude: 22.2666))
+
+    return LocationsListView(
+        favoritesStore: store,
+        weatherService: WeatherService(),
+        currentLocationName: "Helsinki",
+        currentCoordinate: nil,
+        onSelect: { _ in },
+        previewEditing: true
     )
 }
 

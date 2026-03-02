@@ -20,6 +20,11 @@ final class FavoritesStore {
         save()
     }
 
+    func move(from source: IndexSet, to destination: Int) {
+        favorites.move(fromOffsets: source, toOffset: destination)
+        save()
+    }
+
     private var storeURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("favorites.json")
