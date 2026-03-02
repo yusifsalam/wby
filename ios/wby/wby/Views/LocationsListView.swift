@@ -357,11 +357,15 @@ struct LocationsListView: View {
     }
 
     private func favoriteLocation(from item: MKMapItem) -> FavoriteLocation? {
-        let coordinate = item.placemark.coordinate
+        let coordinate = item.location.coordinate
         guard CLLocationCoordinate2DIsValid(coordinate) else { return nil }
         return FavoriteLocation(
             id: UUID(),
-            name: item.name ?? item.placemark.locality ?? "Unknown",
+            name: nonEmpty(item.name)
+                ?? nonEmpty(item.addressRepresentations?.cityName)
+                ?? nonEmpty(item.addressRepresentations?.cityWithContext)
+                ?? nonEmpty(item.address?.shortAddress)
+                ?? "Unknown",
             subtitle: subtitleFor(item),
             latitude: coordinate.latitude,
             longitude: coordinate.longitude
@@ -369,9 +373,19 @@ struct LocationsListView: View {
     }
 
     private func subtitleFor(_ item: MKMapItem) -> String {
-        let parts = [item.placemark.locality, item.placemark.countryCode].compactMap { $0 }
+        let parts = [
+            nonEmpty(item.addressRepresentations?.cityName),
+            nonEmpty(item.addressRepresentations?.regionName)
+        ].compactMap { $0 }
         if !parts.isEmpty { return parts.joined(separator: ", ") }
-        return item.placemark.country ?? ""
+        return nonEmpty(item.address?.shortAddress) ?? nonEmpty(item.address?.fullAddress) ?? ""
+    }
+
+    private func nonEmpty(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
     }
 }
 

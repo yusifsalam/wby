@@ -64,26 +64,25 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     private func reverseGeocode(_ location: CLLocation) {
         guard let request = MKReverseGeocodingRequest(location: location) else { return }
         request.getMapItems { [weak self] items, _ in
-            guard let placemark = items?.first?.placemark else { return }
-            self?.placeName = Self.displayAreaName(from: placemark)
+            guard let mapItem = items?.first else { return }
+            self?.placeName = Self.displayAreaName(from: mapItem)
         }
     }
 
-    private static func displayAreaName(from placemark: CLPlacemark) -> String? {
-        // Prefer district-like area names and avoid exact street/POI labels.
-        if let district = nonEmpty(placemark.subLocality) {
-            return district
-        }
-        if let city = nonEmpty(placemark.locality) {
+    private static func displayAreaName(from mapItem: MKMapItem) -> String? {
+        if let city = nonEmpty(mapItem.addressRepresentations?.cityName) {
             return city
         }
-        if let area = nonEmpty(placemark.subAdministrativeArea) {
-            return area
+        if let cityWithContext = nonEmpty(mapItem.addressRepresentations?.cityWithContext) {
+            return cityWithContext
         }
-        if let area = nonEmpty(placemark.administrativeArea) {
-            return area
+        if let shortAddress = nonEmpty(mapItem.address?.shortAddress) {
+            return shortAddress
         }
-        return nonEmpty(placemark.country)
+        if let region = nonEmpty(mapItem.addressRepresentations?.regionName) {
+            return region
+        }
+        return nonEmpty(mapItem.address?.fullAddress)
     }
 
     private static func nonEmpty(_ value: String?) -> String? {
