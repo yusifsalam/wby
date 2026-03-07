@@ -290,6 +290,23 @@ func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64
 	return result, nil
 }
 
+func (s *Store) AllStationFMISIDs(ctx context.Context) ([]int, error) {
+	rows, err := s.pool.Query(ctx, "SELECT fmisid FROM stations ORDER BY fmisid")
+	if err != nil {
+		return nil, fmt.Errorf("list station fmisids: %w", err)
+	}
+	defer rows.Close()
+	var ids []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan fmisid: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (s *Store) UpsertClimateNormals(ctx context.Context, normals []weather.ClimateNormal) error {
 	batch := &pgx.Batch{}
 	for _, n := range normals {
