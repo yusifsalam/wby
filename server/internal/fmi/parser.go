@@ -422,6 +422,79 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 	return result, nil
 }
 
+// ParseClimateNormals parses an FMI WFS response containing 30-year climate
+// normal statistics (1991-2020). The XML uses the same timevaluepair format as
+// observations. Each member contains one parameter with 12 monthly values.
+// Only TAP1M, TAMAXP1M, TAMINP1M, and PRAP1M are extracted; the remaining
+// ~43 parameters are silently ignored.
+func ParseClimateNormals(data []byte) ([]weather.ClimateNormal, error) {
+	var fc featureCollection
+	if err := xml.Unmarshal(data, &fc); err != nil {
+		return nil, fmt.Errorf("unmarshal WFS climate normals: %w", err)
+	}
+
+	if len(fc.Members) == 0 {
+		return nil, nil
+	}
+
+	type normalKey struct {
+		fmisid int
+		month  int
+	}
+	normals := make(map[normalKey]*weather.ClimateNormal)
+
+	for _, m := range fc.Members {
+		param := extractParam(m.Observation.ObservedProperty.Href)
+		fmisid, _, _, _, _ := extractStationInfo(m.Observation)
+
+		for _, pt := range m.Observation.Result.TimeSeries.Points {
+			t, err := time.Parse(time.RFC3339, pt.TVP.Time)
+			if err != nil {
+				continue
+			}
+			val := parseFloat(pt.TVP.Value)
+			if val == nil {
+				continue
+			}
+
+			month := int(t.Month())
+			key := normalKey{fmisid: fmisid, month: month}
+			cn, ok := normals[key]
+			if !ok {
+				cn = &weather.ClimateNormal{
+					FMISID: fmisid,
+					Month:  month,
+					Period: "1991-2020",
+				}
+				normals[key] = cn
+			}
+
+			switch param {
+			case "TAP1M":
+				cn.TempAvg = val
+			case "TAMAXP1M":
+				cn.TempHigh = val
+			case "TAMINP1M":
+				cn.TempLow = val
+			case "PRAP1M":
+				cn.PrecipMm = val
+			}
+		}
+	}
+
+	result := make([]weather.ClimateNormal, 0, len(normals))
+	for _, cn := range normals {
+		result = append(result, *cn)
+	}
+	slices.SortFunc(result, func(a, b weather.ClimateNormal) int {
+		if a.FMISID != b.FMISID {
+			return a.FMISID - b.FMISID
+		}
+		return a.Month - b.Month
+	})
+	return result, nil
+}
+
 func avgPtr(values []float64) *float64 {
 	if len(values) == 0 {
 		return nil
