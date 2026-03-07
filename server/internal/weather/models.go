@@ -30,46 +30,46 @@ type Observation struct {
 }
 
 type DailyForecast struct {
-	GridLat                         float64
-	GridLon                         float64
-	Date                            time.Time
-	FetchedAt                       time.Time
-	TempHigh                        *float64
-	TempLow                         *float64
-	TempAvg                         *float64
-	WindSpeed                       *float64
-	WindDir                         *float64
-	HumidityAvg                     *float64
-	PrecipMM                        *float64
-	Precip1hSum                     *float64
-	Symbol                          *string
-	DewPointAvg                     *float64
-	FogIntensityAvg                 *float64
-	FrostProbabilityAvg             *float64
-	SevereFrostProbabilityAvg       *float64
-	GeopHeightAvg                   *float64
-	PressureAvg                     *float64
-	HighCloudCoverAvg               *float64
-	LowCloudCoverAvg                *float64
-	MediumCloudCoverAvg             *float64
-	MiddleAndLowCloudCoverAvg       *float64
-	TotalCloudCoverAvg              *float64
-	HourlyMaximumGustMax            *float64
-	HourlyMaximumWindSpeedMax       *float64
-	PoPAvg                          *float64
-	ProbabilityThunderstormAvg      *float64
-	PotentialPrecipitationFormMode  *float64
-	PotentialPrecipitationTypeMode  *float64
-	PrecipitationFormMode           *float64
-	PrecipitationTypeMode           *float64
-	RadiationGlobalAvg              *float64
-	RadiationLWAvg                  *float64
-	WeatherNumberMode               *float64
-	WeatherSymbol3Mode              *float64
-	WindUMSAvg                      *float64
-	WindVMSAvg                      *float64
-	WindVectorMSAvg                 *float64
-	UVIndexAvg                      *float64
+	GridLat                        float64
+	GridLon                        float64
+	Date                           time.Time
+	FetchedAt                      time.Time
+	TempHigh                       *float64
+	TempLow                        *float64
+	TempAvg                        *float64
+	WindSpeed                      *float64
+	WindDir                        *float64
+	HumidityAvg                    *float64
+	PrecipMM                       *float64
+	Precip1hSum                    *float64
+	Symbol                         *string
+	DewPointAvg                    *float64
+	FogIntensityAvg                *float64
+	FrostProbabilityAvg            *float64
+	SevereFrostProbabilityAvg      *float64
+	GeopHeightAvg                  *float64
+	PressureAvg                    *float64
+	HighCloudCoverAvg              *float64
+	LowCloudCoverAvg               *float64
+	MediumCloudCoverAvg            *float64
+	MiddleAndLowCloudCoverAvg      *float64
+	TotalCloudCoverAvg             *float64
+	HourlyMaximumGustMax           *float64
+	HourlyMaximumWindSpeedMax      *float64
+	PoPAvg                         *float64
+	ProbabilityThunderstormAvg     *float64
+	PotentialPrecipitationFormMode *float64
+	PotentialPrecipitationTypeMode *float64
+	PrecipitationFormMode          *float64
+	PrecipitationTypeMode          *float64
+	RadiationGlobalAvg             *float64
+	RadiationLWAvg                 *float64
+	WeatherNumberMode              *float64
+	WeatherSymbol3Mode             *float64
+	WindUMSAvg                     *float64
+	WindVMSAvg                     *float64
+	WindVectorMSAvg                *float64
+	UVIndexAvg                     *float64
 }
 
 type HourlyForecast struct {
@@ -99,4 +99,27 @@ type WeatherResponse struct {
 	Current  CurrentWeather
 	Hourly   []HourlyForecast
 	Forecast []DailyForecast
+}
+
+type MapOverlayRequest struct {
+	MinLon float64
+	MinLat float64
+	MaxLon float64
+	MaxLat float64
+	Width  int
+	Height int
+}
+
+type TemperatureSample struct {
+	Lat         float64
+	Lon         float64
+	Temperature float64
+	ObservedAt  time.Time
+}
+
+type TemperatureOverlay struct {
+	PNG      []byte
+	DataTime time.Time
+	MinTemp  float64
+	MaxTemp  float64
 }
