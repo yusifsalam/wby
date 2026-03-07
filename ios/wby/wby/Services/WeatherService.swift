@@ -84,6 +84,58 @@ actor WeatherService {
         return try? await fetchAndCache(lat: lat, lon: lon)
     }
 
+    func fetchTemperatureOverlay(bbox: MapBBox, width: Int, height: Int) async throws -> TemperatureOverlayImage {
+        guard let baseURL else {
+            throw WeatherError.missingAPIBaseURL
+        }
+        var components = URLComponents(url: baseURL.appendingPathComponent("v1/map/temperature"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "bbox", value: bbox.queryValue),
+            URLQueryItem(name: "width", value: String(width)),
+            URLQueryItem(name: "height", value: String(height)),
+        ]
+        guard let url = components.url else {
+            throw WeatherError.invalidURL
+        }
+        let query = components.percentEncodedQuery ?? ""
+
+        let request: URLRequest
+        do {
+            request = try signedRequest(url: url, method: "GET", query: query)
+        } catch let error as WeatherError {
+            throw error
+        } catch {
+            throw WeatherError.serverError
+        }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw WeatherError.network(error)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw WeatherError.serverError
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw WeatherError.httpStatus(httpResponse.statusCode, Self.extractErrorMessage(data))
+        }
+
+        let dataTime = httpResponse.value(forHTTPHeaderField: "X-Data-Time").flatMap(Self.parseDate)
+        let minTemp = httpResponse.value(forHTTPHeaderField: "X-Temp-Min").flatMap(Double.init)
+        let maxTemp = httpResponse.value(forHTTPHeaderField: "X-Temp-Max").flatMap(Double.init)
+
+        return TemperatureOverlayImage(
+            imageData: data,
+            bbox: bbox,
+            dataTime: dataTime,
+            minTemp: minTemp,
+            maxTemp: maxTemp
+        )
+    }
+
     private func cacheURL(lat: Double, lon: Double) -> URL {
         let latStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lat)
         let lonStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lon)
@@ -147,6 +199,11 @@ actor WeatherService {
             return text
         }
         return nil
+    }
+
+    private static func parseDate(_ value: String) -> Date? {
+        let iso = ISO8601DateFormatter()
+        return iso.date(from: value)
     }
 
     private static func resolveConfigValue(_ key: String) -> String? {
