@@ -84,6 +84,84 @@ actor WeatherService {
         return try? await fetchAndCache(lat: lat, lon: lon)
     }
 
+    // MARK: - Climate Normals
+
+    func fetchClimateNormals(lat: Double, lon: Double) async throws -> ClimateNormalsResponse {
+        guard let baseURL else {
+            throw WeatherError.missingAPIBaseURL
+        }
+        var components = URLComponents(url: baseURL.appendingPathComponent("v1/climate-normals"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
+            URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
+        ]
+        guard let url = components.url else {
+            throw WeatherError.invalidURL
+        }
+        let query = components.percentEncodedQuery ?? ""
+
+        let request: URLRequest
+        do {
+            request = try signedRequest(url: url, method: "GET", query: query)
+        } catch let error as WeatherError {
+            throw error
+        } catch {
+            throw WeatherError.serverError
+        }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw WeatherError.network(error)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw WeatherError.serverError
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw WeatherError.httpStatus(httpResponse.statusCode, Self.extractErrorMessage(data))
+        }
+
+        do {
+            return try JSONDecoder().decode(ClimateNormalsResponse.self, from: data)
+        } catch {
+            throw WeatherError.decoding(error)
+        }
+    }
+
+    func saveClimateNormalsToCache(_ response: ClimateNormalsResponse, lat: Double, lon: Double) {
+        guard let data = try? JSONEncoder().encode(response) else { return }
+        try? data.write(to: climateNormalsCacheURL(lat: lat, lon: lon))
+    }
+
+    func loadClimateNormalsFromCache(lat: Double, lon: Double) -> ClimateNormalsResponse? {
+        let url = climateNormalsCacheURL(lat: lat, lon: lon)
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(ClimateNormalsResponse.self, from: data)
+    }
+
+    func fetchAndCacheClimateNormals(lat: Double, lon: Double) async throws -> ClimateNormalsResponse {
+        let response = try await fetchClimateNormals(lat: lat, lon: lon)
+        saveClimateNormalsToCache(response, lat: lat, lon: lon)
+        return response
+    }
+
+    func loadClimateNormalsFromCacheOrFetch(lat: Double, lon: Double) async -> ClimateNormalsResponse? {
+        if let cached = loadClimateNormalsFromCache(lat: lat, lon: lon) {
+            return cached
+        }
+        return try? await fetchAndCacheClimateNormals(lat: lat, lon: lon)
+    }
+
+    private func climateNormalsCacheURL(lat: Double, lon: Double) -> URL {
+        let latStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lat)
+        let lonStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lon)
+        return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("climate_normals_\(latStr)_\(lonStr).json")
+    }
+
     private func cacheURL(lat: Double, lon: Double) -> URL {
         let latStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lat)
         let lonStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lon)
