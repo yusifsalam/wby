@@ -15,6 +15,8 @@ type WeatherStore interface {
 	UpsertForecasts(ctx context.Context, forecasts []DailyForecast) error
 	GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64, limit int) ([]HourlyForecast, error)
 	UpsertHourlyForecasts(ctx context.Context, gridLat, gridLon float64, hourly []HourlyForecast) error
+	UpsertClimateNormals(ctx context.Context, normals []ClimateNormal) error
+	GetClimateNormals(ctx context.Context, fmisid int, period string) ([]ClimateNormal, error)
 }
 
 type ForecastFetcher interface {
