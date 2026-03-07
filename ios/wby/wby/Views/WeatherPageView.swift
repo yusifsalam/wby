@@ -57,18 +57,12 @@ struct WeatherPageView: View {
     // MARK: - Scene
 
     private var currentScene: WeatherScene {
-        let symbol = weather?.hourlyForecast.first?.symbol ?? weather?.dailyForecast.first?.symbol
-        return WeatherScene.from(symbolCode: nightAdjusted(symbol))
-    }
-
-    private func nightAdjusted(_ symbolCode: String?) -> String? {
-        guard let code = symbolCode.flatMap(Int.init), code < 100 else { return symbolCode }
-        let isNight = SunriseCard.isNight(
+        WeatherSymbols.scene(
+            for: weather,
             coordinate: coordinate,
             date: .now,
             elevationMeters: elevationMeters ?? 0
         )
-        return isNight ? String(code + 100) : symbolCode
     }
 
     // MARK: - Body
@@ -215,11 +209,10 @@ struct WeatherPageView: View {
         isLoading = weather == nil
         defer { isLoading = false }
         do {
-            let response = try await weatherService.fetchWeather(lat: coord.latitude, lon: coord.longitude)
+            let response = try await weatherService.fetchAndCache(lat: coord.latitude, lon: coord.longitude)
             weather = response
             lastUpdated = Date()
             errorMessage = nil
-            await weatherService.saveToCache(response, lat: coord.latitude, lon: coord.longitude)
         } catch {
             if weather == nil {
                 errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription

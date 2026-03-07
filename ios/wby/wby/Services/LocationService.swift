@@ -65,31 +65,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         guard let request = MKReverseGeocodingRequest(location: location) else { return }
         request.getMapItems { [weak self] items, _ in
             guard let mapItem = items?.first else { return }
-            self?.placeName = Self.displayAreaName(from: mapItem)
+            self?.placeName = mapItem.areaName
         }
-    }
-
-    private static func displayAreaName(from mapItem: MKMapItem) -> String? {
-        if let city = nonEmpty(mapItem.addressRepresentations?.cityName) {
-            return city
-        }
-        if let cityWithContext = nonEmpty(mapItem.addressRepresentations?.cityWithContext) {
-            return cityWithContext
-        }
-        if let shortAddress = nonEmpty(mapItem.address?.shortAddress) {
-            return shortAddress
-        }
-        if let region = nonEmpty(mapItem.addressRepresentations?.regionName) {
-            return region
-        }
-        return nonEmpty(mapItem.address?.fullAddress)
-    }
-
-    private static func nonEmpty(_ value: String?) -> String? {
-        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
-            return nil
-        }
-        return trimmed
     }
 
     private static func validAltitude(from location: CLLocation) -> Double? {

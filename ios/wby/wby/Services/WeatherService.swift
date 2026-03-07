@@ -71,6 +71,19 @@ actor WeatherService {
         return try? decoder.decode(WeatherResponse.self, from: data)
     }
 
+    func fetchAndCache(lat: Double, lon: Double) async throws -> WeatherResponse {
+        let response = try await fetchWeather(lat: lat, lon: lon)
+        saveToCache(response, lat: lat, lon: lon)
+        return response
+    }
+
+    func loadFromCacheOrFetch(lat: Double, lon: Double) async -> WeatherResponse? {
+        if let cached = loadFromCache(lat: lat, lon: lon) {
+            return cached
+        }
+        return try? await fetchAndCache(lat: lat, lon: lon)
+    }
+
     private func cacheURL(lat: Double, lon: Double) -> URL {
         let latStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lat)
         let lonStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lon)

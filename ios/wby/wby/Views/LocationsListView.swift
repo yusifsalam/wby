@@ -198,7 +198,7 @@ struct LocationsListView: View {
     // MARK: - Cards
 
     private func locationCard(name: String, isMyLocation: Bool, weather: WeatherResponse?) -> some View {
-        let scene = sceneFor(weather)
+        let scene = WeatherSymbols.scene(for: weather)
         return ZStack(alignment: .leading) {
             LinearGradient(
                 colors: scene.gradientColors,
@@ -231,7 +231,7 @@ struct LocationsListView: View {
                 Spacer()
 
                 HStack {
-                    if let condition = conditionDescription(weather) {
+                    if let condition = WeatherSymbols.conditionDescription(from: weather) {
                         Text(condition)
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.85))
@@ -292,26 +292,18 @@ struct LocationsListView: View {
     private func loadWeathers() async {
         // Load My Location: cache first, then fetch if missing
         if let coord = currentCoordinate, myLocationWeather == nil {
-            if let cached = await weatherService.loadFromCache(lat: coord.latitude, lon: coord.longitude) {
-                myLocationWeather = cached
-            } else if let fetched = try? await weatherService.fetchWeather(lat: coord.latitude, lon: coord.longitude) {
-                await weatherService.saveToCache(fetched, lat: coord.latitude, lon: coord.longitude)
-                myLocationWeather = fetched
-            }
+            myLocationWeather = await weatherService.loadFromCacheOrFetch(lat: coord.latitude, lon: coord.longitude)
         }
 
         // Load each favorite: cache first, then fetch if missing
         await withTaskGroup(of: (UUID, WeatherResponse?).self) { group in
             for favorite in favoritesStore.favorites where favoriteWeathers[favorite.id] == nil {
                 group.addTask {
-                    if let cached = await weatherService.loadFromCache(lat: favorite.latitude, lon: favorite.longitude) {
-                        return (favorite.id, cached)
-                    }
-                    if let fetched = try? await weatherService.fetchWeather(lat: favorite.latitude, lon: favorite.longitude) {
-                        await weatherService.saveToCache(fetched, lat: favorite.latitude, lon: favorite.longitude)
-                        return (favorite.id, fetched)
-                    }
-                    return (favorite.id, nil)
+                    let weather = await weatherService.loadFromCacheOrFetch(
+                        lat: favorite.latitude,
+                        lon: favorite.longitude
+                    )
+                    return (favorite.id, weather)
                 }
             }
             for await (id, weather) in group {
@@ -320,72 +312,16 @@ struct LocationsListView: View {
         }
     }
 
-    // MARK: - Helpers
-
-    private func sceneFor(_ weather: WeatherResponse?) -> WeatherScene {
-        WeatherScene.from(symbolCode:
-            weather?.hourlyForecast.first?.symbol ?? weather?.dailyForecast.first?.symbol)
-    }
-
-    private func conditionDescription(_ weather: WeatherResponse?) -> String? {
-        let symbol = weather?.hourlyForecast.first?.symbol ?? weather?.dailyForecast.first?.symbol
-        guard let code = symbol.flatMap(Int.init) else { return nil }
-        let n = code >= 100 ? code - 100 : code
-        switch n {
-        case 1: return "Clear"
-        case 2: return "Partly Cloudy"
-        case 3: return "Mostly Cloudy"
-        case 4, 5, 7: return "Overcast"
-        case 6, 9: return "Fog"
-        case 11: return "Showers"
-        case 21: return "Light Showers"
-        case 22: return "Showers"
-        case 23: return "Heavy Showers"
-        case 31: return "Light Rain"
-        case 32: return "Rain"
-        case 33: return "Heavy Rain"
-        case 41: return "Light Snow"
-        case 42: return "Snow"
-        case 43: return "Heavy Snow"
-        case 51: return "Light Sleet"
-        case 52: return "Sleet"
-        case 53: return "Heavy Sleet"
-        case 61, 64: return "Thunderstorms"
-        case 71, 74: return "Hail"
-        default: return nil
-        }
-    }
-
     private func favoriteLocation(from item: MKMapItem) -> FavoriteLocation? {
         let coordinate = item.location.coordinate
         guard CLLocationCoordinate2DIsValid(coordinate) else { return nil }
         return FavoriteLocation(
             id: UUID(),
-            name: nonEmpty(item.name)
-                ?? nonEmpty(item.addressRepresentations?.cityName)
-                ?? nonEmpty(item.addressRepresentations?.cityWithContext)
-                ?? nonEmpty(item.address?.shortAddress)
-                ?? "Unknown",
-            subtitle: subtitleFor(item),
+            name: item.favoriteDisplayName ?? "Unknown",
+            subtitle: item.favoriteSubtitle,
             latitude: coordinate.latitude,
             longitude: coordinate.longitude
         )
-    }
-
-    private func subtitleFor(_ item: MKMapItem) -> String {
-        let parts = [
-            nonEmpty(item.addressRepresentations?.cityName),
-            nonEmpty(item.addressRepresentations?.regionName)
-        ].compactMap { $0 }
-        if !parts.isEmpty { return parts.joined(separator: ", ") }
-        return nonEmpty(item.address?.shortAddress) ?? nonEmpty(item.address?.fullAddress) ?? ""
-    }
-
-    private func nonEmpty(_ value: String?) -> String? {
-        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
-            return nil
-        }
-        return trimmed
     }
 }
 
@@ -485,9 +421,7 @@ struct FavoriteCancelDropDelegate: DropDelegate {
 // MARK: - Preview
 
 #Preview {
-    let store = FavoritesStore()
-    store.add(FavoriteLocation(id: UUID(), name: "Tampere", subtitle: "Finland", latitude: 61.4978, longitude: 23.7610))
-    store.add(FavoriteLocation(id: UUID(), name: "Turku", subtitle: "Finland", latitude: 60.4518, longitude: 22.2666))
+    let store = LocationsListPreviewFixture.makeStore()
 
     return LocationsListView(
         favoritesStore: store,
@@ -499,9 +433,7 @@ struct FavoriteCancelDropDelegate: DropDelegate {
 }
 
 #Preview("Edit Mode") {
-    let store = FavoritesStore()
-    store.add(FavoriteLocation(id: UUID(), name: "Tampere", subtitle: "Finland", latitude: 61.4978, longitude: 23.7610))
-    store.add(FavoriteLocation(id: UUID(), name: "Turku", subtitle: "Finland", latitude: 60.4518, longitude: 22.2666))
+    let store = LocationsListPreviewFixture.makeStore()
 
     return LocationsListView(
         favoritesStore: store,
@@ -511,4 +443,13 @@ struct FavoriteCancelDropDelegate: DropDelegate {
         onSelect: { _ in },
         previewEditing: true
     )
+}
+
+private enum LocationsListPreviewFixture {
+    static func makeStore() -> FavoritesStore {
+        let store = FavoritesStore()
+        store.add(FavoriteLocation(id: UUID(), name: "Tampere", subtitle: "Finland", latitude: 61.4978, longitude: 23.7610))
+        store.add(FavoriteLocation(id: UUID(), name: "Turku", subtitle: "Finland", latitude: 60.4518, longitude: 22.2666))
+        return store
+    }
 }

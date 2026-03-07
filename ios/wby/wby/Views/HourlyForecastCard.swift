@@ -30,7 +30,12 @@ struct HourlyForecastCard: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            Image(systemName: SmartSymbol.systemImageName(for: nightAdjusted(hour.symbol, at: hour.time)))
+            Image(systemName: SmartSymbol.systemImageName(for: WeatherSymbols.nightAdjusted(
+                hour.symbol,
+                coordinate: coordinate,
+                at: hour.time,
+                elevationMeters: elevationMeters
+            )))
                 .frame(height: 20)
                 .symbolRenderingMode(.multicolor)
 
@@ -51,12 +56,6 @@ struct HourlyForecastCard: View {
                 .foregroundStyle(.secondary)
         }
         .frame(minWidth: 48)
-    }
-
-    private func nightAdjusted(_ symbolCode: String?, at date: Date) -> String? {
-        guard let code = symbolCode.flatMap(Int.init), code < 100 else { return symbolCode }
-        let isNight = SunriseCard.isNight(coordinate: coordinate, date: date, elevationMeters: elevationMeters)
-        return isNight ? String(code + 100) : symbolCode
     }
 
     private func hourLabel(_ date: Date) -> String {
