@@ -229,6 +229,21 @@ func applyUVToDaily(uvPoints []UVDataPoint, forecasts []DailyForecast) {
 	}
 }
 
+func (s *Service) GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*Station, float64, []ClimateNormal, InterpolatedNormal, error) {
+	station, distKm, err := s.store.NearestStation(ctx, lat, lon)
+	if err != nil {
+		return nil, 0, nil, InterpolatedNormal{}, fmt.Errorf("nearest station: %w", err)
+	}
+
+	normals, err := s.store.GetClimateNormals(ctx, station.FMISID, "1991-2020")
+	if err != nil {
+		return nil, 0, nil, InterpolatedNormal{}, fmt.Errorf("get climate normals: %w", err)
+	}
+
+	today := InterpolateNormals(normals, time.Now().UTC(), currentTemp)
+	return &station, distKm, normals, today, nil
+}
+
 func isHourlyFresh(hourly []HourlyForecast, maxAge time.Duration) bool {
 	oldest := hourly[0].FetchedAt
 	if oldest.IsZero() {
