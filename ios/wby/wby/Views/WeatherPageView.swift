@@ -128,7 +128,14 @@ struct WeatherPageView: View {
             .padding()
         }
         .scrollBounceBehavior(.always)
-        .refreshable { await fetchWeather() }
+        .refreshable {
+            if case .gps = location {
+                let freshCoord = await locationService.requestFreshLocation()
+                await fetchWeather(coord: freshCoord)
+            } else {
+                await fetchWeather()
+            }
+        }
         .onAppear { publishBackground() }
         .onChange(of: currentScene) { _, _ in publishBackground() }
         .onChange(of: weather?.hourlyForecast.first?.precipitation1h) { _, _ in publishBackground() }
