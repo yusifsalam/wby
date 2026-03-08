@@ -111,7 +111,9 @@ struct WeatherPageView: View {
                     if let climateNormals {
                         ClimateNormalsCard(
                             normals: climateNormals,
-                            currentTemp: weather.current.resolvedTemperature
+                            currentTemp: weather.current.resolvedTemperature,
+                            todayWeatherHigh: weather.dailyForecast.first?.high,
+                            todayWeatherLow: weather.dailyForecast.first?.low
                         )
                     }
                     if let lastUpdated {

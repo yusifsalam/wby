@@ -3,8 +3,8 @@ import SwiftUI
 struct ClimateNormalsCard: View {
     let normals: ClimateNormalsResponse
     let currentTemp: Double?
-
-    private let monthLabels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+    let todayWeatherHigh: Double?
+    let todayWeatherLow: Double?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -25,12 +25,8 @@ struct ClimateNormalsCard: View {
             temperatureChart
                 .frame(height: 120)
 
-            // Precipitation bars
-            precipitationBars
-                .frame(height: 40)
-
-            // Month labels
-            monthLabelRow
+            // Day labels for current month
+            dayLabelRow
         }
         .weatherCard()
     }
@@ -95,29 +91,78 @@ struct ClimateNormalsCard: View {
             let safeRange = tempRange > 0 ? tempRange : 1.0
 
             ZStack(alignment: .topLeading) {
+                // Horizontal y-axis guides and labels for all tick steps.
+                yAxisGuidesAndLabels(data: data, width: width, height: height, safeRange: safeRange)
+
                 // Filled band between high and low
                 filledBand(data: data, width: width, height: height, safeRange: safeRange)
 
                 // Average temperature line
                 avgLine(data: data, width: width, height: height, safeRange: safeRange)
 
-                // Current month highlight
-                currentMonthIndicator(data: data, width: width, height: height, safeRange: safeRange)
+                // Today's marker
+                todayIndicator(data: data, width: width, height: height, safeRange: safeRange)
+
+                // Actual current temperature marker
+                currentTempIndicator(data: data, width: width, height: height, safeRange: safeRange)
+
+                // Today's weather high/low markers
+                todayWeatherRangeIndicators(data: data, width: width, height: height, safeRange: safeRange)
             }
         }
     }
 
     private var chartData: ChartData {
-        let months = normals.monthly.sorted { $0.month < $1.month }
-        let highs = months.map { $0.tempHigh ?? 0 }
-        let lows = months.map { $0.tempLow ?? 0 }
-        let avgs = months.map { $0.tempAvg ?? 0 }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
 
-        let allTemps = highs + lows
+        let now = Date()
+        let year = calendar.component(.year, from: now)
+        let month = calendar.component(.month, from: now)
+        let todayDay = calendar.component(.day, from: now)
+        let daysInMonth = calendar.range(of: .day, in: .month, for: now)?.count ?? 30
+
+        let byMonth = Dictionary(uniqueKeysWithValues: normals.monthly.map { ($0.month, $0) })
+        let monthlyHighs = (1...12).map { byMonth[$0]?.tempHigh ?? 0 }
+        let monthlyLows = (1...12).map { byMonth[$0]?.tempLow ?? 0 }
+        let monthlyAvgs = (1...12).map { byMonth[$0]?.tempAvg ?? 0 }
+
+        let highs = (1...daysInMonth).map { day in
+            interpolateDaily(monthlyValues: monthlyHighs, year: year, month: month, day: day, calendar: calendar)
+        }
+        let lows = (1...daysInMonth).map { day in
+            interpolateDaily(monthlyValues: monthlyLows, year: year, month: month, day: day, calendar: calendar)
+        }
+        let avgs = (1...daysInMonth).map { day in
+            interpolateDaily(monthlyValues: monthlyAvgs, year: year, month: month, day: day, calendar: calendar)
+        }
+
+        var allTemps = highs
+        allTemps.append(contentsOf: lows)
+        if let currentTemp {
+            allTemps.append(currentTemp)
+        }
+        if let todayWeatherHigh {
+            allTemps.append(todayWeatherHigh)
+        }
+        if let todayWeatherLow {
+            allTemps.append(todayWeatherLow)
+        }
         let tempMin = (allTemps.min() ?? -10) - 2
         let tempMax = (allTemps.max() ?? 30) + 2
+        let todayIndex = min(max(todayDay - 1, 0), max(daysInMonth - 1, 0))
 
-        return ChartData(highs: highs, lows: lows, avgs: avgs, tempMin: tempMin, tempMax: tempMax)
+        return ChartData(
+            highs: highs,
+            lows: lows,
+            avgs: avgs,
+            tempMin: tempMin,
+            tempMax: tempMax,
+            todayIndex: todayIndex,
+            currentTemp: currentTemp,
+            todayWeatherHigh: todayWeatherHigh,
+            todayWeatherLow: todayWeatherLow
+        )
     }
 
     private struct ChartData {
@@ -126,6 +171,10 @@ struct ClimateNormalsCard: View {
         let avgs: [Double]
         let tempMin: Double
         let tempMax: Double
+        let todayIndex: Int
+        let currentTemp: Double?
+        let todayWeatherHigh: Double?
+        let todayWeatherLow: Double?
     }
 
     private func xPosition(for index: Int, count: Int, width: CGFloat) -> CGFloat {
@@ -167,6 +216,26 @@ struct ClimateNormalsCard: View {
         .fill(.blue.opacity(0.15))
     }
 
+    @ViewBuilder
+    private func yAxisGuidesAndLabels(data: ChartData, width: CGFloat, height: CGFloat, safeRange: Double) -> some View {
+        let ticks = yAxisTicks(min: data.tempMin, max: data.tempMax)
+        ForEach(ticks, id: \.self) { tick in
+            let y = yPosition(for: tick, range: safeRange, min: data.tempMin, height: height)
+            let clampedY = min(max(y, 8), max(height - 8, 8))
+
+            Path { path in
+                path.move(to: CGPoint(x: 0, y: clampedY))
+                path.addLine(to: CGPoint(x: width, y: clampedY))
+            }
+            .stroke(.primary.opacity(0.08), lineWidth: 1)
+
+            Text("\(Int(tick.rounded()))°")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .position(x: width - 14, y: clampedY)
+        }
+    }
+
     private func avgLine(data: ChartData, width: CGFloat, height: CGFloat, safeRange: Double) -> some View {
         Path { path in
             let count = data.avgs.count
@@ -186,14 +255,13 @@ struct ClimateNormalsCard: View {
     }
 
     @ViewBuilder
-    private func currentMonthIndicator(data: ChartData, width: CGFloat, height: CGFloat, safeRange: Double) -> some View {
-        let currentMonth = Calendar.current.component(.month, from: Date()) - 1
+    private func todayIndicator(data: ChartData, width: CGFloat, height: CGFloat, safeRange: Double) -> some View {
         let count = data.avgs.count
-        if currentMonth >= 0, currentMonth < count {
-            let x = xPosition(for: currentMonth, count: count, width: width)
-            let yAvg = yPosition(for: data.avgs[currentMonth], range: safeRange, min: data.tempMin, height: height)
-            let yHigh = yPosition(for: data.highs[currentMonth], range: safeRange, min: data.tempMin, height: height)
-            let yLow = yPosition(for: data.lows[currentMonth], range: safeRange, min: data.tempMin, height: height)
+        if data.todayIndex >= 0, data.todayIndex < count {
+            let x = xPosition(for: data.todayIndex, count: count, width: width)
+            let yAvg = yPosition(for: data.avgs[data.todayIndex], range: safeRange, min: data.tempMin, height: height)
+            let yHigh = yPosition(for: data.highs[data.todayIndex], range: safeRange, min: data.tempMin, height: height)
+            let yLow = yPosition(for: data.lows[data.todayIndex], range: safeRange, min: data.tempMin, height: height)
 
             // Vertical line through the band
             Path { path in
@@ -210,48 +278,181 @@ struct ClimateNormalsCard: View {
         }
     }
 
-    // MARK: - Precipitation Bars
+    @ViewBuilder
+    private func currentTempIndicator(data: ChartData, width: CGFloat, height: CGFloat, safeRange: Double) -> some View {
+        if let currentTemp = data.currentTemp {
+            let count = data.avgs.count
+            if data.todayIndex >= 0, data.todayIndex < count {
+                let x = xPosition(for: data.todayIndex, count: count, width: width)
+                let yNow = yPosition(for: currentTemp, range: safeRange, min: data.tempMin, height: height)
+                let clampedY = min(max(yNow, 6), max(height - 6, 6))
+                let wantsLeft = x < width * 0.65
+                let proposedLabelX = wantsLeft ? x - 30 : x + 30
+                let clampedLabelX = min(max(proposedLabelX, 20), width - 20)
+                let labelY = max(clampedY - 10, 10)
 
-    private var precipitationBars: some View {
-        GeometryReader { geo in
-            let width = geo.size.width
-            let height = geo.size.height
-            let months = normals.monthly.sorted { $0.month < $1.month }
-            let precips = months.map { $0.precipMm ?? 0 }
-            let maxPrecip = max(precips.max() ?? 1, 1)
-            let count = precips.count
+                Circle()
+                    .fill(.orange)
+                    .frame(width: 7, height: 7)
+                    .position(x: x, y: clampedY)
 
-            ForEach(0..<count, id: \.self) { i in
-                let barWidth = width / CGFloat(count) * 0.5
-                let x = xPosition(for: i, count: count, width: width)
-                let barHeight = CGFloat(precips[i] / maxPrecip) * height * 0.85
-                let currentMonth = Calendar.current.component(.month, from: Date()) - 1
-
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(i == currentMonth ? .cyan.opacity(0.7) : .cyan.opacity(0.35))
-                    .frame(width: barWidth, height: max(barHeight, 1))
-                    .position(x: x, y: height - barHeight / 2)
+                Text("Now \(Int(currentTemp.rounded()))°")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.orange.opacity(0.95))
+                    .position(x: clampedLabelX, y: labelY)
             }
         }
     }
 
-    // MARK: - Month Labels
+    @ViewBuilder
+    private func todayWeatherRangeIndicators(data: ChartData, width: CGFloat, height: CGFloat, safeRange: Double) -> some View {
+        let count = data.avgs.count
+        if data.todayIndex >= 0, data.todayIndex < count,
+           let high = data.todayWeatherHigh,
+           let low = data.todayWeatherLow
+        {
+            let x = xPosition(for: data.todayIndex, count: count, width: width)
+            let yHigh = yPosition(for: high, range: safeRange, min: data.tempMin, height: height)
+            let yLow = yPosition(for: low, range: safeRange, min: data.tempMin, height: height)
 
-    private var monthLabelRow: some View {
+            let labelX = x < width * 0.65 ? x + 22 : x - 22
+            let clampedLabelX = min(max(labelX, 18), width - 18)
+            let highLabelY = max(yHigh - 10, 10)
+            let lowLabelY = min(yLow + 10, height - 10)
+
+            Image(systemName: "triangle.fill")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.red.opacity(0.9))
+                .position(x: x, y: yHigh)
+
+            Image(systemName: "triangle.fill")
+                .font(.system(size: 8, weight: .bold))
+                .rotationEffect(.degrees(180))
+                .foregroundStyle(.indigo.opacity(0.9))
+                .position(x: x, y: yLow)
+
+            Text("H \(Int(high.rounded()))°")
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .foregroundStyle(.red.opacity(0.9))
+                .position(x: clampedLabelX, y: highLabelY)
+
+            Text("L \(Int(low.rounded()))°")
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .foregroundStyle(.indigo.opacity(0.9))
+                .position(x: clampedLabelX, y: lowLabelY)
+        }
+    }
+
+    // MARK: - Day Labels
+
+    private var dayLabelRow: some View {
         GeometryReader { geo in
             let width = geo.size.width
-            let count = monthLabels.count
-            let currentMonth = Calendar.current.component(.month, from: Date()) - 1
+            let data = chartData
+            let count = data.avgs.count
+            let ticks = dayTicks(for: count)
 
-            ForEach(0..<count, id: \.self) { i in
-                let x = xPosition(for: i, count: count, width: width)
-                Text(monthLabels[i])
+            ForEach(ticks, id: \.self) { day in
+                let index = day - 1
+                let x = xPosition(for: index, count: count, width: width)
+                Text("\(day)")
                     .font(.system(size: 9))
-                    .foregroundStyle(i == currentMonth ? .primary : .tertiary)
+                    .foregroundStyle(index == data.todayIndex ? .primary : .tertiary)
                     .position(x: x, y: 6)
             }
         }
         .frame(height: 12)
+    }
+
+    private func dayTicks(for dayCount: Int) -> [Int] {
+        let candidates = [1, 8, 15, 22, dayCount]
+        return Array(Set(candidates.filter { $0 >= 1 && $0 <= dayCount })).sorted()
+    }
+
+    private func yAxisTicks(min: Double, max maxValue: Double) -> [Double] {
+        let minTick = floor(min)
+        let maxTick = ceil(maxValue)
+        let range = maxTick - minTick
+        if range <= 0 { return [minTick] }
+
+        // Keep labels readable in the compact card while still showing full scale steps.
+        let targetTickCount = 6.0
+        let rawStep = range / Swift.max(targetTickCount - 1, 1)
+        let step = niceStep(rawStep)
+
+        let start = ceil(minTick / step) * step
+        let end = floor(maxTick / step) * step
+
+        var ticks: [Double] = []
+        if start <= end {
+            var current = start
+            while current <= end + step * 0.5 {
+                ticks.append(current)
+                current += step
+            }
+        } else {
+            ticks = [minTick, maxTick]
+        }
+        return ticks
+    }
+
+    private func niceStep(_ value: Double) -> Double {
+        let exponent = floor(log10(value))
+        let fraction = value / pow(10, exponent)
+        let niceFraction: Double
+        if fraction <= 1 {
+            niceFraction = 1
+        } else if fraction <= 2 {
+            niceFraction = 2
+        } else if fraction <= 5 {
+            niceFraction = 5
+        } else {
+            niceFraction = 10
+        }
+        return niceFraction * pow(10, exponent)
+    }
+
+    private func interpolateDaily(
+        monthlyValues: [Double],
+        year: Int,
+        month: Int,
+        day: Int,
+        calendar: Calendar
+    ) -> Double {
+        let currentDate = calendar.date(from: DateComponents(year: year, month: month, day: day)) ?? .now
+        let midCurrent = calendar.date(from: DateComponents(year: year, month: month, day: 15)) ?? currentDate
+
+        let beforeMonth: Int
+        let afterMonth: Int
+        let midBefore: Date
+        let midAfter: Date
+
+        if day < 15 {
+            afterMonth = month
+            beforeMonth = month == 1 ? 12 : month - 1
+            let beforeYear = month == 1 ? year - 1 : year
+            midBefore = calendar.date(from: DateComponents(year: beforeYear, month: beforeMonth, day: 15)) ?? currentDate
+            midAfter = midCurrent
+        } else {
+            beforeMonth = month
+            afterMonth = month == 12 ? 1 : month + 1
+            let afterYear = month == 12 ? year + 1 : year
+            midBefore = midCurrent
+            midAfter = calendar.date(from: DateComponents(year: afterYear, month: afterMonth, day: 15)) ?? currentDate
+        }
+
+        let totalDuration = midAfter.timeIntervalSince(midBefore)
+        guard totalDuration > 0 else { return monthlyValues[month - 1] }
+        let elapsed = currentDate.timeIntervalSince(midBefore)
+        let t = elapsed / totalDuration
+        let weight = (1 - cos(t * .pi)) / 2
+
+        let beforeValue = monthlyValues[beforeMonth - 1]
+        let afterValue = monthlyValues[afterMonth - 1]
+        return beforeValue * (1 - weight) + afterValue * weight
     }
 }
 
@@ -281,7 +482,9 @@ struct ClimateNormalsCard: View {
                     )
                 }
             ),
-            currentTemp: -0.4
+            currentTemp: -0.4,
+            todayWeatherHigh: 2.0,
+            todayWeatherLow: -9.0
         )
         .padding()
     }
