@@ -117,14 +117,12 @@ struct ContentView: View {
                     SettingsView()
                 }
             }
-            .sheet(isPresented: $showingMap) {
-                NavigationStack {
-                    WeatherMapView(
-                        locationService: locationService,
-                        favoritesStore: favoritesStore,
-                        weatherService: weatherService
-                    )
-                }
+            .fullScreenCover(isPresented: $showingMap) {
+                WeatherMapView(
+                    locationService: locationService,
+                    favoritesStore: favoritesStore,
+                    weatherService: weatherService
+                )
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
