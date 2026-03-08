@@ -67,6 +67,24 @@ func (s *Store) NearestStation(ctx context.Context, lat, lon float64) (weather.S
 	return st, distMeters / 1000.0, nil
 }
 
+func (s *Store) NearestStationWithClimateNormals(ctx context.Context, lat, lon float64, period string) (weather.Station, float64, error) {
+	var st weather.Station
+	var distMeters float64
+	err := s.pool.QueryRow(ctx,
+		`SELECT s.fmisid, s.name, ST_Y(s.geom::geometry), ST_X(s.geom::geometry), s.wmo_code,
+		        ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography)
+		 FROM stations s
+		 WHERE EXISTS (SELECT 1 FROM climate_normals cn WHERE cn.fmisid = s.fmisid AND cn.period = $3)
+		 ORDER BY s.geom <-> ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
+		 LIMIT 1`,
+		lon, lat, period,
+	).Scan(&st.FMISID, &st.Name, &st.Lat, &st.Lon, &st.WMOCode, &distMeters)
+	if err != nil {
+		return st, 0, fmt.Errorf("nearest station with climate normals: %w", err)
+	}
+	return st, distMeters / 1000.0, nil
+}
+
 func (s *Store) UpsertObservations(ctx context.Context, observations []weather.Observation) error {
 	batch := &pgx.Batch{}
 	for _, o := range observations {

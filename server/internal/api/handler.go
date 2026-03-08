@@ -287,6 +287,13 @@ func (h *Handler) getClimateNormals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if station == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "no climate normals available for this location"})
+		return
+	}
+
 	monthly := make([]monthlyNormalJSON, len(normals))
 	for i, n := range normals {
 		monthly[i] = monthlyNormalJSON{

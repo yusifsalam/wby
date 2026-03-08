@@ -18,6 +18,7 @@ type WeatherStore interface {
 	UpsertHourlyForecasts(ctx context.Context, gridLat, gridLon float64, hourly []HourlyForecast) error
 	UpsertClimateNormals(ctx context.Context, normals []ClimateNormal) error
 	GetClimateNormals(ctx context.Context, fmisid int, period string) ([]ClimateNormal, error)
+	NearestStationWithClimateNormals(ctx context.Context, lat, lon float64, period string) (Station, float64, error)
 }
 
 type ForecastFetcher interface {
@@ -250,10 +251,16 @@ func applyUVToDaily(uvPoints []UVDataPoint, forecasts []DailyForecast) {
 	}
 }
 
+const maxClimateNormalsDistanceKm = 50.0
+
 func (s *Service) GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*Station, float64, []ClimateNormal, InterpolatedNormal, error) {
-	station, distKm, err := s.store.NearestStation(ctx, lat, lon)
+	station, distKm, err := s.store.NearestStationWithClimateNormals(ctx, lat, lon, "1991-2020")
 	if err != nil {
-		return nil, 0, nil, InterpolatedNormal{}, fmt.Errorf("nearest station: %w", err)
+		return nil, 0, nil, InterpolatedNormal{}, fmt.Errorf("nearest station with climate normals: %w", err)
+	}
+
+	if distKm > maxClimateNormalsDistanceKm {
+		return nil, 0, nil, InterpolatedNormal{}, nil
 	}
 
 	normals, err := s.store.GetClimateNormals(ctx, station.FMISID, "1991-2020")
