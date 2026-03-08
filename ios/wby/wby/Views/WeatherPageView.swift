@@ -211,12 +211,7 @@ struct WeatherPageView: View {
     // MARK: - Loading
 
     private func loadWeather() async {
-        let coord = coordinate
-        if let cached = await weatherService.loadFromCache(lat: coord.latitude, lon: coord.longitude) {
-            weather = cached
-        }
-        await fetchWeather(coord: coord)
-        climateNormals = await weatherService.loadClimateNormalsFromCacheOrFetch(lat: coord.latitude, lon: coord.longitude)
+        await fetchWeather(coord: coordinate)
     }
 
     private func fetchWeather(coord: CLLocationCoordinate2D? = nil) async {
@@ -224,7 +219,7 @@ struct WeatherPageView: View {
         isLoading = weather == nil
         defer { isLoading = false }
         do {
-            let response = try await weatherService.fetchAndCache(lat: coord.latitude, lon: coord.longitude)
+            let response = try await weatherService.fetchWeather(lat: coord.latitude, lon: coord.longitude)
             weather = response
             lastUpdated = Date()
             errorMessage = nil
@@ -232,6 +227,11 @@ struct WeatherPageView: View {
             if weather == nil {
                 errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             }
+        }
+        do {
+            climateNormals = try await weatherService.fetchClimateNormals(lat: coord.latitude, lon: coord.longitude)
+        } catch {
+            climateNormals = nil
         }
     }
 
@@ -326,4 +326,3 @@ enum PreviewData {
         initialWeather: PreviewData.makeSample()
     )
 }
-

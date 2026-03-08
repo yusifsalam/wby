@@ -290,16 +290,16 @@ struct LocationsListView: View {
     // MARK: - Data loading
 
     private func loadWeathers() async {
-        // Load My Location: cache first, then fetch if missing
+        // Load My Location weather using URLSession protocol cache semantics.
         if let coord = currentCoordinate, myLocationWeather == nil {
-            myLocationWeather = await weatherService.loadFromCacheOrFetch(lat: coord.latitude, lon: coord.longitude)
+            myLocationWeather = try? await weatherService.fetchWeather(lat: coord.latitude, lon: coord.longitude)
         }
 
-        // Load each favorite: cache first, then fetch if missing
+        // Load each favorite weather using URLSession protocol cache semantics.
         await withTaskGroup(of: (UUID, WeatherResponse?).self) { group in
             for favorite in favoritesStore.favorites where favoriteWeathers[favorite.id] == nil {
                 group.addTask {
-                    let weather = await weatherService.loadFromCacheOrFetch(
+                    let weather = try? await weatherService.fetchWeather(
                         lat: favorite.latitude,
                         lon: favorite.longitude
                     )

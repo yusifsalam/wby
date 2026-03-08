@@ -59,31 +59,6 @@ actor WeatherService {
         }
     }
 
-    func saveToCache(_ response: WeatherResponse, lat: Double, lon: Double) {
-        guard let data = try? JSONEncoder().encode(response) else { return }
-        try? data.write(to: cacheURL(lat: lat, lon: lon))
-    }
-
-    func loadFromCache(lat: Double, lon: Double) -> WeatherResponse? {
-        guard let data = try? Data(contentsOf: cacheURL(lat: lat, lon: lon)) else { return nil }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(WeatherResponse.self, from: data)
-    }
-
-    func fetchAndCache(lat: Double, lon: Double) async throws -> WeatherResponse {
-        let response = try await fetchWeather(lat: lat, lon: lon)
-        saveToCache(response, lat: lat, lon: lon)
-        return response
-    }
-
-    func loadFromCacheOrFetch(lat: Double, lon: Double) async -> WeatherResponse? {
-        if let cached = loadFromCache(lat: lat, lon: lon) {
-            return cached
-        }
-        return try? await fetchAndCache(lat: lat, lon: lon)
-    }
-
     func fetchTemperatureOverlay(bbox: MapBBox, width: Int, height: Int) async throws -> TemperatureOverlayImage {
         guard let baseURL else {
             throw WeatherError.missingAPIBaseURL
@@ -183,50 +158,7 @@ actor WeatherService {
         }
     }
 
-    func saveClimateNormalsToCache(_ response: ClimateNormalsResponse, lat: Double, lon: Double) {
-        guard let data = try? JSONEncoder().encode(response) else { return }
-        try? data.write(to: climateNormalsCacheURL(lat: lat, lon: lon))
-    }
-
-    func loadClimateNormalsFromCache(lat: Double, lon: Double) -> ClimateNormalsResponse? {
-        let url = climateNormalsCacheURL(lat: lat, lon: lon)
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder().decode(ClimateNormalsResponse.self, from: data)
-    }
-
-    func fetchAndCacheClimateNormals(lat: Double, lon: Double) async throws -> ClimateNormalsResponse {
-        let response = try await fetchClimateNormals(lat: lat, lon: lon)
-        saveClimateNormalsToCache(response, lat: lat, lon: lon)
-        return response
-    }
-
-    func loadClimateNormalsFromCacheOrFetch(lat: Double, lon: Double) async -> ClimateNormalsResponse? {
-        if let cached = loadClimateNormalsFromCache(lat: lat, lon: lon) {
-            return cached
-        }
-        return try? await fetchAndCacheClimateNormals(lat: lat, lon: lon)
-    }
-
-    private func climateNormalsCacheURL(lat: Double, lon: Double) -> URL {
-        let latStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lat)
-        let lonStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lon)
-        return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("climate_normals_\(latStr)_\(lonStr).json")
-    }
-
-    private func cacheURL(lat: Double, lon: Double) -> URL {
-        let latStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lat)
-        let lonStr = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), lon)
-        return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("weather_cache_\(latStr)_\(lonStr).json")
-    }
-
-    private static func resolveBaseURL() -> URL? {
-        guard let configured = resolveConfigValue("API_BASE_URL") else {
-            return nil
-        }
-        return URL(string: configured)
-    }
+    // MARK: - Private
 
     private func signedRequest(url: URL, method: String, query: String) throws -> URLRequest {
         guard let clientID, let clientSecret else {
@@ -282,6 +214,13 @@ actor WeatherService {
     private static func parseDate(_ value: String) -> Date? {
         let iso = ISO8601DateFormatter()
         return iso.date(from: value)
+    }
+
+    private static func resolveBaseURL() -> URL? {
+        guard let configured = resolveConfigValue("API_BASE_URL") else {
+            return nil
+        }
+        return URL(string: configured)
     }
 
     private static func resolveConfigValue(_ key: String) -> String? {
