@@ -15,6 +15,7 @@ import (
 type WeatherService interface {
 	GetWeather(ctx context.Context, lat, lon float64) (*weather.WeatherResponse, error)
 	GetTemperatureOverlay(ctx context.Context, req weather.MapOverlayRequest) (*weather.TemperatureOverlay, error)
+	GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*weather.Station, float64, []weather.ClimateNormal, weather.InterpolatedNormal, error)
 }
 
 type Handler struct {
@@ -28,6 +29,7 @@ func NewHandler(service WeatherService) *Handler {
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/weather", h.getWeather)
 	mux.HandleFunc("GET /v1/map/temperature", h.getTemperatureOverlay)
+	mux.HandleFunc("GET /v1/climate-normals", h.getClimateNormals)
 	mux.HandleFunc("GET /health", h.health)
 }
 
@@ -233,6 +235,85 @@ func writeJSONError(w http.ResponseWriter, msg string, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+type climateNormalsJSON struct {
+	Station stationJSON            `json:"station"`
+	Period  string                 `json:"period"`
+	Today   interpolatedNormalJSON `json:"today"`
+	Monthly []monthlyNormalJSON    `json:"monthly"`
+}
+
+type interpolatedNormalJSON struct {
+	TempAvg     *float64 `json:"temp_avg"`
+	TempHigh    *float64 `json:"temp_high"`
+	TempLow     *float64 `json:"temp_low"`
+	PrecipMmDay *float64 `json:"precip_mm_day"`
+	TempDiff    *float64 `json:"temp_diff"`
+}
+
+type monthlyNormalJSON struct {
+	Month    int      `json:"month"`
+	TempAvg  *float64 `json:"temp_avg"`
+	TempHigh *float64 `json:"temp_high"`
+	TempLow  *float64 `json:"temp_low"`
+	PrecipMm *float64 `json:"precip_mm"`
+}
+
+func (h *Handler) getClimateNormals(w http.ResponseWriter, r *http.Request) {
+	lat, err := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
+	if err != nil {
+		writeJSONError(w, "invalid lat parameter", http.StatusBadRequest)
+		return
+	}
+	lon, err := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
+	if err != nil {
+		writeJSONError(w, "invalid lon parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Optionally accept current_temp for computing temp_diff
+	var currentTemp *float64
+	if ct := r.URL.Query().Get("current_temp"); ct != "" {
+		if v, err := strconv.ParseFloat(ct, 64); err == nil {
+			currentTemp = &v
+		}
+	}
+
+	station, distKm, normals, today, err := h.service.GetClimateNormals(r.Context(), lat, lon, currentTemp)
+	if err != nil {
+		slog.Error("climate normals", "err", err)
+		writeJSONError(w, "failed to get climate normals", http.StatusInternalServerError)
+		return
+	}
+
+	monthly := make([]monthlyNormalJSON, len(normals))
+	for i, n := range normals {
+		monthly[i] = monthlyNormalJSON{
+			Month:    n.Month,
+			TempAvg:  n.TempAvg,
+			TempHigh: n.TempHigh,
+			TempLow:  n.TempLow,
+			PrecipMm: n.PrecipMm,
+		}
+	}
+
+	resp := climateNormalsJSON{
+		Station: stationJSON{Name: station.Name, DistanceKM: distKm},
+		Period:  "1991-2020",
+		Today: interpolatedNormalJSON{
+			TempAvg:     today.TempAvg,
+			TempHigh:    today.TempHigh,
+			TempLow:     today.TempLow,
+			PrecipMmDay: today.PrecipMmDay,
+			TempDiff:    today.TempDiff,
+		},
+		Monthly: monthly,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {

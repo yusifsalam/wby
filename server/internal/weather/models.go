@@ -123,3 +123,21 @@ type TemperatureOverlay struct {
 	MinTemp  float64
 	MaxTemp  float64
 }
+
+type ClimateNormal struct {
+	FMISID   int
+	Month    int
+	Period   string
+	TempAvg  *float64
+	TempHigh *float64
+	TempLow  *float64
+	PrecipMm *float64
+}
+
+type InterpolatedNormal struct {
+	TempAvg     *float64
+	TempHigh    *float64
+	TempLow     *float64
+	PrecipMmDay *float64
+	TempDiff    *float64
+}

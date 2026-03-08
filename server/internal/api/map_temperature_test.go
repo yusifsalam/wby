@@ -92,3 +92,7 @@ func (f fakeWeatherService) GetTemperatureOverlay(ctx context.Context, req weath
 		MaxTemp:  1,
 	}, nil
 }
+
+func (f fakeWeatherService) GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*weather.Station, float64, []weather.ClimateNormal, weather.InterpolatedNormal, error) {
+	panic("not used in this test")
+}

@@ -353,3 +353,65 @@ func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64
 	}
 	return result, nil
 }
+
+func (s *Store) AllStationFMISIDs(ctx context.Context) ([]int, error) {
+	rows, err := s.pool.Query(ctx, "SELECT fmisid FROM stations ORDER BY fmisid")
+	if err != nil {
+		return nil, fmt.Errorf("list station fmisids: %w", err)
+	}
+	defer rows.Close()
+	var ids []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan fmisid: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+func (s *Store) UpsertClimateNormals(ctx context.Context, normals []weather.ClimateNormal) error {
+	batch := &pgx.Batch{}
+	for _, n := range normals {
+		batch.Queue(`
+			INSERT INTO climate_normals (fmisid, month, period, temp_avg, temp_high, temp_low, precip_mm)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (fmisid, month, period) DO UPDATE SET
+				temp_avg = EXCLUDED.temp_avg,
+				temp_high = EXCLUDED.temp_high,
+				temp_low = EXCLUDED.temp_low,
+				precip_mm = EXCLUDED.precip_mm`,
+			n.FMISID, n.Month, n.Period, n.TempAvg, n.TempHigh, n.TempLow, n.PrecipMm)
+	}
+	br := s.pool.SendBatch(ctx, batch)
+	defer br.Close()
+	for range normals {
+		if _, err := br.Exec(); err != nil {
+			return fmt.Errorf("upsert climate normals: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *Store) GetClimateNormals(ctx context.Context, fmisid int, period string) ([]weather.ClimateNormal, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT fmisid, month, period, temp_avg, temp_high, temp_low, precip_mm
+		FROM climate_normals
+		WHERE fmisid = $1 AND period = $2
+		ORDER BY month`, fmisid, period)
+	if err != nil {
+		return nil, fmt.Errorf("get climate normals: %w", err)
+	}
+	defer rows.Close()
+
+	var normals []weather.ClimateNormal
+	for rows.Next() {
+		var n weather.ClimateNormal
+		if err := rows.Scan(&n.FMISID, &n.Month, &n.Period, &n.TempAvg, &n.TempHigh, &n.TempLow, &n.PrecipMm); err != nil {
+			return nil, fmt.Errorf("scan climate normal: %w", err)
+		}
+		normals = append(normals, n)
+	}
+	return normals, rows.Err()
+}

@@ -9,6 +9,7 @@ struct WeatherPageView: View {
     let onBackgroundUpdate: (WeatherScene, Double?) -> Void
 
     @State private var weather: WeatherResponse?
+    @State private var climateNormals: ClimateNormalsResponse?
     @State private var isLoading = false
     @State private var lastUpdated: Date?
     @State private var errorMessage: String?
@@ -107,6 +108,12 @@ struct WeatherPageView: View {
                         coordinate: coordinate,
                         referenceDate: weather.current.observedAt
                     )
+                    if let climateNormals {
+                        ClimateNormalsCard(
+                            normals: climateNormals,
+                            currentTemp: weather.current.resolvedTemperature
+                        )
+                    }
                     if let lastUpdated {
                         Text("Updated \(lastUpdated, style: .relative) ago")
                             .font(.caption)
@@ -209,6 +216,7 @@ struct WeatherPageView: View {
             weather = cached
         }
         await fetchWeather(coord: coord)
+        climateNormals = await weatherService.loadClimateNormalsFromCacheOrFetch(lat: coord.latitude, lon: coord.longitude)
     }
 
     private func fetchWeather(coord: CLLocationCoordinate2D? = nil) async {

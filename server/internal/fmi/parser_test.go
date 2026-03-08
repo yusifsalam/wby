@@ -4,6 +4,8 @@ import (
 	"math"
 	"os"
 	"testing"
+
+	"wby/internal/weather"
 )
 
 func TestParseObservations(t *testing.T) {
@@ -153,6 +155,61 @@ func TestParseHourlyForecast(t *testing.T) {
 		if result[i].Time.Before(result[i-1].Time) {
 			t.Fatalf("hourly forecast not sorted: %s before %s", result[i].Time, result[i-1].Time)
 		}
+	}
+}
+
+func TestParseClimateNormals(t *testing.T) {
+	data, err := os.ReadFile("testdata/climate_normals.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	normals, err := ParseClimateNormals(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(normals) == 0 {
+		t.Fatal("expected at least one climate normal entry")
+	}
+
+	// Should have 12 months for the station
+	byMonth := make(map[int]weather.ClimateNormal)
+	for _, n := range normals {
+		byMonth[n.Month] = n
+	}
+	if len(byMonth) != 12 {
+		t.Fatalf("expected 12 months, got %d", len(byMonth))
+	}
+
+	// January should have sub-zero temp_avg for Helsinki
+	jan, ok := byMonth[1]
+	if !ok {
+		t.Fatal("missing January")
+	}
+	if jan.TempAvg == nil {
+		t.Fatal("January temp_avg should not be nil")
+	}
+	if *jan.TempAvg > 5 {
+		t.Errorf("Helsinki January average should be below 5°C, got %f", *jan.TempAvg)
+	}
+	if jan.FMISID != 100971 {
+		t.Errorf("expected FMISID 100971, got %d", jan.FMISID)
+	}
+
+	// July should have positive temp and precipitation
+	jul := byMonth[7]
+	if jul.TempAvg == nil || *jul.TempAvg < 10 {
+		t.Errorf("Helsinki July average should be above 10°C, got %v", jul.TempAvg)
+	}
+	if jul.TempHigh == nil {
+		t.Error("July temp_high should not be nil")
+	}
+	if jul.TempLow == nil {
+		t.Error("July temp_low should not be nil")
+	}
+	if jul.PrecipMm == nil {
+		t.Error("July precip_mm should not be nil")
 	}
 }
 

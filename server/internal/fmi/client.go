@@ -174,6 +174,18 @@ func forecastHoursWindowUTC(hours int) (start, end string) {
 	return startTime.Format(time.RFC3339), endTime.Format(time.RFC3339)
 }
 
+func (c *Client) FetchClimateNormals(ctx context.Context, fmisids string) ([]byte, error) {
+	params := url.Values{
+		"service":        {"WFS"},
+		"version":        {"2.0.0"},
+		"request":        {"getFeature"},
+		"storedquery_id": {"fmi::observations::weather::monthly::30year::timevaluepair"},
+		"fmisid":         {fmisids},
+		"starttime":      {"1991-01-01T00:00:00Z"},
+	}
+	return c.fetch(ctx, params)
+}
+
 func (c *Client) fetch(ctx context.Context, params url.Values) ([]byte, error) {
 	reqURL := c.baseURL + "?" + params.Encode()
 
