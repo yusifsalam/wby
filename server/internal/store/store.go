@@ -117,6 +117,70 @@ func (s *Store) LatestObservation(ctx context.Context, fmisid int) (weather.Obse
 	return o, nil
 }
 
+func (s *Store) GetLatestTemperatureSamplesInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, limit int) ([]weather.TemperatureSample, error) {
+	if limit <= 0 {
+		limit = 300
+	}
+
+	rows, err := s.pool.Query(ctx,
+		`SELECT ST_Y(s.geom::geometry) AS lat,
+		        ST_X(s.geom::geometry) AS lon,
+		        o.temperature,
+		        o.extra,
+		        o.observed_at
+		 FROM stations s
+		 JOIN LATERAL (
+		    SELECT temperature, extra, observed_at
+		    FROM observations o
+		    WHERE o.fmisid = s.fmisid
+		    ORDER BY observed_at DESC
+		    LIMIT 1
+		 ) o ON true
+		 WHERE ST_X(s.geom::geometry) BETWEEN $1 AND $2
+		   AND ST_Y(s.geom::geometry) BETWEEN $3 AND $4
+		 ORDER BY o.observed_at DESC
+		 LIMIT $5`,
+		minLon, maxLon, minLat, maxLat, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query temperature samples: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]weather.TemperatureSample, 0, limit)
+	for rows.Next() {
+		var (
+			lat      float64
+			lon      float64
+			temp     *float64
+			extraRaw []byte
+			at       time.Time
+		)
+		if err := rows.Scan(&lat, &lon, &temp, &extraRaw, &at); err != nil {
+			return nil, fmt.Errorf("scan temperature sample: %w", err)
+		}
+
+		resolved := temp
+		if resolved == nil && len(extraRaw) > 0 {
+			extra := decodeNumericExtras(extraRaw)
+			if t2m, ok := extra["t2m"]; ok {
+				resolved = &t2m
+			}
+		}
+		if resolved == nil {
+			continue
+		}
+
+		result = append(result, weather.TemperatureSample{
+			Lat:         lat,
+			Lon:         lon,
+			Temperature: *resolved,
+			ObservedAt:  at,
+		})
+	}
+	return result, nil
+}
+
 func encodeNumericExtras(params map[string]float64) []byte {
 	if len(params) == 0 {
 		return nil

@@ -11,6 +11,7 @@ import (
 type WeatherStore interface {
 	NearestStation(ctx context.Context, lat, lon float64) (Station, float64, error)
 	LatestObservation(ctx context.Context, fmisid int) (Observation, error)
+	GetLatestTemperatureSamplesInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, limit int) ([]TemperatureSample, error)
 	GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]DailyForecast, error)
 	UpsertForecasts(ctx context.Context, forecasts []DailyForecast) error
 	GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64, limit int) ([]HourlyForecast, error)
@@ -83,6 +84,26 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 		Hourly:   hourly,
 		Forecast: forecast,
 	}, nil
+}
+
+func (s *Service) GetTemperatureOverlay(ctx context.Context, req MapOverlayRequest) (*TemperatureOverlay, error) {
+	// Add a small margin so the interpolation near viewport edges has enough support points.
+	const marginDeg = 0.2
+	minLon := req.MinLon - marginDeg
+	minLat := req.MinLat - marginDeg
+	maxLon := req.MaxLon + marginDeg
+	maxLat := req.MaxLat + marginDeg
+
+	samples, err := s.store.GetLatestTemperatureSamplesInBBox(ctx, minLon, minLat, maxLon, maxLat, 350)
+	if err != nil {
+		return nil, fmt.Errorf("temperature samples: %w", err)
+	}
+
+	overlay, err := RenderTemperatureOverlay(req, samples)
+	if err != nil {
+		return nil, fmt.Errorf("render overlay: %w", err)
+	}
+	return overlay, nil
 }
 
 func (s *Service) getForecast(ctx context.Context, gridLat, gridLon float64) ([]DailyForecast, error) {

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"math"
@@ -11,16 +12,22 @@ import (
 	"wby/internal/weather"
 )
 
-type Handler struct {
-	service *weather.Service
+type WeatherService interface {
+	GetWeather(ctx context.Context, lat, lon float64) (*weather.WeatherResponse, error)
+	GetTemperatureOverlay(ctx context.Context, req weather.MapOverlayRequest) (*weather.TemperatureOverlay, error)
 }
 
-func NewHandler(service *weather.Service) *Handler {
+type Handler struct {
+	service WeatherService
+}
+
+func NewHandler(service WeatherService) *Handler {
 	return &Handler{service: service}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/weather", h.getWeather)
+	mux.HandleFunc("GET /v1/map/temperature", h.getTemperatureOverlay)
 	mux.HandleFunc("GET /health", h.health)
 }
 
@@ -56,43 +63,43 @@ type currentJSON struct {
 }
 
 type dailyForecastJSON struct {
-	Date                          string   `json:"date"`
-	High                          *float64 `json:"high"`
-	Low                           *float64 `json:"low"`
-	TempAvg                       *float64 `json:"temperature_avg"`
-	Symbol                        *string  `json:"symbol"`
-	WindSpeed                     *float64 `json:"wind_speed_avg"`
-	WindDir                       *float64 `json:"wind_direction_avg"`
-	Humidity                      *float64 `json:"humidity_avg"`
-	PrecipMM                      *float64 `json:"precipitation_mm"`
-	Precip1hSum                   *float64 `json:"precipitation_1h_sum"`
-	DewPointAvg                   *float64 `json:"dew_point_avg"`
-	FogIntensityAvg               *float64 `json:"fog_intensity_avg"`
-	FrostProbabilityAvg           *float64 `json:"frost_probability_avg"`
-	SevereFrostProbabilityAvg     *float64 `json:"severe_frost_probability_avg"`
-	GeopHeightAvg                 *float64 `json:"geop_height_avg"`
-	PressureAvg                   *float64 `json:"pressure_avg"`
-	HighCloudCoverAvg             *float64 `json:"high_cloud_cover_avg"`
-	LowCloudCoverAvg              *float64 `json:"low_cloud_cover_avg"`
-	MediumCloudCoverAvg           *float64 `json:"medium_cloud_cover_avg"`
-	MiddleAndLowCloudCoverAvg     *float64 `json:"middle_and_low_cloud_cover_avg"`
-	TotalCloudCoverAvg            *float64 `json:"total_cloud_cover_avg"`
-	HourlyMaximumGustMax          *float64 `json:"hourly_maximum_gust_max"`
-	HourlyMaximumWindSpeedMax     *float64 `json:"hourly_maximum_wind_speed_max"`
-	PoPAvg                        *float64 `json:"pop_avg"`
-	ProbabilityThunderstormAvg    *float64 `json:"probability_thunderstorm_avg"`
-	PotentialPrecipitationForm    *float64 `json:"potential_precipitation_form_mode"`
-	PotentialPrecipitationType    *float64 `json:"potential_precipitation_type_mode"`
-	PrecipitationForm             *float64 `json:"precipitation_form_mode"`
-	PrecipitationType             *float64 `json:"precipitation_type_mode"`
-	RadiationGlobalAvg            *float64 `json:"radiation_global_avg"`
-	RadiationLWAvg                *float64 `json:"radiation_lw_avg"`
-	WeatherNumberMode             *float64 `json:"weather_number_mode"`
-	WeatherSymbol3Mode            *float64 `json:"weather_symbol3_mode"`
-	WindUMSAvg                    *float64 `json:"wind_ums_avg"`
-	WindVMSAvg                    *float64 `json:"wind_vms_avg"`
-	WindVectorMSAvg               *float64 `json:"wind_vector_ms_avg"`
-	UVIndexAvg                    *float64 `json:"uv_index_avg"`
+	Date                       string   `json:"date"`
+	High                       *float64 `json:"high"`
+	Low                        *float64 `json:"low"`
+	TempAvg                    *float64 `json:"temperature_avg"`
+	Symbol                     *string  `json:"symbol"`
+	WindSpeed                  *float64 `json:"wind_speed_avg"`
+	WindDir                    *float64 `json:"wind_direction_avg"`
+	Humidity                   *float64 `json:"humidity_avg"`
+	PrecipMM                   *float64 `json:"precipitation_mm"`
+	Precip1hSum                *float64 `json:"precipitation_1h_sum"`
+	DewPointAvg                *float64 `json:"dew_point_avg"`
+	FogIntensityAvg            *float64 `json:"fog_intensity_avg"`
+	FrostProbabilityAvg        *float64 `json:"frost_probability_avg"`
+	SevereFrostProbabilityAvg  *float64 `json:"severe_frost_probability_avg"`
+	GeopHeightAvg              *float64 `json:"geop_height_avg"`
+	PressureAvg                *float64 `json:"pressure_avg"`
+	HighCloudCoverAvg          *float64 `json:"high_cloud_cover_avg"`
+	LowCloudCoverAvg           *float64 `json:"low_cloud_cover_avg"`
+	MediumCloudCoverAvg        *float64 `json:"medium_cloud_cover_avg"`
+	MiddleAndLowCloudCoverAvg  *float64 `json:"middle_and_low_cloud_cover_avg"`
+	TotalCloudCoverAvg         *float64 `json:"total_cloud_cover_avg"`
+	HourlyMaximumGustMax       *float64 `json:"hourly_maximum_gust_max"`
+	HourlyMaximumWindSpeedMax  *float64 `json:"hourly_maximum_wind_speed_max"`
+	PoPAvg                     *float64 `json:"pop_avg"`
+	ProbabilityThunderstormAvg *float64 `json:"probability_thunderstorm_avg"`
+	PotentialPrecipitationForm *float64 `json:"potential_precipitation_form_mode"`
+	PotentialPrecipitationType *float64 `json:"potential_precipitation_type_mode"`
+	PrecipitationForm          *float64 `json:"precipitation_form_mode"`
+	PrecipitationType          *float64 `json:"precipitation_type_mode"`
+	RadiationGlobalAvg         *float64 `json:"radiation_global_avg"`
+	RadiationLWAvg             *float64 `json:"radiation_lw_avg"`
+	WeatherNumberMode          *float64 `json:"weather_number_mode"`
+	WeatherSymbol3Mode         *float64 `json:"weather_symbol3_mode"`
+	WindUMSAvg                 *float64 `json:"wind_ums_avg"`
+	WindVMSAvg                 *float64 `json:"wind_vms_avg"`
+	WindVectorMSAvg            *float64 `json:"wind_vector_ms_avg"`
+	UVIndexAvg                 *float64 `json:"uv_index_avg"`
 }
 
 type hourlyForecastJSON struct {

@@ -23,6 +23,7 @@ struct ContentView: View {
     @State private var currentPageID: PageID = .gps
     @State private var showingLocations = false
     @State private var showingSettings = false
+    @State private var showingMap = false
     @State private var pendingPageID: PageID? = nil
     @State private var pageBackgrounds: [PageID: PageBackgroundState] = [:]
     @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
@@ -116,12 +117,26 @@ struct ContentView: View {
                     SettingsView()
                 }
             }
+            .fullScreenCover(isPresented: $showingMap) {
+                WeatherMapView(
+                    locationService: locationService,
+                    favoritesStore: favoritesStore,
+                    weatherService: weatherService
+                )
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { showingLocations = true } label: {
                         Image(systemName: "list.bullet")
                             .foregroundStyle(.white)
                             .accessibilityLabel("Locations")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showingMap = true } label: {
+                        Image(systemName: "map")
+                            .foregroundStyle(.white)
+                            .accessibilityLabel("Map")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
