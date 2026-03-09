@@ -158,6 +158,55 @@ actor WeatherService {
         }
     }
 
+    // MARK: - Leaderboard
+
+    func fetchLeaderboard(lat: Double, lon: Double) async throws -> LeaderboardResponse {
+        guard let baseURL else {
+            throw WeatherError.missingAPIBaseURL
+        }
+        var components = URLComponents(url: baseURL.appendingPathComponent("v1/leaderboard"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
+            URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
+        ]
+        guard let url = components.url else {
+            throw WeatherError.invalidURL
+        }
+        let query = components.percentEncodedQuery ?? ""
+
+        let request: URLRequest
+        do {
+            request = try signedRequest(url: url, method: "GET", query: query)
+        } catch let error as WeatherError {
+            throw error
+        } catch {
+            throw WeatherError.serverError
+        }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw WeatherError.network(error)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw WeatherError.serverError
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw WeatherError.httpStatus(httpResponse.statusCode, Self.extractErrorMessage(data))
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        do {
+            return try decoder.decode(LeaderboardResponse.self, from: data)
+        } catch {
+            throw WeatherError.decoding(error)
+        }
+    }
+
     // MARK: - Private
 
     private func signedRequest(url: URL, method: String, query: String) throws -> URLRequest {

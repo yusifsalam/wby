@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var showingLocations = false
     @State private var showingSettings = false
     @State private var showingMap = false
+    @State private var showingLeaderboard = false
     @State private var pendingPageID: PageID? = nil
     @State private var pageBackgrounds: [PageID: PageBackgroundState] = [:]
     @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
@@ -82,8 +83,10 @@ struct ContentView: View {
                     set: { if let id = $0 { currentPageID = id } }
                 ))
                 .scrollIndicators(.hidden)
-                .overlay(alignment: .bottom) {
-                    pageIndicator
+
+                VStack {
+                    Spacer()
+                    bottomBar
                         .padding(.bottom, 4)
                 }
             }
@@ -124,19 +127,18 @@ struct ContentView: View {
                     weatherService: weatherService
                 )
             }
+            .fullScreenCover(isPresented: $showingLeaderboard) {
+                LeaderboardView(
+                    locationService: locationService,
+                    weatherService: weatherService
+                )
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { showingLocations = true } label: {
                         Image(systemName: "list.bullet")
                             .foregroundStyle(.white)
                             .accessibilityLabel("Locations")
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showingMap = true } label: {
-                        Image(systemName: "map")
-                            .foregroundStyle(.white)
-                            .accessibilityLabel("Map")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -154,24 +156,48 @@ struct ContentView: View {
         }
     }
 
-    private var pageIndicator: some View {
-        HStack(spacing: 8) {
-            ForEach(pages) { page in
-                let isActive = page.id == currentPageID
-                if case .gps = page.location {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 8))
-                        .foregroundStyle(isActive ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
-                } else {
-                    Image(systemName: "circle.fill")
-                        .font(.system(size: 7))
-                        .foregroundStyle(isActive ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+    private var bottomBar: some View {
+        HStack {
+            circleButton(icon: "map") { showingMap = true }
+                .accessibilityLabel("Map")
+
+            Spacer()
+
+            HStack(spacing: 6) {
+                ForEach(pages) { page in
+                    let isCurrent = page.id == currentPageID
+                    if case .gps = page.location {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 8))
+                            .foregroundStyle(isCurrent ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+                    } else {
+                        Image(systemName: "circle.fill")
+                            .font(.system(size: 7))
+                            .foregroundStyle(isCurrent ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+                    }
                 }
             }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 18)
+            .glassEffect(in: .capsule)
+
+            Spacer()
+
+            circleButton(icon: "chart.bar.fill") { showingLeaderboard = true }
+                .accessibilityLabel("Leaderboard")
         }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 18)
-        .glassEffect()
+        .padding(.horizontal, 20)
+        .padding(.bottom, 4)
+    }
+
+    private func circleButton(icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(.white)
+                .frame(width: 50, height: 50)
+                .glassEffect(in: .circle)
+        }
     }
 
     private var rootBackground: some View {
