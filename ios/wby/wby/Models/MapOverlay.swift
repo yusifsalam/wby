@@ -1,6 +1,9 @@
 import Foundation
 
 struct MapBBox: Equatable, Hashable {
+    /// Full Finland bounding box matching the FMI observation coverage.
+    static let finland = MapBBox(minLon: 19.0, minLat: 59.0, maxLon: 32.0, maxLat: 71.5)
+
     let minLon: Double
     let minLat: Double
     let maxLon: Double

@@ -200,24 +200,31 @@ private struct WeatherMapContainer: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, MKMapViewDelegate {
-        private let overlayPrefetchFactor = 1.4
         private let favoriteWeatherTTL: TimeInterval = 10 * 60
         private let favoritePinsMaxLatitudeDelta: CLLocationDegrees = 5.8
+        private let overlayRefreshInterval: TimeInterval = 3 * 60
+        private let overlaySize: Int = 512
         private let overlayService: MapOverlayService
         private let weatherService: WeatherService
         private let onMetaUpdate: (OverlayMeta?) -> Void
         private weak var mapView: MKMapView?
-        private var refreshTask: Task<Void, Never>?
+        private var overlayTask: Task<Void, Never>?
+        private var overlayLastFetchedAt: Date?
         private var favoriteWeatherCache: [UUID: CachedFavoritePinWeather] = [:]
         private var favoriteWeatherTasks: [UUID: Task<Void, Never>] = [:]
 
-        init(overlayService: MapOverlayService, weatherService: WeatherService, onMetaUpdate: @escaping (OverlayMeta?) -> Void) {
+        init(
+            overlayService: MapOverlayService,
+            weatherService: WeatherService,
+            onMetaUpdate: @escaping (OverlayMeta?) -> Void
+        ) {
             self.overlayService = overlayService
             self.weatherService = weatherService
             self.onMetaUpdate = onMetaUpdate
         }
 
         deinit {
+            overlayTask?.cancel()
             for task in favoriteWeatherTasks.values {
                 task.cancel()
             }
@@ -228,9 +235,9 @@ private struct WeatherMapContainer: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-            scheduleOverlayRefresh(on: mapView)
             applyFavoritePinVisibility(on: mapView)
             refreshVisibleFavoriteWeather(on: mapView)
+            scheduleOverlayRefresh(on: mapView)
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
@@ -281,16 +288,18 @@ private struct WeatherMapContainer: UIViewRepresentable {
         }
 
         func scheduleOverlayRefresh(on mapView: MKMapView) {
-            refreshTask?.cancel()
+            if let lastFetched = overlayLastFetchedAt,
+               Date().timeIntervalSince(lastFetched) < overlayRefreshInterval
+            {
+                return
+            }
 
-            let visibleBBox = mapBBox(for: mapView)
-            let bbox = visibleBBox.expanded(by: overlayPrefetchFactor)
-            let scale = UIScreen.main.scale
-            let width = max(120, Int(mapView.bounds.width * scale * overlayPrefetchFactor))
-            let height = max(120, Int(mapView.bounds.height * scale * overlayPrefetchFactor))
+            overlayTask?.cancel()
+            let bbox = MapBBox.finland
+            let width = overlaySize
+            let height = overlaySize
 
-            refreshTask = Task { [weak mapView] in
-                try? await Task.sleep(nanoseconds: 400_000_000)
+            overlayTask = Task { [weak mapView] in
                 guard !Task.isCancelled else { return }
                 do {
                     let overlayImage = try await overlayService.fetchTemperatureOverlay(
@@ -300,6 +309,7 @@ private struct WeatherMapContainer: UIViewRepresentable {
                     )
                     guard !Task.isCancelled, let mapView, let image = UIImage(data: overlayImage.imageData) else { return }
                     await MainActor.run {
+                        self.overlayLastFetchedAt = Date()
                         self.applyOverlay(
                             image: image,
                             bbox: overlayImage.bbox,
@@ -412,17 +422,6 @@ private struct WeatherMapContainer: UIViewRepresentable {
             mapView.addOverlay(TemperatureImageOverlay(bbox: bbox, image: image), level: .aboveRoads)
         }
 
-        private func mapBBox(for mapView: MKMapView) -> MapBBox {
-            let rect = mapView.visibleMapRect
-            let topLeft = MKMapPoint(x: rect.minX, y: rect.minY).coordinate
-            let bottomRight = MKMapPoint(x: rect.maxX, y: rect.maxY).coordinate
-            return MapBBox(
-                minLon: min(topLeft.longitude, bottomRight.longitude),
-                minLat: min(topLeft.latitude, bottomRight.latitude),
-                maxLon: max(topLeft.longitude, bottomRight.longitude),
-                maxLat: max(topLeft.latitude, bottomRight.latitude)
-            )
-        }
     }
 }
 
