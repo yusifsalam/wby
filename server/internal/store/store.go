@@ -412,6 +412,50 @@ func (s *Store) UpsertClimateNormals(ctx context.Context, normals []weather.Clim
 	return nil
 }
 
+func (s *Store) GetLeaderboard(ctx context.Context, lat, lon float64) ([]weather.LeaderboardEntry, error) {
+	rows, err := s.pool.Query(ctx, `
+		WITH latest AS (
+			SELECT DISTINCT ON (s.fmisid)
+				s.fmisid, s.name,
+				ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000.0 AS distance_km,
+				o.temperature, o.wind_speed, o.observed_at
+			FROM stations s
+			JOIN observations o ON o.fmisid = s.fmisid
+			WHERE o.observed_at >= NOW() - INTERVAL '2 hours'
+			ORDER BY s.fmisid, o.observed_at DESC
+		)
+		(SELECT 'coldest' AS stat_type, name, temperature AS value, distance_km, observed_at
+		 FROM latest WHERE temperature IS NOT NULL ORDER BY temperature ASC LIMIT 1)
+		UNION ALL
+		(SELECT 'warmest', name, temperature, distance_km, observed_at
+		 FROM latest WHERE temperature IS NOT NULL ORDER BY temperature DESC LIMIT 1)
+		UNION ALL
+		(SELECT 'windiest', name, wind_speed, distance_km, observed_at
+		 FROM latest WHERE wind_speed IS NOT NULL ORDER BY wind_speed DESC LIMIT 1)`,
+		lon, lat,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get leaderboard: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []weather.LeaderboardEntry
+	for rows.Next() {
+		var e weather.LeaderboardEntry
+		if err := rows.Scan(&e.StatType, &e.StationName, &e.Value, &e.DistanceKM, &e.ObservedAt); err != nil {
+			return nil, fmt.Errorf("scan leaderboard entry: %w", err)
+		}
+		switch e.StatType {
+		case "coldest", "warmest":
+			e.Unit = "°C"
+		case "windiest":
+			e.Unit = "m/s"
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
 func (s *Store) GetClimateNormals(ctx context.Context, fmisid int, period string) ([]weather.ClimateNormal, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT fmisid, month, period, temp_avg, temp_high, temp_low, precip_mm

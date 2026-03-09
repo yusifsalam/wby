@@ -141,3 +141,12 @@ type InterpolatedNormal struct {
 	PrecipMmDay *float64
 	TempDiff    *float64
 }
+
+type LeaderboardEntry struct {
+	StatType    string
+	StationName string
+	Value       float64
+	Unit        string
+	DistanceKM  float64
+	ObservedAt  time.Time
+}

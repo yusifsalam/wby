@@ -19,6 +19,7 @@ type WeatherStore interface {
 	UpsertClimateNormals(ctx context.Context, normals []ClimateNormal) error
 	GetClimateNormals(ctx context.Context, fmisid int, period string) ([]ClimateNormal, error)
 	NearestStationWithClimateNormals(ctx context.Context, lat, lon float64, period string) (Station, float64, error)
+	GetLeaderboard(ctx context.Context, lat, lon float64) ([]LeaderboardEntry, error)
 }
 
 type ForecastFetcher interface {
@@ -30,18 +31,20 @@ type ForecastFetcher interface {
 type Service struct {
 	store         WeatherStore
 	fmi           ForecastFetcher
-	forecastCache *Cache[[]DailyForecast]
-	hourlyCache   *Cache[[]HourlyForecast]
-	uvCache       *Cache[[]UVDataPoint]
+	forecastCache    *Cache[[]DailyForecast]
+	hourlyCache      *Cache[[]HourlyForecast]
+	uvCache          *Cache[[]UVDataPoint]
+	leaderboardCache *Cache[[]LeaderboardEntry]
 }
 
 func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL time.Duration) *Service {
 	return &Service{
-		store:         store,
-		fmi:           fmiClient,
-		forecastCache: NewCache[[]DailyForecast](forecastCacheTTL),
-		hourlyCache:   NewCache[[]HourlyForecast](forecastCacheTTL),
-		uvCache:       NewCache[[]UVDataPoint](forecastCacheTTL),
+		store:            store,
+		fmi:              fmiClient,
+		forecastCache:    NewCache[[]DailyForecast](forecastCacheTTL),
+		hourlyCache:      NewCache[[]HourlyForecast](forecastCacheTTL),
+		uvCache:          NewCache[[]UVDataPoint](forecastCacheTTL),
+		leaderboardCache: NewCache[[]LeaderboardEntry](5 * time.Minute),
 	}
 }
 
@@ -270,6 +273,25 @@ func (s *Service) GetClimateNormals(ctx context.Context, lat, lon float64, curre
 
 	today := InterpolateNormals(normals, time.Now().UTC(), currentTemp)
 	return &station, distKm, normals, today, nil
+}
+
+func (s *Service) GetLeaderboard(ctx context.Context, lat, lon float64) ([]LeaderboardEntry, error) {
+	// Snap to 1-degree grid for cache key — distance doesn't need high precision
+	gridLat := math.Round(lat)
+	gridLon := math.Round(lon)
+	cacheKey := fmt.Sprintf("lb:%.0f,%.0f", gridLat, gridLon)
+
+	if cached, ok := s.leaderboardCache.Get(cacheKey); ok {
+		return cached, nil
+	}
+
+	entries, err := s.store.GetLeaderboard(ctx, lat, lon)
+	if err != nil {
+		return nil, fmt.Errorf("leaderboard: %w", err)
+	}
+
+	s.leaderboardCache.Set(cacheKey, entries)
+	return entries, nil
 }
 
 func isHourlyFresh(hourly []HourlyForecast, maxAge time.Duration) bool {
