@@ -28,7 +28,7 @@ This repo has two main apps:
 - `cd server && go test ./internal/store -v`: run store tests (requires running Postgres/PostGIS).
 - `go run ./server/cmd/server`: direct server run (requires env vars like `DATABASE_URL`).
 - `cd server && docker compose up --build`: run DB + server + Caddy via Docker Compose.
-- `xcodebuild -project ios/wby/wby.xcodeproj -scheme wby -destination 'generic/platform=iOS Simulator' build`: CLI iOS build check.
+- Xcode MCP `BuildProject` (project `ios/wby/wby.xcodeproj`, scheme `wby`): preferred iOS build check.
 
 ## Coding Style & Naming Conventions
 - Go: keep code `gofmt`-clean; package names are lowercase; exported identifiers use `PascalCase`.
