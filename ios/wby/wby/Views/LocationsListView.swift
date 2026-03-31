@@ -39,15 +39,20 @@ struct LocationsListView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(red: 0.07, green: 0.07, blue: 0.10)
-                    .ignoresSafeArea()
-                    .onDrop(
-                        of: [UTType.text],
-                        delegate: FavoriteCancelDropDelegate(draggingItem: $draggingItem)
-                    )
+                if isEditing {
+                    Color(red: 0.07, green: 0.07, blue: 0.10)
+                        .ignoresSafeArea()
+                        .onDrop(
+                            of: [UTType.text],
+                            delegate: FavoriteCancelDropDelegate(draggingItem: $draggingItem)
+                        )
+                } else {
+                    Color(red: 0.07, green: 0.07, blue: 0.10)
+                        .ignoresSafeArea()
+                }
 
                 ScrollView {
-                    VStack(spacing: 12) {
+                    LazyVStack(spacing: 12) {
                         if searchText.isEmpty {
                             locationCard(
                                 name: currentLocationName ?? "My Location",
@@ -59,7 +64,7 @@ struct LocationsListView: View {
                             ForEach(favoritesStore.favorites) { favorite in
                                 let swipeOffset = isEditing ? 0 : (swipeOffsets[favorite.id] ?? 0)
 
-                                HStack(spacing: 10) {
+                                let row = HStack(spacing: 10) {
                                     if isEditing {
                                         Button {
                                             withAnimation {
@@ -102,15 +107,16 @@ struct LocationsListView: View {
                                             }
                                         }
                                         .offset(x: swipeOffset)
-                                        .gesture(DragGesture(minimumDistance: 10)
+                                        .simultaneousGesture(DragGesture(minimumDistance: 18)
                                             .onChanged { value in
                                                 guard !isEditing else { return }
-                                                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                                                guard abs(value.translation.width) > abs(value.translation.height) * 1.35 else { return }
                                                 guard value.translation.width < 0 else { return }
                                                 swipeOffsets[favorite.id] = max(value.translation.width, -110)
                                             }
                                             .onEnded { value in
                                                 guard !isEditing else { return }
+                                                guard abs(value.translation.width) > abs(value.translation.height) * 1.35 else { return }
                                                 if value.translation.width < -80 {
                                                     withAnimation(.easeOut(duration: 0.2)) {
                                                         swipeOffsets[favorite.id] = -500
@@ -137,18 +143,24 @@ struct LocationsListView: View {
                                             .transition(.move(edge: .trailing).combined(with: .opacity))
                                     }
                                 }
-                                .onDrag {
-                                    draggingItem = favorite
-                                    return NSItemProvider(object: favorite.id.uuidString as NSString)
+
+                                if isEditing {
+                                    row
+                                        .onDrag {
+                                            draggingItem = favorite
+                                            return NSItemProvider(object: favorite.id.uuidString as NSString)
+                                        }
+                                        .onDrop(
+                                            of: [UTType.text],
+                                            delegate: FavoriteReorderDelegate(
+                                                item: favorite,
+                                                favoritesStore: favoritesStore,
+                                                draggingItem: $draggingItem
+                                            )
+                                        )
+                                } else {
+                                    row
                                 }
-                                .onDrop(
-                                    of: [UTType.text],
-                                    delegate: FavoriteReorderDelegate(
-                                        item: favorite,
-                                        favoritesStore: favoritesStore,
-                                        draggingItem: $draggingItem
-                                    )
-                                )
                             }
                         } else {
                             ForEach(completer.results, id: \.self) { completion in
