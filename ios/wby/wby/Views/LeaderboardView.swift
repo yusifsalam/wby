@@ -137,20 +137,9 @@ struct LeaderboardView: View {
     }
 
     private func stationMap(lat: Double, lon: Double) -> some View {
-        let coordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
-        let region = MKCoordinateRegion(
-            center: coordinate,
-            latitudinalMeters: 800_000,
-            longitudinalMeters: 800_000
-        )
-        return Map(initialPosition: .region(region), interactionModes: []) {
-            Marker("", coordinate: coordinate)
-                .tint(.red)
-        }
-        .mapStyle(.standard(pointsOfInterest: .excludingAll))
-        .frame(width: 150, height: 180)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .allowsHitTesting(false)
+        StationMapSnapshot(lat: lat, lon: lon)
+            .frame(width: 150, height: 180)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private func cardTitle(for type: String) -> String {
@@ -212,6 +201,77 @@ struct LeaderboardView: View {
             if response == nil {
                 errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             }
+        }
+    }
+}
+
+private struct StationMapSnapshot: View {
+    let lat: Double
+    let lon: Double
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Rectangle()
+                    .fill(.quaternary)
+            }
+        }
+        .task(id: "\(lat),\(lon)") {
+            image = await Self.snapshotCache.snapshot(lat: lat, lon: lon)
+        }
+    }
+
+    @MainActor
+    private static let snapshotCache = MapSnapshotCache()
+}
+
+@MainActor
+private final class MapSnapshotCache {
+    private var cache: [String: UIImage] = [:]
+
+    func snapshot(lat: Double, lon: Double) async -> UIImage? {
+        let key = "\(lat),\(lon)"
+        if let cached = cache[key] { return cached }
+
+        let options = MKMapSnapshotter.Options()
+        options.region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+            latitudinalMeters: 800_000,
+            longitudinalMeters: 800_000
+        )
+        options.size = CGSize(width: 300, height: 360)
+        options.pointOfInterestFilter = .excludingAll
+
+        do {
+            let snapshot = try await MKMapSnapshotter(options: options).start()
+            let pin = snapshot.point(for: CLLocationCoordinate2D(latitude: lat, longitude: lon))
+
+            let renderer = UIGraphicsImageRenderer(size: options.size)
+            let image = renderer.image { ctx in
+                snapshot.image.draw(at: .zero)
+                let dotSize: CGFloat = 16
+                let dotRect = CGRect(
+                    x: pin.x - dotSize / 2,
+                    y: pin.y - dotSize / 2,
+                    width: dotSize,
+                    height: dotSize
+                )
+                ctx.cgContext.setFillColor(UIColor.systemRed.cgColor)
+                ctx.cgContext.fillEllipse(in: dotRect)
+                ctx.cgContext.setStrokeColor(UIColor.white.cgColor)
+                ctx.cgContext.setLineWidth(3)
+                ctx.cgContext.strokeEllipse(in: dotRect)
+            }
+            cache[key] = image
+            return image
+        } catch {
+            return nil
         }
     }
 }
