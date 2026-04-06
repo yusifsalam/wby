@@ -16,6 +16,8 @@ type leaderboardJSON struct {
 type leaderboardEntryJSON struct {
 	Type        string    `json:"type"`
 	StationName string    `json:"station_name"`
+	Lat         float64   `json:"lat"`
+	Lon         float64   `json:"lon"`
 	Value       float64   `json:"value"`
 	Unit        string    `json:"unit"`
 	DistanceKM  float64   `json:"distance_km"`
@@ -62,6 +64,8 @@ func (h *Handler) getLeaderboard(w http.ResponseWriter, r *http.Request) {
 		resp.Leaderboard[i] = leaderboardEntryJSON{
 			Type:        e.StatType,
 			StationName: e.StationName,
+			Lat:         e.Lat,
+			Lon:         e.Lon,
 			Value:       e.Value,
 			Unit:        e.Unit,
 			DistanceKM:  e.DistanceKM,

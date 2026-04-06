@@ -145,6 +145,8 @@ type InterpolatedNormal struct {
 type LeaderboardEntry struct {
 	StatType    string
 	StationName string
+	Lat         float64
+	Lon         float64
 	Value       float64
 	Unit        string
 	DistanceKM  float64

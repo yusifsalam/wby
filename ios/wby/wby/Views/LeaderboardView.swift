@@ -1,14 +1,23 @@
 import CoreLocation
+import MapKit
 import SwiftUI
 
 struct LeaderboardView: View {
     let locationService: LocationService
     let weatherService: WeatherService
+    private let initialResponse: LeaderboardResponse?
 
     @Environment(\.dismiss) private var dismiss
     @State private var response: LeaderboardResponse?
     @State private var isLoading = false
     @State private var errorMessage: String?
+
+    init(locationService: LocationService, weatherService: WeatherService, initialResponse: LeaderboardResponse? = nil) {
+        self.locationService = locationService
+        self.weatherService = weatherService
+        self.initialResponse = initialResponse
+        _response = State(initialValue: initialResponse)
+    }
 
     var body: some View {
         ZStack {
@@ -64,29 +73,53 @@ struct LeaderboardView: View {
     }
 
     private func leaderboardCard(_ entry: LeaderboardEntry) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(cardTitle(for: entry.type), systemImage: cardIcon(for: entry.type))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                Label(cardTitle(for: entry.type), systemImage: cardIcon(for: entry.type))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-            Text(entry.stationName)
-                .font(.title2.weight(.medium))
-                .foregroundStyle(.primary)
-
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(formattedValue(entry.value, type: entry.type))
-                    .font(.system(size: 48, weight: .light))
+                Text(entry.stationName)
+                    .font(.title2.weight(.medium))
                     .foregroundStyle(.primary)
-                Text(entry.unit)
-                    .font(.title3)
+
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(formattedValue(entry.value, type: entry.type))
+                        .font(.system(size: 48, weight: .light))
+                        .foregroundStyle(.primary)
+                    Text(entry.unit)
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(subtitle(for: entry))
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            Text(subtitle(for: entry))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            if let lat = entry.lat, let lon = entry.lon {
+                Spacer(minLength: 12)
+                stationMap(lat: lat, lon: lon)
+            }
         }
         .weatherCard()
+    }
+
+    private func stationMap(lat: Double, lon: Double) -> some View {
+        let coordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        let region = MKCoordinateRegion(
+            center: coordinate,
+            latitudinalMeters: 800_000,
+            longitudinalMeters: 800_000
+        )
+        return Map(initialPosition: .region(region), interactionModes: []) {
+            Marker("", coordinate: coordinate)
+                .tint(.red)
+        }
+        .mapStyle(.standard(pointsOfInterest: .excludingAll))
+        .frame(width: 150, height: 180)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .allowsHitTesting(false)
     }
 
     private func cardTitle(for type: String) -> String {
@@ -161,7 +194,15 @@ struct LeaderboardView: View {
 
         LeaderboardView(
             locationService: LocationService(),
-            weatherService: WeatherService()
+            weatherService: WeatherService(),
+            initialResponse: LeaderboardResponse(
+                timeframe: "now",
+                leaderboard: [
+                    LeaderboardEntry(type: "coldest", stationName: "Enontekiö Kilpisjärvi", lat: 69.05, lon: 20.79, value: -12.3, unit: "°C", distanceKm: 980, observedAt: Date(timeIntervalSinceNow: -600)),
+                    LeaderboardEntry(type: "warmest", stationName: "Helsinki Kaisaniemi", lat: 60.18, lon: 24.94, value: 8.1, unit: "°C", distanceKm: 12, observedAt: Date(timeIntervalSinceNow: -300)),
+                    LeaderboardEntry(type: "windiest", stationName: "Utö", lat: 59.78, lon: 21.37, value: 18.4, unit: "m/s", distanceKm: 195, observedAt: Date(timeIntervalSinceNow: -120)),
+                ]
+            )
         )
     }
 }
