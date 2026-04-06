@@ -151,6 +151,7 @@ func (s *Store) GetLatestTemperatureSamplesInBBox(ctx context.Context, minLon, m
 		    SELECT temperature, extra, observed_at
 		    FROM observations o
 		    WHERE o.fmisid = s.fmisid
+		      AND o.observed_at > NOW() - INTERVAL '2 hours'
 		    ORDER BY observed_at DESC
 		    LIMIT 1
 		 ) o ON true
