@@ -133,6 +133,7 @@ struct LeaderboardView: View {
                 stationMap(lat: lat, lon: lon)
             }
         }
+        .frame(height: 180)
         .weatherCard()
     }
 
