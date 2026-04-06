@@ -19,7 +19,7 @@ type WeatherStore interface {
 	UpsertClimateNormals(ctx context.Context, normals []ClimateNormal) error
 	GetClimateNormals(ctx context.Context, fmisid int, period string) ([]ClimateNormal, error)
 	NearestStationWithClimateNormals(ctx context.Context, lat, lon float64, period string) (Station, float64, error)
-	GetLeaderboard(ctx context.Context, lat, lon float64) ([]LeaderboardEntry, error)
+	GetLeaderboard(ctx context.Context, lat, lon float64, timeframe string) ([]LeaderboardEntry, error)
 }
 
 type ForecastFetcher interface {
@@ -275,17 +275,17 @@ func (s *Service) GetClimateNormals(ctx context.Context, lat, lon float64, curre
 	return &station, distKm, normals, today, nil
 }
 
-func (s *Service) GetLeaderboard(ctx context.Context, lat, lon float64) ([]LeaderboardEntry, error) {
+func (s *Service) GetLeaderboard(ctx context.Context, lat, lon float64, timeframe string) ([]LeaderboardEntry, error) {
 	// Snap to 1-degree grid for cache key — distance doesn't need high precision
 	gridLat := math.Round(lat)
 	gridLon := math.Round(lon)
-	cacheKey := fmt.Sprintf("lb:%.0f,%.0f", gridLat, gridLon)
+	cacheKey := fmt.Sprintf("lb:%.0f,%.0f:%s", gridLat, gridLon, timeframe)
 
 	if cached, ok := s.leaderboardCache.Get(cacheKey); ok {
 		return cached, nil
 	}
 
-	entries, err := s.store.GetLeaderboard(ctx, lat, lon)
+	entries, err := s.store.GetLeaderboard(ctx, lat, lon, timeframe)
 	if err != nil {
 		return nil, fmt.Errorf("leaderboard: %w", err)
 	}

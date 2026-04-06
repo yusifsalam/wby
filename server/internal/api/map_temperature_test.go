@@ -97,6 +97,6 @@ func (f fakeWeatherService) GetClimateNormals(ctx context.Context, lat, lon floa
 	panic("not used in this test")
 }
 
-func (f fakeWeatherService) GetLeaderboard(ctx context.Context, lat, lon float64) ([]weather.LeaderboardEntry, error) {
+func (f fakeWeatherService) GetLeaderboard(ctx context.Context, lat, lon float64, timeframe string) ([]weather.LeaderboardEntry, error) {
 	panic("not used in this test")
 }

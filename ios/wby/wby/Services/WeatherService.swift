@@ -160,7 +160,7 @@ actor WeatherService {
 
     // MARK: - Leaderboard
 
-    func fetchLeaderboard(lat: Double, lon: Double) async throws -> LeaderboardResponse {
+    func fetchLeaderboard(lat: Double, lon: Double, timeframe: String = "now") async throws -> LeaderboardResponse {
         guard let baseURL else {
             throw WeatherError.missingAPIBaseURL
         }
@@ -168,6 +168,7 @@ actor WeatherService {
         components.queryItems = [
             URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
             URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
+            URLQueryItem(name: "timeframe", value: timeframe),
         ]
         guard let url = components.url else {
             throw WeatherError.invalidURL

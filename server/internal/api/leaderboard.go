@@ -26,6 +26,10 @@ type leaderboardEntryJSON struct {
 
 var supportedTimeframes = map[string]bool{
 	"now": true,
+	"1h":  true,
+	"24h": true,
+	"3d":  true,
+	"7d":  true,
 }
 
 func (h *Handler) getLeaderboard(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +53,7 @@ func (h *Handler) getLeaderboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entries, err := h.service.GetLeaderboard(r.Context(), lat, lon)
+	entries, err := h.service.GetLeaderboard(r.Context(), lat, lon, timeframe)
 	if err != nil {
 		slog.Error("get leaderboard failed", "err", err, "lat", lat, "lon", lon)
 		writeJSONError(w, "internal server error", http.StatusInternalServerError)

@@ -2,6 +2,24 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
+enum LeaderboardTimeframe: String, CaseIterable {
+    case now = "now"
+    case oneHour = "1h"
+    case oneDay = "24h"
+    case threeDays = "3d"
+    case sevenDays = "7d"
+
+    var label: String {
+        switch self {
+        case .now: "Now"
+        case .oneHour: "1h"
+        case .oneDay: "24h"
+        case .threeDays: "3d"
+        case .sevenDays: "7d"
+        }
+    }
+}
+
 struct LeaderboardView: View {
     let locationService: LocationService
     let weatherService: WeatherService
@@ -11,6 +29,7 @@ struct LeaderboardView: View {
     @State private var response: LeaderboardResponse?
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var timeframe: LeaderboardTimeframe = .now
 
     init(locationService: LocationService, weatherService: WeatherService, initialResponse: LeaderboardResponse? = nil) {
         self.locationService = locationService
@@ -63,13 +82,25 @@ struct LeaderboardView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Close")
+
                     Spacer()
+
+                    Picker("Timeframe", selection: $timeframe) {
+                        ForEach(LeaderboardTimeframe.allCases, id: \.self) { tf in
+                            Text(tf.label).tag(tf)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 200)
                 }
                 .padding()
                 Spacer()
             }
         }
         .task { await fetchLeaderboard() }
+        .onChange(of: timeframe) {
+            Task { await fetchLeaderboard() }
+        }
     }
 
     private func leaderboardCard(_ entry: LeaderboardEntry) -> some View {
@@ -165,7 +196,9 @@ struct LeaderboardView: View {
         let minutes = seconds / 60
         if minutes < 60 { return "\(minutes) min ago" }
         let hours = minutes / 60
-        return "\(hours)h ago"
+        if hours < 24 { return "\(hours)h ago" }
+        let days = hours / 24
+        return "\(days)d ago"
     }
 
     private func fetchLeaderboard() async {
@@ -173,7 +206,7 @@ struct LeaderboardView: View {
         isLoading = response == nil
         defer { isLoading = false }
         do {
-            response = try await weatherService.fetchLeaderboard(lat: coord.latitude, lon: coord.longitude)
+            response = try await weatherService.fetchLeaderboard(lat: coord.latitude, lon: coord.longitude, timeframe: timeframe.rawValue)
             errorMessage = nil
         } catch {
             if response == nil {

@@ -413,8 +413,13 @@ func (s *Store) UpsertClimateNormals(ctx context.Context, normals []weather.Clim
 	return nil
 }
 
-func (s *Store) GetLeaderboard(ctx context.Context, lat, lon float64) ([]weather.LeaderboardEntry, error) {
-	rows, err := s.pool.Query(ctx, `
+func (s *Store) GetLeaderboard(ctx context.Context, lat, lon float64, timeframe string) ([]weather.LeaderboardEntry, error) {
+	interval := timeframeToInterval(timeframe)
+
+	var query string
+	if timeframe == "now" {
+		// Latest observation per station, then find extremes.
+		query = `
 		WITH latest AS (
 			SELECT DISTINCT ON (s.fmisid)
 				s.fmisid, s.name,
@@ -424,7 +429,7 @@ func (s *Store) GetLeaderboard(ctx context.Context, lat, lon float64) ([]weather
 				o.temperature, o.wind_speed, o.observed_at
 			FROM stations s
 			JOIN observations o ON o.fmisid = s.fmisid
-			WHERE o.observed_at >= NOW() - INTERVAL '2 hours'
+			WHERE o.observed_at >= NOW() - INTERVAL '` + interval + `'
 			ORDER BY s.fmisid, o.observed_at DESC
 		)
 		(SELECT 'coldest' AS stat_type, name, lat, lon, temperature AS value, distance_km, observed_at
@@ -434,9 +439,45 @@ func (s *Store) GetLeaderboard(ctx context.Context, lat, lon float64) ([]weather
 		 FROM latest WHERE temperature IS NOT NULL ORDER BY temperature DESC LIMIT 1)
 		UNION ALL
 		(SELECT 'windiest', name, lat, lon, wind_speed, distance_km, observed_at
-		 FROM latest WHERE wind_speed IS NOT NULL ORDER BY wind_speed DESC LIMIT 1)`,
-		lon, lat,
-	)
+		 FROM latest WHERE wind_speed IS NOT NULL ORDER BY wind_speed DESC LIMIT 1)`
+	} else {
+		// Scan all observations in the window for the actual extremes.
+		query = `
+		(SELECT 'coldest' AS stat_type, s.name,
+		        ST_Y(s.geom::geometry) AS lat, ST_X(s.geom::geometry) AS lon,
+		        o.temperature AS value,
+		        ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000.0 AS distance_km,
+		        o.observed_at
+		 FROM observations o
+		 JOIN stations s ON s.fmisid = o.fmisid
+		 WHERE o.observed_at >= NOW() - INTERVAL '` + interval + `'
+		   AND o.temperature IS NOT NULL
+		 ORDER BY o.temperature ASC LIMIT 1)
+		UNION ALL
+		(SELECT 'warmest', s.name,
+		        ST_Y(s.geom::geometry), ST_X(s.geom::geometry),
+		        o.temperature,
+		        ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000.0,
+		        o.observed_at
+		 FROM observations o
+		 JOIN stations s ON s.fmisid = o.fmisid
+		 WHERE o.observed_at >= NOW() - INTERVAL '` + interval + `'
+		   AND o.temperature IS NOT NULL
+		 ORDER BY o.temperature DESC LIMIT 1)
+		UNION ALL
+		(SELECT 'windiest', s.name,
+		        ST_Y(s.geom::geometry), ST_X(s.geom::geometry),
+		        o.wind_speed,
+		        ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000.0,
+		        o.observed_at
+		 FROM observations o
+		 JOIN stations s ON s.fmisid = o.fmisid
+		 WHERE o.observed_at >= NOW() - INTERVAL '` + interval + `'
+		   AND o.wind_speed IS NOT NULL
+		 ORDER BY o.wind_speed DESC LIMIT 1)`
+	}
+
+	rows, err := s.pool.Query(ctx, query, lon, lat)
 	if err != nil {
 		return nil, fmt.Errorf("get leaderboard: %w", err)
 	}
@@ -457,6 +498,21 @@ func (s *Store) GetLeaderboard(ctx context.Context, lat, lon float64) ([]weather
 		entries = append(entries, e)
 	}
 	return entries, rows.Err()
+}
+
+func timeframeToInterval(tf string) string {
+	switch tf {
+	case "1h":
+		return "1 hour"
+	case "24h":
+		return "24 hours"
+	case "3d":
+		return "3 days"
+	case "7d":
+		return "7 days"
+	default:
+		return "2 hours"
+	}
 }
 
 func (s *Store) GetClimateNormals(ctx context.Context, fmisid int, period string) ([]weather.ClimateNormal, error) {
