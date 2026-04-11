@@ -8,25 +8,41 @@ struct WeatherSceneView: View {
     @State private var skScene: WeatherSKScene?
 
     var body: some View {
-        ZStack {
-            if let skScene {
-                SpriteView(scene: skScene, options: [.allowsTransparency])
+        GeometryReader { proxy in
+            ZStack {
+                if let skScene {
+                    SpriteView(scene: skScene, options: [.allowsTransparency])
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onAppear {
+                ensureScene(for: proxy.size)
+            }
+            .onChange(of: proxy.size) { _, newSize in
+                ensureScene(for: newSize)
+            }
+            .onChange(of: weatherScene) { _, newScene in
+                skScene?.transition(to: newScene, precipitation1h: precipitation1h)
+            }
+            .onChange(of: precipitation1h) { _, newPrecip in
+                skScene?.transition(to: weatherScene, precipitation1h: newPrecip)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            guard skScene == nil else { return }
-            skScene = WeatherSKScene(
-                size: UIScreen.main.bounds.size,
-                weatherScene: weatherScene,
-                precipitation1h: precipitation1h
-            )
+    }
+
+    private func ensureScene(for size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
+        if let skScene {
+            if skScene.size != size {
+                skScene.size = size
+            }
+            return
         }
-        .onChange(of: weatherScene) { _, newScene in
-            skScene?.transition(to: newScene, precipitation1h: precipitation1h)
-        }
-        .onChange(of: precipitation1h) { _, newPrecip in
-            skScene?.transition(to: weatherScene, precipitation1h: newPrecip)
-        }
+        self.skScene = WeatherSKScene(
+            size: size,
+            weatherScene: weatherScene,
+            precipitation1h: precipitation1h
+        )
     }
 }
