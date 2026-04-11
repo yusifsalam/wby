@@ -207,7 +207,7 @@ actor WeatherService {
         return normalizedValue(value)
     }
 
-    private static var bundledKeys: [String: String] = {
+    private static let bundledKeys: [String: String] = {
         guard let url = Bundle.main.url(forResource: "Keys", withExtension: "plist"),
               let data = try? Data(contentsOf: url),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),

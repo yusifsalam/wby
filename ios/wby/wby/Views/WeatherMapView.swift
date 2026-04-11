@@ -425,7 +425,7 @@ private struct WeatherMapContainer: UIViewRepresentable {
     }
 }
 
-private final class FavoritePinAnnotation: NSObject, MKAnnotation {
+private nonisolated final class FavoritePinAnnotation: NSObject, MKAnnotation {
     let id: UUID
     let title: String?
     let coordinate: CLLocationCoordinate2D
@@ -525,7 +525,7 @@ private final class FavoriteWeatherAnnotationView: MKAnnotationView {
 
 }
 
-private final class TemperatureImageOverlay: NSObject, MKOverlay {
+private nonisolated final class TemperatureImageOverlay: NSObject, MKOverlay {
     let coordinate: CLLocationCoordinate2D
     let boundingMapRect: MKMapRect
     let image: UIImage
@@ -551,7 +551,11 @@ private final class TemperatureImageOverlay: NSObject, MKOverlay {
 }
 
 private final class TemperatureOverlayRenderer: MKOverlayRenderer {
-    override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
+    nonisolated override init(overlay: any MKOverlay) {
+        super.init(overlay: overlay)
+    }
+
+    nonisolated override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
         guard
             let overlay = overlay as? TemperatureImageOverlay,
             let cgImage = overlay.image.cgImage
