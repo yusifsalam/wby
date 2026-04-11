@@ -1,6 +1,6 @@
 import Foundation
 
-struct LeaderboardResponse: Codable {
+nonisolated struct LeaderboardResponse: Codable {
     let timeframe: String
     let leaderboard: [LeaderboardEntry]
 }

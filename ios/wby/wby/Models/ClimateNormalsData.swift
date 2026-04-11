@@ -1,6 +1,6 @@
 import Foundation
 
-struct ClimateNormalsResponse: Codable {
+nonisolated struct ClimateNormalsResponse: Codable {
     let station: StationInfo
     let period: String
     let today: InterpolatedNormal

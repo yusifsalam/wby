@@ -1,6 +1,6 @@
 import Foundation
 
-struct WeatherResponse: Codable {
+nonisolated struct WeatherResponse: Codable {
     let station: StationInfo
     let current: CurrentConditions
     let hourlyForecast: [HourlyForecast]
