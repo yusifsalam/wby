@@ -13,90 +13,25 @@ actor WeatherService {
     }
 
     func fetchWeather(lat: Double, lon: Double) async throws -> WeatherResponse {
-        guard let baseURL else {
-            throw WeatherError.missingAPIBaseURL
-        }
-        var components = URLComponents(url: baseURL.appendingPathComponent("v1/weather"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [
-            URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
-            URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
-        ]
-        guard let url = components.url else {
-            throw WeatherError.invalidURL
-        }
-        let query = components.percentEncodedQuery ?? ""
-
-        let request: URLRequest
-        do {
-            request = try signedRequest(url: url, method: "GET", query: query)
-        } catch let error as WeatherError {
-            throw error
-        } catch {
-            throw WeatherError.serverError
-        }
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            throw WeatherError.network(error)
-        }
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WeatherError.serverError
-        }
-        guard httpResponse.statusCode == 200 else {
-            throw WeatherError.httpStatus(httpResponse.statusCode, Self.extractErrorMessage(data))
-        }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        do {
-            return try decoder.decode(WeatherResponse.self, from: data)
-        } catch {
-            throw WeatherError.decoding(error)
-        }
+        try await fetchJSON(
+            path: "v1/weather",
+            queryItems: [
+                URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
+                URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
+            ],
+            dateDecodingStrategy: .iso8601
+        )
     }
 
     func fetchTemperatureOverlay(bbox: MapBBox, width: Int, height: Int) async throws -> TemperatureOverlayImage {
-        guard let baseURL else {
-            throw WeatherError.missingAPIBaseURL
-        }
-        var components = URLComponents(url: baseURL.appendingPathComponent("v1/map/temperature"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [
-            URLQueryItem(name: "bbox", value: bbox.queryValue),
-            URLQueryItem(name: "width", value: String(width)),
-            URLQueryItem(name: "height", value: String(height)),
-        ]
-        guard let url = components.url else {
-            throw WeatherError.invalidURL
-        }
-        let query = components.percentEncodedQuery ?? ""
-
-        let request: URLRequest
-        do {
-            request = try signedRequest(url: url, method: "GET", query: query)
-        } catch let error as WeatherError {
-            throw error
-        } catch {
-            throw WeatherError.serverError
-        }
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            throw WeatherError.network(error)
-        }
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WeatherError.serverError
-        }
-        guard httpResponse.statusCode == 200 else {
-            throw WeatherError.httpStatus(httpResponse.statusCode, Self.extractErrorMessage(data))
-        }
+        let (data, httpResponse) = try await performRequest(
+            path: "v1/map/temperature",
+            queryItems: [
+                URLQueryItem(name: "bbox", value: bbox.queryValue),
+                URLQueryItem(name: "width", value: String(width)),
+                URLQueryItem(name: "height", value: String(height)),
+            ]
+        )
 
         let dataTime = httpResponse.value(forHTTPHeaderField: "X-Data-Time").flatMap(Self.parseDate)
         let minTemp = httpResponse.value(forHTTPHeaderField: "X-Temp-Min").flatMap(Double.init)
@@ -114,62 +49,46 @@ actor WeatherService {
     // MARK: - Climate Normals
 
     func fetchClimateNormals(lat: Double, lon: Double) async throws -> ClimateNormalsResponse {
-        guard let baseURL else {
-            throw WeatherError.missingAPIBaseURL
-        }
-        var components = URLComponents(url: baseURL.appendingPathComponent("v1/climate-normals"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [
-            URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
-            URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
-        ]
-        guard let url = components.url else {
-            throw WeatherError.invalidURL
-        }
-        let query = components.percentEncodedQuery ?? ""
-
-        let request: URLRequest
-        do {
-            request = try signedRequest(url: url, method: "GET", query: query)
-        } catch let error as WeatherError {
-            throw error
-        } catch {
-            throw WeatherError.serverError
-        }
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            throw WeatherError.network(error)
-        }
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WeatherError.serverError
-        }
-        guard httpResponse.statusCode == 200 else {
-            throw WeatherError.httpStatus(httpResponse.statusCode, Self.extractErrorMessage(data))
-        }
-
-        do {
-            return try JSONDecoder().decode(ClimateNormalsResponse.self, from: data)
-        } catch {
-            throw WeatherError.decoding(error)
-        }
+        try await fetchJSON(
+            path: "v1/climate-normals",
+            queryItems: [
+                URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
+                URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
+            ]
+        )
     }
 
     // MARK: - Leaderboard
 
     func fetchLeaderboard(lat: Double, lon: Double, timeframe: String = "now") async throws -> LeaderboardResponse {
+        try await fetchJSON(
+            path: "v1/leaderboard",
+            queryItems: [
+                URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
+                URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
+                URLQueryItem(name: "timeframe", value: timeframe),
+            ],
+            dateDecodingStrategy: .iso8601
+        )
+    }
+
+    // MARK: - Private
+
+    /// Builds a signed GET request for `path` with `queryItems`, executes it, and
+    /// returns the raw body plus the HTTP response. All shared error translation
+    /// (missing base URL, signing, network, HTTP status) happens here.
+    private func performRequest(
+        path: String,
+        queryItems: [URLQueryItem]
+    ) async throws -> (Data, HTTPURLResponse) {
         guard let baseURL else {
             throw WeatherError.missingAPIBaseURL
         }
-        var components = URLComponents(url: baseURL.appendingPathComponent("v1/leaderboard"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [
-            URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
-            URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
-            URLQueryItem(name: "timeframe", value: timeframe),
-        ]
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent(path),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = queryItems
         guard let url = components.url else {
             throw WeatherError.invalidURL
         }
@@ -199,16 +118,24 @@ actor WeatherService {
             throw WeatherError.httpStatus(httpResponse.statusCode, Self.extractErrorMessage(data))
         }
 
+        return (data, httpResponse)
+    }
+
+    /// Convenience wrapper around `performRequest` that decodes the body as JSON.
+    private func fetchJSON<T: Decodable>(
+        path: String,
+        queryItems: [URLQueryItem],
+        dateDecodingStrategy: JSONDecoder.DateDecodingStrategy = .deferredToDate
+    ) async throws -> T {
+        let (data, _) = try await performRequest(path: path, queryItems: queryItems)
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = dateDecodingStrategy
         do {
-            return try decoder.decode(LeaderboardResponse.self, from: data)
+            return try decoder.decode(T.self, from: data)
         } catch {
             throw WeatherError.decoding(error)
         }
     }
-
-    // MARK: - Private
 
     private func signedRequest(url: URL, method: String, query: String) throws -> URLRequest {
         guard let clientID, let clientSecret else {
