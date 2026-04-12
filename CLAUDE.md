@@ -24,8 +24,10 @@ cd server && /usr/local/go/bin/go test -run TestParseFoo ./internal/fmi  # singl
 # Local dev (starts Postgres via Homebrew, applies migrations, runs server on :8080)
 cd server && ./scripts/local-dev.sh up
 
-# iOS (CLI build check)
-xcodebuild -project ios/wby/wby.xcodeproj -scheme wby -destination 'generic/platform=iOS Simulator' build
+# iOS (use Xcode MCP tools, NOT xcodebuild CLI)
+# Build:  mcp__xcode__BuildProject (scheme: "wby")
+# Tests:  mcp__xcode__RunAllTests / mcp__xcode__RunSomeTests
+# Issues: mcp__xcode__XcodeListNavigatorIssues
 ```
 
 No linter is configured. Code should be `gofmt`-clean.
