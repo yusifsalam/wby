@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strings"
 	"time"
 )
 
@@ -35,15 +36,16 @@ type WeatherStore interface {
 }
 
 type ForecastFetcher interface {
-	FetchForecast(ctx context.Context, lat, lon float64) ([]DailyForecast, error)
+	FetchForecast(ctx context.Context, lat, lon float64) (ForecastData, error)
 	FetchHourlyForecast(ctx context.Context, lat, lon float64, limit int) ([]HourlyForecast, error)
 	FetchUVForecast(ctx context.Context, lat, lon float64) ([]UVDataPoint, error)
 }
 
 type Service struct {
-	store         WeatherStore
-	fmi           ForecastFetcher
+	store            WeatherStore
+	fmi              ForecastFetcher
 	forecastCache    *Cache[[]DailyForecast]
+	timezoneCache    *Cache[string]
 	hourlyCache      *Cache[[]HourlyForecast]
 	uvCache          *Cache[[]UVDataPoint]
 	leaderboardCache *Cache[[]LeaderboardEntry]
@@ -54,6 +56,7 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 		store:            store,
 		fmi:              fmiClient,
 		forecastCache:    NewCache[[]DailyForecast](forecastCacheTTL),
+		timezoneCache:    NewCache[string](forecastCacheTTL),
 		hourlyCache:      NewCache[[]HourlyForecast](forecastCacheTTL),
 		uvCache:          NewCache[[]UVDataPoint](forecastCacheTTL),
 		leaderboardCache: NewCache[[]LeaderboardEntry](5 * time.Minute),
@@ -76,7 +79,7 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 	}
 
 	gridLat, gridLon := snapToGrid(lat, lon)
-	forecast, err := s.getForecast(ctx, gridLat, gridLon)
+	forecast, forecastTimezone, err := s.getForecast(ctx, gridLat, gridLon)
 	if err != nil {
 		return nil, fmt.Errorf("forecast: %w", err)
 	}
@@ -105,6 +108,7 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 		},
 		Hourly:   hourly,
 		Forecast: forecast,
+		Timezone: forecastTimezone,
 	}, nil
 }
 
@@ -128,32 +132,49 @@ func (s *Service) GetTemperatureOverlay(ctx context.Context, req MapOverlayReque
 	return overlay, nil
 }
 
-func (s *Service) getForecast(ctx context.Context, gridLat, gridLon float64) ([]DailyForecast, error) {
+func (s *Service) getForecast(ctx context.Context, gridLat, gridLon float64) ([]DailyForecast, string, error) {
 	cacheKey := fmt.Sprintf("%.2f,%.2f", gridLat, gridLon)
 
 	if cached, ok := s.forecastCache.Get(cacheKey); ok {
 		if hasExpandedForecastData(cached) {
-			return cached, nil
+			return cached, s.cachedTimezoneForKey(cacheKey), nil
 		}
 	}
 
 	forecasts, err := s.store.GetForecasts(ctx, gridLat, gridLon)
 	if err == nil && len(forecasts) > 0 && isFresh(forecasts, 3*time.Hour) && hasExpandedForecastData(forecasts) {
 		s.forecastCache.Set(cacheKey, forecasts)
-		return forecasts, nil
+		return forecasts, s.cachedTimezoneForKey(cacheKey), nil
 	}
 
-	forecasts, err = s.fmi.FetchForecast(ctx, gridLat, gridLon)
+	forecastData, err := s.fmi.FetchForecast(ctx, gridLat, gridLon)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
+	forecasts = forecastData.Forecasts
+	timezone := normalizePlaceTimezone(forecastData.Timezone)
 
 	if storeErr := s.store.UpsertForecasts(ctx, forecasts); storeErr != nil {
 		slog.Warn("failed to store forecasts", "err", storeErr)
 	}
 	s.forecastCache.Set(cacheKey, forecasts)
+	s.timezoneCache.Set(cacheKey, timezone)
 
-	return forecasts, nil
+	return forecasts, timezone, nil
+}
+
+func (s *Service) cachedTimezoneForKey(cacheKey string) string {
+	if cached, ok := s.timezoneCache.Get(cacheKey); ok {
+		return normalizePlaceTimezone(cached)
+	}
+	return DefaultPlaceTimezone
+}
+
+func normalizePlaceTimezone(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return DefaultPlaceTimezone
+	}
+	return value
 }
 
 func (s *Service) getHourlyForecast(ctx context.Context, gridLat, gridLon float64, limit int) ([]HourlyForecast, error) {

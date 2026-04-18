@@ -41,6 +41,7 @@ type weatherJSON struct {
 	Current  currentJSON          `json:"current"`
 	Hourly   []hourlyForecastJSON `json:"hourly_forecast"`
 	Forecast []dailyForecastJSON  `json:"daily_forecast"`
+	Timezone string               `json:"timezone"`
 }
 
 type stationJSON struct {
@@ -164,6 +165,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			Extra:           result.Current.Observation.ExtraNumericParams,
 			ObservedAt:      result.Current.Observation.ObservedAt,
 		},
+		Timezone: result.Timezone,
 	}
 
 	for _, f := range result.Forecast {

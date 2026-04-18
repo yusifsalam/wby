@@ -54,7 +54,7 @@ func (c *Client) FetchObservations(ctx context.Context) (*ObservationResult, err
 	return ParseObservations(data)
 }
 
-func (c *Client) FetchForecast(ctx context.Context, lat, lon float64) ([]weather.DailyForecast, error) {
+func (c *Client) FetchForecast(ctx context.Context, lat, lon float64) (weather.ForecastData, error) {
 	start, end := forecastTimeWindowUTC(forecastDays)
 
 	params := url.Values{
@@ -70,7 +70,7 @@ func (c *Client) FetchForecast(ctx context.Context, lat, lon float64) ([]weather
 
 	data, err := c.fetch(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("fetch forecast: %w", err)
+		return weather.ForecastData{}, fmt.Errorf("fetch forecast: %w", err)
 	}
 	return ParseForecast(data, lat, lon)
 }

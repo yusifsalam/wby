@@ -37,9 +37,9 @@ type member struct {
 }
 
 type pointTimeSeries struct {
-	ObservedProperty observedProperty `xml:"observedProperty"`
+	ObservedProperty  observedProperty  `xml:"observedProperty"`
 	FeatureOfInterest featureOfInterest `xml:"featureOfInterest"`
-	Result           tsResult          `xml:"result"`
+	Result            tsResult          `xml:"result"`
 }
 
 type observedProperty struct {
@@ -70,6 +70,7 @@ type locationMember struct {
 type location struct {
 	Identifier string    `xml:"identifier"`
 	Names      []gmlName `xml:"name"`
+	Timezone   string    `xml:"timezone"`
 }
 
 type gmlName struct {
@@ -84,7 +85,7 @@ type shape struct {
 
 type gmlPoint struct {
 	Name string `xml:"name"`
-	Pos string `xml:"pos"`
+	Pos  string `xml:"pos"`
 }
 
 type multiPoint struct {
@@ -222,10 +223,10 @@ func ParseObservations(data []byte) (*ObservationResult, error) {
 
 // ParseForecast parses an FMI WFS forecast response and aggregates hourly
 // values into daily forecast columns.
-func ParseForecast(data []byte, gridLat, gridLon float64) ([]weather.DailyForecast, error) {
+func ParseForecast(data []byte, gridLat, gridLon float64) (weather.ForecastData, error) {
 	var fc featureCollection
 	if err := xml.Unmarshal(data, &fc); err != nil {
-		return nil, fmt.Errorf("unmarshal WFS forecast: %w", err)
+		return weather.ForecastData{}, fmt.Errorf("unmarshal WFS forecast: %w", err)
 	}
 
 	type hourlyEntry struct {
@@ -233,8 +234,12 @@ func ParseForecast(data []byte, gridLat, gridLon float64) ([]weather.DailyForeca
 		val float64
 	}
 	params := make(map[string][]hourlyEntry)
+	var timezone string
 
 	for _, m := range fc.Members {
+		if timezone == "" {
+			timezone = extractLocationTimezone(m.Observation)
+		}
 		param := strings.ToLower(extractParam(m.Observation.ObservedProperty.Href))
 		for _, pt := range m.Observation.Result.TimeSeries.Points {
 			t, err := time.Parse(time.RFC3339, pt.TVP.Time)
@@ -335,7 +340,10 @@ func ParseForecast(data []byte, gridLat, gridLon float64) ([]weather.DailyForeca
 
 		forecasts = append(forecasts, f)
 	}
-	return forecasts, nil
+	return weather.ForecastData{
+		Forecasts: forecasts,
+		Timezone:  timezone,
+	}, nil
 }
 
 // ParseHourlyForecast parses hourly time/value pairs for temperature and weather symbol.
@@ -640,6 +648,16 @@ func extractStationInfo(pts pointTimeSeries) (fmisid int, name string, lat, lon 
 	}
 	lat, lon = parsePos(pos)
 	return
+}
+
+func extractLocationTimezone(pts pointTimeSeries) string {
+	foi := pts.FeatureOfInterest.Feature
+	for _, lm := range foi.SampledFeature.LocationCollection.Members {
+		if tz := strings.TrimSpace(lm.Location.Timezone); tz != "" {
+			return tz
+		}
+	}
+	return ""
 }
 
 func isLocationNameCodeSpace(codeSpace string) bool {

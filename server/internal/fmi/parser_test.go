@@ -98,11 +98,15 @@ func TestParseForecast(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(result) == 0 {
+	if result.Timezone != "Europe/Helsinki" {
+		t.Fatalf("expected timezone Europe/Helsinki, got %q", result.Timezone)
+	}
+
+	if len(result.Forecasts) == 0 {
 		t.Fatal("expected at least one daily forecast")
 	}
 
-	day := result[0]
+	day := result.Forecasts[0]
 	if day.TempHigh == nil {
 		t.Error("expected temp_high to be set")
 	}
@@ -223,11 +227,11 @@ func TestParseForecastDefaultParamsFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result) == 0 {
+	if len(result.Forecasts) == 0 {
 		t.Fatal("expected daily forecast entries")
 	}
 
-	day := result[0]
+	day := result.Forecasts[0]
 	if day.TempAvg == nil {
 		t.Error("expected temperature_avg")
 	}

@@ -2,6 +2,8 @@ package weather
 
 import "time"
 
+const DefaultPlaceTimezone = "Europe/Helsinki"
+
 type Station struct {
 	FMISID  int
 	Name    string
@@ -99,6 +101,12 @@ type WeatherResponse struct {
 	Current  CurrentWeather
 	Hourly   []HourlyForecast
 	Forecast []DailyForecast
+	Timezone string
+}
+
+type ForecastData struct {
+	Forecasts []DailyForecast
+	Timezone  string
 }
 
 type MapOverlayRequest struct {
