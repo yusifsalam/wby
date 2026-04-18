@@ -98,7 +98,10 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingLocations, onDismiss: {
                 if let pageID = pendingPageID {
-                    currentPageID = pageIDs.contains(pageID) ? pageID : .gps
+                    let resolved = pageIDs.contains(pageID) ? pageID : .gps
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        currentPageID = resolved
+                    }
                     pendingPageID = nil
                 }
             }) {
