@@ -3,6 +3,7 @@ import SwiftUI
 
 struct HourlyForecastCard: View {
     let hourly: [HourlyForecast]
+    let timeZone: TimeZone
     var coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
     var elevationMeters: Double = 0
 
@@ -34,6 +35,7 @@ struct HourlyForecastCard: View {
                 hour.symbol,
                 coordinate: coordinate,
                 at: hour.time,
+                timeZone: timeZone,
                 elevationMeters: elevationMeters
             )))
                 .frame(height: 20)
@@ -59,11 +61,14 @@ struct HourlyForecastCard: View {
     }
 
     private func hourLabel(_ date: Date) -> String {
-        if Calendar.current.isDate(date, equalTo: Date(), toGranularity: .hour) {
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        if calendar.isDate(date, equalTo: Date(), toGranularity: .hour) {
             return "Now"
         }
         let formatter = DateFormatter()
         formatter.dateFormat = "HH"
+        formatter.timeZone = timeZone
         return formatter.string(from: date)
     }
 
@@ -100,6 +105,6 @@ struct HourlyForecastCard: View {
         HourlyForecast(time: .now.addingTimeInterval(10800), temperature: -10, symbol: "3"),
         HourlyForecast(time: .now.addingTimeInterval(14400), temperature: -9, symbol: "3"),
         HourlyForecast(time: .now.addingTimeInterval(18000), temperature: -9, symbol: "3"),
-    ])
+    ], timeZone: TimeZone(identifier: "Europe/Helsinki")!)
     .padding()
 }

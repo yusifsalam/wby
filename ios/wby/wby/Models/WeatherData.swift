@@ -5,19 +5,22 @@ nonisolated struct WeatherResponse: Codable {
     let current: CurrentConditions
     let hourlyForecast: [HourlyForecast]
     let dailyForecast: [DailyForecast]
+    let timezone: String
 
     enum CodingKeys: String, CodingKey {
         case station
         case current
         case hourlyForecast = "hourly_forecast"
         case dailyForecast = "daily_forecast"
+        case timezone
     }
 
-    init(station: StationInfo, current: CurrentConditions, hourlyForecast: [HourlyForecast], dailyForecast: [DailyForecast]) {
+    init(station: StationInfo, current: CurrentConditions, hourlyForecast: [HourlyForecast], dailyForecast: [DailyForecast], timezone: String) {
         self.station = station
         self.current = current
         self.hourlyForecast = hourlyForecast
         self.dailyForecast = dailyForecast
+        self.timezone = timezone
     }
 
     init(from decoder: Decoder) throws {
@@ -26,6 +29,11 @@ nonisolated struct WeatherResponse: Codable {
         current = try c.decode(CurrentConditions.self, forKey: .current)
         hourlyForecast = try c.decodeIfPresent([HourlyForecast].self, forKey: .hourlyForecast) ?? []
         dailyForecast = try c.decode([DailyForecast].self, forKey: .dailyForecast)
+        timezone = try c.decode(String.self, forKey: .timezone)
+    }
+
+    var resolvedTimeZone: TimeZone {
+        TimeZone(identifier: timezone) ?? TimeZone(identifier: "Europe/Helsinki")!
     }
 }
 
@@ -311,9 +319,10 @@ struct DailyForecast: Codable, Identifiable {
         date
     }
 
-    var displayDate: Date? {
+    func displayDate(timeZone: TimeZone) -> Date? {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = timeZone
         return formatter.date(from: date)
     }
 

@@ -4,12 +4,14 @@ import SwiftUI
 struct MoonPhaseCard: View {
     let coordinate: CLLocationCoordinate2D
     let referenceDate: Date
+    let timeZone: TimeZone
 
     private var data: MoonData {
         Self.calculateMoonData(
             date: referenceDate,
             latitude: coordinate.latitude,
-            longitude: coordinate.longitude
+            longitude: coordinate.longitude,
+            timeZone: timeZone
         )
     }
 
@@ -39,12 +41,13 @@ struct MoonPhaseCard: View {
         let illumination: Double
         let moonset: Date?
         let daysToFullMoon: Double
+        let timeZone: TimeZone
 
         var moonsetText: String {
             guard let moonset else { return "--:--" }
             let formatter = DateFormatter()
             formatter.dateFormat = "H.mm"
-            formatter.timeZone = .current
+            formatter.timeZone = timeZone
             return formatter.string(from: moonset)
         }
 
@@ -57,7 +60,7 @@ struct MoonPhaseCard: View {
 
     // MARK: - Moon calculations
 
-    private static func calculateMoonData(date: Date, latitude: Double, longitude: Double) -> MoonData {
+    private static func calculateMoonData(date: Date, latitude: Double, longitude: Double, timeZone: TimeZone) -> MoonData {
         let jd = date.timeIntervalSince1970 / 86400.0 + unixEpochJD
 
         let phaseFraction = moonPhaseFraction(jd: jd)
@@ -77,7 +80,8 @@ struct MoonPhaseCard: View {
             sfSymbolName: sfSymbol,
             illumination: illumination,
             moonset: moonset,
-            daysToFullMoon: daysToFull
+            daysToFullMoon: daysToFull,
+            timeZone: timeZone
         )
     }
 
@@ -366,7 +370,8 @@ struct MoonPhaseCard: View {
         Color(red: 0.11, green: 0.33, blue: 0.73).ignoresSafeArea()
         MoonPhaseCard(
             coordinate: CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384),
-            referenceDate: .now
+            referenceDate: .now,
+            timeZone: TimeZone(identifier: "Europe/Helsinki")!
         )
         .padding()
     }

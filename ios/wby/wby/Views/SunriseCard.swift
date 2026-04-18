@@ -5,13 +5,14 @@ struct SunriseCard: View {
     let coordinate: CLLocationCoordinate2D
     let referenceDate: Date
     let elevationMeters: Double?
+    let timeZone: TimeZone
 
     private var sunTimes: (sunrise: Date?, sunset: Date?) {
         Self.calculateSunTimes(
             date: referenceDate,
             latitude: coordinate.latitude,
             longitude: coordinate.longitude,
-            timeZone: .current,
+            timeZone: timeZone,
             elevationMeters: elevationMeters ?? 0
         )
     }
@@ -95,16 +96,16 @@ struct SunriseCard: View {
         guard let date else { return "--.--" }
         let formatter = DateFormatter()
         formatter.dateFormat = "H.mm"
-        formatter.timeZone = .current
+        formatter.timeZone = timeZone
         return formatter.string(from: date)
     }
 
-    static func isNight(coordinate: CLLocationCoordinate2D, date: Date, elevationMeters: Double) -> Bool {
+    static func isNight(coordinate: CLLocationCoordinate2D, date: Date, timeZone: TimeZone, elevationMeters: Double) -> Bool {
         let times = calculateSunTimes(
             date: date,
             latitude: coordinate.latitude,
             longitude: coordinate.longitude,
-            timeZone: .current,
+            timeZone: timeZone,
             elevationMeters: elevationMeters
         )
         guard let sunrise = times.sunrise, let sunset = times.sunset else { return false }
@@ -210,7 +211,8 @@ struct SunriseCard: View {
         SunriseCard(
             coordinate: CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384),
             referenceDate: .now,
-            elevationMeters: 32
+            elevationMeters: 32,
+            timeZone: TimeZone(identifier: "Europe/Helsinki")!
         )
         .padding()
     }

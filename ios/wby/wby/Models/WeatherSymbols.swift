@@ -14,10 +14,17 @@ enum WeatherSymbols {
         for weather: WeatherResponse?,
         coordinate: CLLocationCoordinate2D,
         date: Date,
+        timeZone: TimeZone,
         elevationMeters: Double
     ) -> WeatherScene {
         WeatherScene.from(symbolCode:
-            nightAdjusted(primarySymbol(from: weather), coordinate: coordinate, at: date, elevationMeters: elevationMeters)
+            nightAdjusted(
+                primarySymbol(from: weather),
+                coordinate: coordinate,
+                at: date,
+                timeZone: timeZone,
+                elevationMeters: elevationMeters
+            )
         )
     }
 
@@ -25,10 +32,16 @@ enum WeatherSymbols {
         _ symbolCode: String?,
         coordinate: CLLocationCoordinate2D,
         at date: Date,
+        timeZone: TimeZone,
         elevationMeters: Double
     ) -> String? {
         guard let code = symbolCode.flatMap(Int.init), code < 100 else { return symbolCode }
-        let isNight = SunriseCard.isNight(coordinate: coordinate, date: date, elevationMeters: elevationMeters)
+        let isNight = SunriseCard.isNight(
+            coordinate: coordinate,
+            date: date,
+            timeZone: timeZone,
+            elevationMeters: elevationMeters
+        )
         return isNight ? String(code + 100) : symbolCode
     }
 

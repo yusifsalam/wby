@@ -4,6 +4,7 @@ struct DailyForecastRow: View {
     let forecast: DailyForecast
     let overallLow: Double
     let overallHigh: Double
+    let timeZone: TimeZone
     private let absoluteMinTemp = -40.0
     private let absoluteMaxTemp = 40.0
     private let minimumBarFraction = 0.03
@@ -33,10 +34,13 @@ struct DailyForecastRow: View {
     }
 
     private var dayName: String {
-        guard let date = forecast.displayDate else { return forecast.date }
-        if Calendar.current.isDateInToday(date) { return "Today" }
+        guard let date = forecast.displayDate(timeZone: timeZone) else { return forecast.date }
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        if calendar.isDateInToday(date) { return "Today" }
         let formatter = DateFormatter()
         formatter.dateFormat = "EEE"
+        formatter.timeZone = timeZone
         return formatter.string(from: date)
     }
 
@@ -107,7 +111,8 @@ struct DailyForecastRow: View {
             DailyForecastRow(
                 forecast: day,
                 overallLow: -8,
-                overallHigh: 3
+                overallHigh: 3,
+                timeZone: TimeZone(identifier: "Europe/Helsinki")!
             )
             Divider()
         }

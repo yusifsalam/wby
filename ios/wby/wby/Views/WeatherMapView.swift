@@ -7,6 +7,7 @@ struct WeatherMapView: View {
     let locationService: LocationService
     let favoritesStore: FavoritesStore
     let weatherService: WeatherService
+    private let overlayTimeZone = TimeZone(identifier: "Europe/Helsinki")!
 
     @Environment(\.dismiss) private var dismiss
     @State private var meta: OverlayMeta?
@@ -45,7 +46,7 @@ struct WeatherMapView: View {
                                     .font(.caption2.bold())
                             }
                             if let dataTime = meta.dataTime {
-                                Text(dataTime.formatted(date: .omitted, time: .shortened))
+                                Text(formatOverlayDataTime(dataTime))
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -61,6 +62,14 @@ struct WeatherMapView: View {
         .task {
             _ = await locationService.requestFreshLocation()
         }
+    }
+
+    private func formatOverlayDataTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        formatter.timeZone = overlayTimeZone
+        return formatter.string(from: date)
     }
 }
 

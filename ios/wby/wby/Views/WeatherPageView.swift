@@ -59,10 +59,12 @@ struct WeatherPageView: View {
         guard let coordinate else {
             return WeatherSymbols.scene(for: weather)
         }
+        let placeTimeZone = weather?.resolvedTimeZone ?? TimeZone(identifier: "Europe/Helsinki")!
         return WeatherSymbols.scene(
             for: weather,
             coordinate: coordinate,
             date: .now,
+            timeZone: placeTimeZone,
             elevationMeters: elevationMeters ?? 0
         )
     }
@@ -77,6 +79,7 @@ struct WeatherPageView: View {
                     if !weather.hourlyForecast.isEmpty {
                         HourlyForecastCard(
                             hourly: weather.hourlyForecast,
+                            timeZone: weather.resolvedTimeZone,
                             coordinate: coordinate,
                             elevationMeters: elevationMeters ?? 0
                         )
@@ -97,9 +100,10 @@ struct WeatherPageView: View {
                         SunriseCard(
                             coordinate: coordinate,
                             referenceDate: weather.current.observedAt,
-                            elevationMeters: elevationMeters
+                            elevationMeters: elevationMeters,
+                            timeZone: weather.resolvedTimeZone
                         )
-                        PrecipitationCard(forecasts: weather.dailyForecast)
+                        PrecipitationCard(forecasts: weather.dailyForecast, timeZone: weather.resolvedTimeZone)
                     }
                     HStack(alignment: .top, spacing: 12) {
                         VisibilityCard(current: weather.current)
@@ -107,7 +111,8 @@ struct WeatherPageView: View {
                     }
                     MoonPhaseCard(
                         coordinate: coordinate,
-                        referenceDate: weather.current.observedAt
+                        referenceDate: weather.current.observedAt,
+                        timeZone: weather.resolvedTimeZone
                     )
                     if let climateNormals {
                         ClimateNormalsCard(
@@ -208,7 +213,8 @@ struct WeatherPageView: View {
                 DailyForecastRow(
                     forecast: day,
                     overallLow: forecasts.compactMap(\.low).min() ?? 0,
-                    overallHigh: forecasts.compactMap(\.high).max() ?? 0
+                    overallHigh: forecasts.compactMap(\.high).max() ?? 0,
+                    timeZone: weather?.resolvedTimeZone ?? TimeZone(identifier: "Europe/Helsinki")!
                 )
                 if day.id != forecasts.last?.id {
                     Divider().overlay(Color.primary.opacity(0.18))
@@ -321,7 +327,8 @@ enum PreviewData {
             station: StationInfo(name: "Helsinki Kaisaniemi", distanceKm: 1.2),
             current: current,
             hourlyForecast: makeHourly(),
-            dailyForecast: makeDaily()
+            dailyForecast: makeDaily(),
+            timezone: "Europe/Helsinki"
         )
     }
 }

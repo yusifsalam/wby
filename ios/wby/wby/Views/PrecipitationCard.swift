@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PrecipitationCard: View {
     let forecasts: [DailyForecast]
+    let timeZone: TimeZone
 
     var body: some View {
         HalfCard(
@@ -93,9 +94,11 @@ struct PrecipitationCard: View {
     private func displayDate(_ raw: String) -> String {
         let parser = DateFormatter()
         parser.dateFormat = "yyyy-MM-dd"
+        parser.timeZone = timeZone
         guard let date = parser.date(from: raw) else { return raw }
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
+        formatter.timeZone = timeZone
         return formatter.string(from: date)
     }
 
@@ -123,7 +126,8 @@ struct PrecipitationCard: View {
                 DailyForecast(date: "2026-02-15", high: -5, low: -8, symbol: "3", windSpeedAvg: 3.1, precipitationMm: 0.0),
                 DailyForecast(date: "2026-02-16", high: -3, low: -9, symbol: "3", windSpeedAvg: 2.7, precipitationMm: 0.0),
                 DailyForecast(date: "2026-02-17", high: -1, low: -6, symbol: "41", windSpeedAvg: 4.2, precipitationMm: 2.4),
-            ]
+            ],
+            timeZone: TimeZone(identifier: "Europe/Helsinki")!
         )
         .padding()
     }
