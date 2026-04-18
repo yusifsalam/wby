@@ -14,8 +14,6 @@ struct WeatherPageView: View {
     @State private var lastUpdated: Date?
     @State private var errorMessage: String?
 
-    private let fallbackCoordinate = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
-
     init(
         location: WeatherLocation,
         locationService: LocationService,
@@ -34,9 +32,9 @@ struct WeatherPageView: View {
 
     // MARK: - Computed coordinate/name/elevation
 
-    private var coordinate: CLLocationCoordinate2D {
+    private var coordinate: CLLocationCoordinate2D? {
         switch location {
-        case .gps: return locationService.coordinate ?? fallbackCoordinate
+        case .gps: return locationService.coordinate
         case .favorite(let f): return CLLocationCoordinate2D(latitude: f.latitude, longitude: f.longitude)
         }
     }
@@ -58,7 +56,10 @@ struct WeatherPageView: View {
     // MARK: - Scene
 
     private var currentScene: WeatherScene {
-        WeatherSymbols.scene(
+        guard let coordinate else {
+            return WeatherSymbols.scene(for: weather)
+        }
+        return WeatherSymbols.scene(
             for: weather,
             coordinate: coordinate,
             date: .now,
@@ -71,7 +72,7 @@ struct WeatherPageView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 8) {
-                if let weather {
+                if let weather, let coordinate {
                     headerSection(weather)
                     if !weather.hourlyForecast.isEmpty {
                         HourlyForecastCard(
@@ -126,6 +127,12 @@ struct WeatherPageView: View {
                         .tint(.primary)
                         .foregroundStyle(.primary)
                         .padding(.top, 100)
+                } else if coordinate == nil {
+                    ContentUnavailableView(
+                        "Location Unavailable",
+                        systemImage: "location.slash",
+                        description: Text("Enable location services to see weather here.")
+                    )
                 } else {
                     ContentUnavailableView(
                         "No Weather Data",
@@ -139,8 +146,9 @@ struct WeatherPageView: View {
         .scrollBounceBehavior(.always)
         .refreshable {
             if case .gps = location {
-                let freshCoord = await locationService.requestFreshLocation()
-                await fetchWeather(coord: freshCoord)
+                if let freshCoord = await locationService.requestFreshLocation() {
+                    await fetchWeather(coord: freshCoord)
+                }
             } else {
                 await fetchWeather()
             }
@@ -213,11 +221,12 @@ struct WeatherPageView: View {
     // MARK: - Loading
 
     private func loadWeather() async {
+        guard let coordinate else { return }
         await fetchWeather(coord: coordinate)
     }
 
     private func fetchWeather(coord: CLLocationCoordinate2D? = nil) async {
-        let coord = coord ?? coordinate
+        guard let coord = coord ?? coordinate else { return }
         isLoading = weather == nil
         defer { isLoading = false }
         do {
@@ -225,6 +234,10 @@ struct WeatherPageView: View {
             weather = response
             lastUpdated = Date()
             errorMessage = nil
+        } catch WeatherError.httpStatus(404, let message) {
+            weather = nil
+            lastUpdated = nil
+            errorMessage = message ?? "No weather data for this location."
         } catch {
             if weather == nil {
                 errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
