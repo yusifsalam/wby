@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"math"
 	"net/http"
@@ -131,6 +132,10 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.service.GetWeather(r.Context(), lat, lon)
 	if err != nil {
+		if errors.Is(err, weather.ErrOutOfCoverage) {
+			writeJSONError(w, "no weather coverage for this location", http.StatusNotFound)
+			return
+		}
 		slog.Error("get weather failed", "err", err, "lat", lat, "lon", lon)
 		writeJSONError(w, "internal server error", http.StatusInternalServerError)
 		return

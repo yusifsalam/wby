@@ -2,11 +2,23 @@ package weather
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
 	"time"
 )
+
+// Finland coverage bbox — must match the WFS observation query bounds in
+// internal/fmi/client.go. Requests outside this box return ErrOutOfCoverage.
+const (
+	finlandMinLon = 19.0
+	finlandMinLat = 59.0
+	finlandMaxLon = 32.0
+	finlandMaxLat = 71.0
+)
+
+var ErrOutOfCoverage = errors.New("location outside coverage area")
 
 type WeatherStore interface {
 	NearestStation(ctx context.Context, lat, lon float64) (Station, float64, error)
@@ -49,6 +61,10 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 }
 
 func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherResponse, error) {
+	if lon < finlandMinLon || lon > finlandMaxLon || lat < finlandMinLat || lat > finlandMaxLat {
+		return nil, ErrOutOfCoverage
+	}
+
 	station, distKM, err := s.store.NearestStation(ctx, lat, lon)
 	if err != nil {
 		return nil, fmt.Errorf("nearest station: %w", err)
