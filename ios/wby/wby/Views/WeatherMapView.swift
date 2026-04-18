@@ -198,6 +198,15 @@ private struct WeatherMapContainer: UIViewRepresentable {
         context.coordinator.bind(mapView: mapView)
         context.coordinator.updateFavoriteAnnotations(on: mapView, favorites: favorites)
         context.coordinator.scheduleOverlayRefresh(on: mapView)
+
+        let longPress = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleLongPress(_:))
+        )
+        longPress.minimumPressDuration = 0.4
+        longPress.delegate = context.coordinator
+        mapView.addGestureRecognizer(longPress)
+
         return mapView
     }
 
@@ -208,7 +217,7 @@ private struct WeatherMapContainer: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, MKMapViewDelegate {
+    final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         private let favoriteWeatherTTL: TimeInterval = 10 * 60
         private let favoritePinsMaxLatitudeDelta: CLLocationDegrees = 5.8
         private let overlayRefreshInterval: TimeInterval = 3 * 60
@@ -221,6 +230,10 @@ private struct WeatherMapContainer: UIViewRepresentable {
         private var overlayLastFetchedAt: Date?
         private var favoriteWeatherCache: [UUID: CachedFavoritePinWeather] = [:]
         private var favoriteWeatherTasks: [UUID: Task<Void, Never>] = [:]
+        private var previewAnnotation: PreviewPinAnnotation?
+        private var previewWeatherTask: Task<Void, Never>?
+        private var previewGeocodeTask: Task<Void, Never>?
+        private let previewHaptic = UIImpactFeedbackGenerator(style: .light)
 
         init(
             overlayService: MapOverlayService,
@@ -237,6 +250,8 @@ private struct WeatherMapContainer: UIViewRepresentable {
             for task in favoriteWeatherTasks.values {
                 task.cancel()
             }
+            previewWeatherTask?.cancel()
+            previewGeocodeTask?.cancel()
         }
 
         func bind(mapView: MKMapView) {
@@ -256,18 +271,183 @@ private struct WeatherMapContainer: UIViewRepresentable {
             return MKOverlayRenderer(overlay: overlay)
         }
 
-        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            guard let favorite = annotation as? FavoritePinAnnotation else { return nil }
-            let reuseID = FavoriteWeatherAnnotationView.reuseID
-            let view: FavoriteWeatherAnnotationView
-            if let reused = mapView.dequeueReusableAnnotationView(withIdentifier: reuseID) as? FavoriteWeatherAnnotationView {
-                view = reused
-            } else {
-                view = FavoriteWeatherAnnotationView(annotation: annotation, reuseIdentifier: reuseID)
+        func mapView(_ mapView: MKMapView, didAdd views: [MKAnnotationView]) {
+            for view in views where view is PreviewPinAnnotationView {
+                view.alpha = 0
+                view.transform = CGAffineTransform(scaleX: 0.85, y: 0.85)
+                UIView.animate(
+                    withDuration: 0.35,
+                    delay: 0,
+                    usingSpringWithDamping: 0.7,
+                    initialSpringVelocity: 0,
+                    options: [.allowUserInteraction],
+                    animations: {
+                        view.alpha = 1
+                        view.transform = .identity
+                    },
+                    completion: nil
+                )
             }
-            view.annotation = favorite
-            view.configure(with: favorite)
-            return view
+        }
+
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if let preview = annotation as? PreviewPinAnnotation {
+                let reuseID = PreviewPinAnnotationView.reuseID
+                let view: PreviewPinAnnotationView
+                if let reused = mapView.dequeueReusableAnnotationView(withIdentifier: reuseID) as? PreviewPinAnnotationView {
+                    view = reused
+                } else {
+                    view = PreviewPinAnnotationView(annotation: annotation, reuseIdentifier: reuseID)
+                }
+                view.annotation = preview
+                view.configure(with: preview)
+                view.onTap = { [weak self, weak mapView] in
+                    guard let self, let mapView else { return }
+                    self.dismissPreview(on: mapView)
+                }
+                return view
+            }
+
+            if let favorite = annotation as? FavoritePinAnnotation {
+                let reuseID = FavoriteWeatherAnnotationView.reuseID
+                let view: FavoriteWeatherAnnotationView
+                if let reused = mapView.dequeueReusableAnnotationView(withIdentifier: reuseID) as? FavoriteWeatherAnnotationView {
+                    view = reused
+                } else {
+                    view = FavoriteWeatherAnnotationView(annotation: annotation, reuseIdentifier: reuseID)
+                }
+                view.annotation = favorite
+                view.configure(with: favorite)
+                return view
+            }
+            return nil
+        }
+
+        @objc func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
+            guard recognizer.state == .began,
+                  let mapView = recognizer.view as? MKMapView
+            else { return }
+
+            let point = recognizer.location(in: mapView)
+            let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+
+            previewWeatherTask?.cancel()
+            previewGeocodeTask?.cancel()
+            previewWeatherTask = nil
+            previewGeocodeTask = nil
+
+            if let existing = previewAnnotation {
+                mapView.removeAnnotation(existing)
+            }
+
+            let annotation = PreviewPinAnnotation(coordinate: coordinate)
+            annotation.placeName = formatFallbackPlaceName(coordinate)
+            previewAnnotation = annotation
+            mapView.addAnnotation(annotation)
+
+            previewHaptic.impactOccurred()
+            startPreviewWeatherFetch(for: annotation, on: mapView)
+            startPreviewGeocode(for: annotation, on: mapView)
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldReceive touch: UITouch
+        ) -> Bool {
+            guard gestureRecognizer is UILongPressGestureRecognizer else { return true }
+            var view = touch.view
+            while let candidate = view {
+                if candidate is PreviewPinAnnotationView || candidate is FavoriteWeatherAnnotationView {
+                    return false
+                }
+                view = candidate.superview
+            }
+            return true
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+
+        private func startPreviewWeatherFetch(
+            for annotation: PreviewPinAnnotation,
+            on mapView: MKMapView
+        ) {
+            previewWeatherTask = Task { [weak self, weak mapView] in
+                guard let self else { return }
+                do {
+                    let response = try await self.weatherService.fetchWeather(
+                        lat: annotation.coordinate.latitude,
+                        lon: annotation.coordinate.longitude
+                    )
+                    guard !Task.isCancelled, let mapView else { return }
+                    guard self.previewAnnotation === annotation else { return }
+
+                    annotation.weather = PreviewWeather.from(response: response)
+                    annotation.loadState = .loaded
+                    if let view = mapView.view(for: annotation) as? PreviewPinAnnotationView {
+                        view.configure(with: annotation)
+                    }
+                } catch WeatherError.httpStatus(404, _) {
+                    guard !Task.isCancelled, let mapView else { return }
+                    guard self.previewAnnotation === annotation else { return }
+                    self.dismissPreview(on: mapView)
+                } catch {
+                    guard !Task.isCancelled, let mapView else { return }
+                    guard self.previewAnnotation === annotation else { return }
+                    annotation.loadState = .failed
+                    if let view = mapView.view(for: annotation) as? PreviewPinAnnotationView {
+                        view.configure(with: annotation)
+                    }
+                }
+            }
+        }
+
+        private func startPreviewGeocode(
+            for annotation: PreviewPinAnnotation,
+            on mapView: MKMapView
+        ) {
+            let location = CLLocation(
+                latitude: annotation.coordinate.latitude,
+                longitude: annotation.coordinate.longitude
+            )
+            previewGeocodeTask = Task { [weak self, weak mapView] in
+                guard let self else { return }
+                let geocoder = CLGeocoder()
+                let placemarks: [CLPlacemark]
+                do {
+                    placemarks = try await geocoder.reverseGeocodeLocation(location)
+                } catch {
+                    placemarks = []
+                }
+                guard !Task.isCancelled, let mapView else { return }
+                guard self.previewAnnotation === annotation else { return }
+
+                let resolved = placemarks.first.flatMap { placemark in
+                    placemark.locality
+                        ?? placemark.subLocality
+                        ?? placemark.administrativeArea
+                        ?? placemark.country
+                }
+                annotation.placeName = resolved ?? formatFallbackPlaceName(annotation.coordinate)
+                if let view = mapView.view(for: annotation) as? PreviewPinAnnotationView {
+                    view.configure(with: annotation)
+                }
+            }
+        }
+
+        func dismissPreview(on mapView: MKMapView) {
+            previewWeatherTask?.cancel()
+            previewGeocodeTask?.cancel()
+            previewWeatherTask = nil
+            previewGeocodeTask = nil
+            if let annotation = previewAnnotation {
+                mapView.removeAnnotation(annotation)
+            }
+            previewAnnotation = nil
         }
 
         func updateFavoriteAnnotations(on mapView: MKMapView, favorites: [FavoriteLocation]) {
@@ -583,5 +763,204 @@ private final class TemperatureOverlayRenderer: MKOverlayRenderer {
         context.translateBy(x: drawRect.minX, y: drawRect.maxY)
         context.scaleBy(x: 1, y: -1)
         context.draw(cgImage, in: CGRect(origin: .zero, size: drawRect.size))
+    }
+}
+
+private enum PreviewLoadState {
+    case loading
+    case loaded
+    case failed
+}
+
+private struct PreviewWeather: Equatable {
+    let current: Int?
+    let conditionText: String?
+    let symbolCode: String?
+    let low: Int?
+    let high: Int?
+
+    static func from(response: WeatherResponse) -> PreviewWeather {
+        let today = response.dailyForecast.first
+        return PreviewWeather(
+            current: roundTemperature(response.current.resolvedTemperature ?? response.hourlyForecast.first?.temperature),
+            conditionText: WeatherSymbols.conditionDescription(from: response),
+            symbolCode: WeatherSymbols.primarySymbol(from: response),
+            low: roundTemperature(today?.low),
+            high: roundTemperature(today?.high)
+        )
+    }
+
+    private static func roundTemperature(_ value: Double?) -> Int? {
+        guard let value else { return nil }
+        return Int(value.rounded())
+    }
+}
+
+private func formatFallbackPlaceName(_ coordinate: CLLocationCoordinate2D) -> String {
+    String(
+        format: "%.2f, %.2f",
+        locale: Locale(identifier: "en_US_POSIX"),
+        coordinate.latitude,
+        coordinate.longitude
+    )
+}
+
+private final class PreviewPinAnnotation: NSObject, MKAnnotation {
+    @objc dynamic var coordinate: CLLocationCoordinate2D
+    var placeName: String?
+    var weather: PreviewWeather?
+    var loadState: PreviewLoadState
+
+    init(coordinate: CLLocationCoordinate2D) {
+        self.coordinate = coordinate
+        self.placeName = nil
+        self.weather = nil
+        self.loadState = .loading
+        super.init()
+    }
+}
+
+private final class PreviewPinAnnotationView: MKAnnotationView {
+    static let reuseID = "PreviewPin"
+
+    var onTap: (() -> Void)?
+
+    private let bubbleView = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
+    private let placeLabel = UILabel()
+    private let conditionStack = UIStackView()
+    private let symbolView = UIImageView()
+    private let conditionLabel = UILabel()
+    private let tempLabel = UILabel()
+    private let rangeLabel = UILabel()
+    private let anchorDot = UIView()
+    private let bubbleWidth: CGFloat = 160
+    private let bubbleHeight: CGFloat = 92
+
+    override init(annotation: (any MKAnnotation)?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        setupView()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupView()
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        placeLabel.text = "—"
+        conditionLabel.text = "Loading…"
+        symbolView.image = nil
+        tempLabel.text = "--°"
+        rangeLabel.text = "L --°  H --°"
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let dotSize: CGFloat = 8
+        bubbleView.frame = CGRect(x: 0, y: 0, width: bubbleWidth, height: bubbleHeight)
+        placeLabel.frame = CGRect(x: 10, y: 6, width: bubbleWidth - 20, height: 16)
+        conditionStack.frame = CGRect(x: 10, y: 24, width: bubbleWidth - 20, height: 18)
+        tempLabel.frame = CGRect(x: 10, y: 42, width: bubbleWidth - 20, height: 32)
+        rangeLabel.frame = CGRect(x: 10, y: 72, width: bubbleWidth - 20, height: 14)
+        anchorDot.frame = CGRect(x: (bubbleWidth - dotSize) / 2, y: bubbleHeight + 2, width: dotSize, height: dotSize)
+        anchorDot.layer.cornerRadius = dotSize / 2
+    }
+
+    func configure(with annotation: PreviewPinAnnotation) {
+        placeLabel.text = annotation.placeName ?? "—"
+        switch annotation.loadState {
+        case .loading:
+            conditionLabel.text = "Loading…"
+            symbolView.image = nil
+            tempLabel.text = "--°"
+            rangeLabel.text = "L --°  H --°"
+        case .failed:
+            conditionLabel.text = "Weather unavailable"
+            symbolView.image = nil
+            tempLabel.text = "--°"
+            rangeLabel.text = "L --°  H --°"
+        case .loaded:
+            let weather = annotation.weather
+            conditionLabel.text = weather?.conditionText ?? "—"
+            if let code = weather?.symbolCode {
+                symbolView.image = UIImage(systemName: SmartSymbol.systemImageName(for: code))
+            } else {
+                symbolView.image = nil
+            }
+            tempLabel.text = formatTemp(weather?.current)
+            rangeLabel.text = "L \(formatTemp(weather?.low))  H \(formatTemp(weather?.high))"
+        }
+        accessibilityLabel = annotation.placeName ?? "Map preview"
+        accessibilityValue = "\(tempLabel.text ?? ""), \(conditionLabel.text ?? "")"
+    }
+
+    private func formatTemp(_ value: Int?) -> String {
+        guard let value else { return "--°" }
+        return "\(value)°"
+    }
+
+    private func setupView() {
+        backgroundColor = .clear
+        canShowCallout = false
+        collisionMode = .none
+        displayPriority = .required
+        centerOffset = CGPoint(x: 0, y: -(bubbleHeight / 2 + 8))
+        bounds = CGRect(x: 0, y: 0, width: bubbleWidth, height: bubbleHeight + 12)
+
+        bubbleView.clipsToBounds = true
+        bubbleView.layer.cornerRadius = 14
+        bubbleView.layer.cornerCurve = .continuous
+        bubbleView.layer.borderColor = UIColor.white.withAlphaComponent(0.26).cgColor
+        bubbleView.layer.borderWidth = 0.5
+        addSubview(bubbleView)
+
+        placeLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        placeLabel.textColor = .white
+        placeLabel.textAlignment = .center
+        placeLabel.lineBreakMode = .byTruncatingTail
+        bubbleView.contentView.addSubview(placeLabel)
+
+        conditionStack.axis = .horizontal
+        conditionStack.alignment = .center
+        conditionStack.distribution = .fill
+        conditionStack.spacing = 4
+        symbolView.contentMode = .scaleAspectFit
+        symbolView.tintColor = .white
+        symbolView.setContentHuggingPriority(.required, for: .horizontal)
+        symbolView.widthAnchor.constraint(equalToConstant: 16).isActive = true
+        symbolView.heightAnchor.constraint(equalToConstant: 16).isActive = true
+        conditionLabel.font = .systemFont(ofSize: 12, weight: .regular)
+        conditionLabel.textColor = UIColor.white.withAlphaComponent(0.88)
+        conditionLabel.textAlignment = .left
+        conditionLabel.lineBreakMode = .byTruncatingTail
+        conditionStack.addArrangedSubview(symbolView)
+        conditionStack.addArrangedSubview(conditionLabel)
+        bubbleView.contentView.addSubview(conditionStack)
+
+        tempLabel.font = .systemFont(ofSize: 28, weight: .semibold)
+        tempLabel.textColor = .white
+        tempLabel.textAlignment = .center
+        tempLabel.adjustsFontSizeToFitWidth = true
+        tempLabel.minimumScaleFactor = 0.8
+        bubbleView.contentView.addSubview(tempLabel)
+
+        rangeLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        rangeLabel.textColor = UIColor.white.withAlphaComponent(0.88)
+        rangeLabel.textAlignment = .center
+        bubbleView.contentView.addSubview(rangeLabel)
+
+        anchorDot.backgroundColor = UIColor(red: 0.21, green: 0.69, blue: 1.0, alpha: 1.0)
+        anchorDot.layer.borderColor = UIColor.white.withAlphaComponent(0.9).cgColor
+        anchorDot.layer.borderWidth = 1.0
+        addSubview(anchorDot)
+
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
+        bubbleView.addGestureRecognizer(tap)
+        bubbleView.isUserInteractionEnabled = true
+    }
+
+    @objc private func handleTap() {
+        onTap?()
     }
 }
