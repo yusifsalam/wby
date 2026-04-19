@@ -76,6 +76,7 @@ struct OverlaySeed {
 @MainActor
 final class WeatherMapViewModel: ObservableObject {
     @Published var meta: OverlayMeta?
+    @Published var overlayMode: OverlayMode
 
     private let favoriteWeatherTTL: TimeInterval = 10 * 60
     private let favoritePinsMaxLatitudeDelta: CLLocationDegrees = 5.8
@@ -85,9 +86,16 @@ final class WeatherMapViewModel: ObservableObject {
     private let weatherService: WeatherService
     private let networkEnabled: Bool
     private let initialOverlaySeed: OverlaySeed?
+    private let initialSamples: TemperatureSamplesResponse?
+    private let metalRenderer: TemperatureMetalRenderer?
     private weak var mapView: MKMapView?
     private var overlayTask: Task<Void, Never>?
     private var overlayLastFetchedAt: Date?
+    private var samplesTask: Task<Void, Never>?
+    private var samplesLastFetchedAt: Date?
+    private var cachedSamples: TemperatureSamplesResponse?
+    private var cachedOverlayImage: TemperatureOverlayImage?
+    private var cachedMetalOverlaySeed: OverlaySeed?
     private var favoriteWeatherCache: [UUID: CachedFavoritePinWeather] = [:]
     private var favoriteWeatherTasks: [UUID: Task<Void, Never>] = [:]
     private var previewAnnotation: PreviewPinAnnotation?
@@ -104,20 +112,38 @@ final class WeatherMapViewModel: ObservableObject {
         networkEnabled: Bool = true,
         initialMeta: OverlayMeta? = nil,
         initialFavoriteWeather: [UUID: FavoritePinWeather] = [:],
-        initialOverlaySeed: OverlaySeed? = nil
+        initialOverlaySeed: OverlaySeed? = nil,
+        initialSamples: TemperatureSamplesResponse? = nil,
+        overlayMode: OverlayMode = OverlayMode.load()
     ) {
         self.overlayService = overlayService
         self.weatherService = weatherService
         self.networkEnabled = networkEnabled
         self.initialOverlaySeed = initialOverlaySeed
+        self.initialSamples = initialSamples
+        self.metalRenderer = TemperatureMetalRenderer()
         self.meta = initialMeta
+        let resolvedMode: OverlayMode
+        if overlayMode == .metal, metalRenderer == nil {
+            resolvedMode = .png
+        } else {
+            resolvedMode = overlayMode
+        }
+        self.overlayMode = resolvedMode
+        if resolvedMode != overlayMode {
+            resolvedMode.save()
+        }
         self.favoriteWeatherCache = initialFavoriteWeather.mapValues {
             CachedFavoritePinWeather(weather: $0, fetchedAt: Date())
+        }
+        if let initialSamples {
+            self.cachedSamples = initialSamples
         }
     }
 
     deinit {
         overlayTask?.cancel()
+        samplesTask?.cancel()
         favoriteWeatherTasks.values.forEach { $0.cancel() }
         previewWeatherTask?.cancel()
         previewGeocodeTask?.cancel()
@@ -128,7 +154,7 @@ final class WeatherMapViewModel: ObservableObject {
         self.mapView = mapView
         didCenterOnPreferredLocation = false
         applyInitialRegion(on: mapView)
-        if let initialOverlaySeed {
+        if overlayMode == .png, let initialOverlaySeed {
             applyOverlay(
                 image: initialOverlaySeed.image,
                 bbox: initialOverlaySeed.bbox,
@@ -136,7 +162,32 @@ final class WeatherMapViewModel: ObservableObject {
             )
         }
         updateFavoriteAnnotations(on: mapView, favorites: favoriteLocations)
-        scheduleOverlayRefresh(on: mapView)
+        applyOverlayModeVisibility()
+        kickOffRefreshForCurrentMode()
+    }
+
+    func setOverlayMode(_ mode: OverlayMode) {
+        guard mode != overlayMode else { return }
+        if mode == .metal, metalRenderer == nil {
+            return
+        }
+        overlayMode = mode
+        mode.save()
+        applyOverlayModeVisibility()
+        if let cachedSamples, mode == .metal {
+            meta = OverlayMeta(
+                dataTime: cachedSamples.dataTime,
+                minTemp: cachedSamples.minTemp,
+                maxTemp: cachedSamples.maxTemp
+            )
+        } else if let cachedOverlayImage, mode == .png {
+            meta = OverlayMeta(
+                dataTime: cachedOverlayImage.dataTime,
+                minTemp: cachedOverlayImage.minTemp,
+                maxTemp: cachedOverlayImage.maxTemp
+            )
+        }
+        kickOffRefreshForCurrentMode()
     }
 
     func setFavoriteLocations(_ favorites: [FavoriteLocation]) {
@@ -162,7 +213,7 @@ final class WeatherMapViewModel: ObservableObject {
     func handleRegionDidChange(on mapView: MKMapView) {
         applyFavoritePinVisibility(on: mapView)
         refreshVisibleFavoriteWeather(on: mapView)
-        scheduleOverlayRefresh(on: mapView)
+        kickOffRefreshForCurrentMode()
     }
 
     func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
@@ -241,20 +292,103 @@ final class WeatherMapViewModel: ObservableObject {
                 )
                 guard !Task.isCancelled, let mapView, let image = UIImage(data: overlayImage.imageData) else { return }
                 overlayLastFetchedAt = Date()
-                applyOverlay(
-                    image: image,
-                    bbox: overlayImage.bbox,
-                    on: mapView
-                )
-                meta = OverlayMeta(
-                    dataTime: overlayImage.dataTime,
-                    minTemp: overlayImage.minTemp,
-                    maxTemp: overlayImage.maxTemp
-                )
+                cachedOverlayImage = overlayImage
+                if overlayMode == .png {
+                    applyOverlay(
+                        image: image,
+                        bbox: overlayImage.bbox,
+                        on: mapView
+                    )
+                    meta = OverlayMeta(
+                        dataTime: overlayImage.dataTime,
+                        minTemp: overlayImage.minTemp,
+                        maxTemp: overlayImage.maxTemp
+                    )
+                }
             } catch {
                 // Keep previous successful overlay visible on fetch errors.
             }
         }
+    }
+
+    func scheduleSamplesRefresh() {
+        guard networkEnabled else { return }
+        if let last = samplesLastFetchedAt,
+           Date().timeIntervalSince(last) < overlayRefreshInterval
+        {
+            return
+        }
+
+        samplesTask?.cancel()
+        samplesTask = Task { [weak self] in
+            guard let self else { return }
+            guard !Task.isCancelled else { return }
+            do {
+                let resp = try await overlayService.fetchTemperatureSamples()
+                guard !Task.isCancelled else { return }
+                samplesLastFetchedAt = Date()
+                cachedSamples = resp
+                updateMetalOverlayCache(from: resp)
+                if overlayMode == .metal {
+                    meta = OverlayMeta(
+                        dataTime: resp.dataTime,
+                        minTemp: resp.minTemp,
+                        maxTemp: resp.maxTemp
+                    )
+                    if let seed = cachedMetalOverlaySeed, let mapView {
+                        applyOverlay(image: seed.image, bbox: seed.bbox, on: mapView)
+                    }
+                }
+            } catch {
+                // Keep previous samples on fetch errors.
+            }
+        }
+    }
+
+    private func kickOffRefreshForCurrentMode() {
+        guard let mapView else { return }
+        switch overlayMode {
+        case .png:
+            scheduleOverlayRefresh(on: mapView)
+        case .metal:
+            scheduleSamplesRefresh()
+        }
+    }
+
+    private func applyOverlayModeVisibility() {
+        guard let mapView else { return }
+        switch overlayMode {
+        case .png:
+            if let cachedOverlayImage,
+               let image = UIImage(data: cachedOverlayImage.imageData) {
+                applyOverlay(image: image, bbox: cachedOverlayImage.bbox, on: mapView)
+            }
+        case .metal:
+            if let seed = cachedMetalOverlaySeed {
+                applyOverlay(image: seed.image, bbox: seed.bbox, on: mapView)
+            } else if let cachedSamples {
+                updateMetalOverlayCache(from: cachedSamples)
+                if let seed = cachedMetalOverlaySeed {
+                    applyOverlay(image: seed.image, bbox: seed.bbox, on: mapView)
+                }
+            } else {
+                let existing = mapView.overlays.compactMap { $0 as? TemperatureImageOverlay }
+                if !existing.isEmpty {
+                    mapView.removeOverlays(existing)
+                }
+            }
+        }
+    }
+
+    private func updateMetalOverlayCache(from response: TemperatureSamplesResponse) {
+        guard let renderer = metalRenderer else { return }
+        renderer.setSamples(response.samples)
+        guard let image = renderer.renderImage(
+            bounds: MercatorBounds.finland,
+            width: overlaySize,
+            height: overlaySize
+        ) else { return }
+        cachedMetalOverlaySeed = OverlaySeed(image: image, bbox: .finland)
     }
 
     private func startPreviewWeatherFetch(

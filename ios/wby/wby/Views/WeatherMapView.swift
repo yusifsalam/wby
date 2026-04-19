@@ -66,6 +66,18 @@ struct WeatherMapView: View {
                         .accessibilityLabel("Close map")
 
                         TemperatureLegendView()
+
+                        Button {
+                            viewModel.setOverlayMode(viewModel.overlayMode.toggled)
+                        } label: {
+                            Text(viewModel.overlayMode.displayName)
+                                .font(.caption.bold())
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(.ultraThinMaterial, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Toggle overlay renderer")
                     }
                     Spacer()
                     if let meta = viewModel.meta {

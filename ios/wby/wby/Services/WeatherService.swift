@@ -23,11 +23,25 @@ actor WeatherService {
         )
     }
 
+    func fetchTemperatureSamples() async throws -> TemperatureSamplesResponse {
+        return try await fetchJSON(
+            path: "v1/map/temperature/samples",
+            queryItems: [],
+            dateDecodingStrategy: .iso8601
+        )
+    }
+
     func fetchTemperatureOverlay(bbox: MapBBox, width: Int, height: Int) async throws -> TemperatureOverlayImage {
+        let bboxValue = [
+            Self.coordinateString(bbox.minLon),
+            Self.coordinateString(bbox.minLat),
+            Self.coordinateString(bbox.maxLon),
+            Self.coordinateString(bbox.maxLat),
+        ].joined(separator: ",")
         let (data, httpResponse) = try await performRequest(
             path: "v1/map/temperature",
             queryItems: [
-                URLQueryItem(name: "bbox", value: bbox.queryValue),
+                URLQueryItem(name: "bbox", value: bboxValue),
                 URLQueryItem(name: "width", value: String(width)),
                 URLQueryItem(name: "height", value: String(height)),
             ]

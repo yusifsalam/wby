@@ -11,8 +11,9 @@ struct WeatherMapUIKitBridge: UIViewRepresentable {
         let mapView = MKMapView(frame: .zero)
         mapView.delegate = context.coordinator
         mapView.showsUserLocation = true
-        mapView.pointOfInterestFilter = .excludingAll
+        mapView.pointOfInterestFilter = .includingAll
         mapView.isRotateEnabled = false
+        mapView.isPitchEnabled = false
 
         viewModel.bind(mapView: mapView)
 
