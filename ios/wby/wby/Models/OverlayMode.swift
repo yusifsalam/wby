@@ -4,7 +4,7 @@ enum OverlayMode: String, CaseIterable {
     case metal
     case png
 
-    private static let storageKey = "weatherMap.overlayMode"
+    static let storageKey = "weatherMap.overlayMode"
 
     var displayName: String {
         switch self {

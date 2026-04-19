@@ -10,6 +10,7 @@ struct WeatherMapView: View {
     private let previewConfig: PreviewConfig?
 
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(OverlayMode.storageKey) private var overlayModeRawValue = OverlayMode.metal.rawValue
     @StateObject private var viewModel: WeatherMapViewModel
 
     init(
@@ -66,18 +67,6 @@ struct WeatherMapView: View {
                         .accessibilityLabel("Close map")
 
                         TemperatureLegendView()
-
-                        Button {
-                            viewModel.setOverlayMode(viewModel.overlayMode.toggled)
-                        } label: {
-                            Text(viewModel.overlayMode.displayName)
-                                .font(.caption.bold())
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(.ultraThinMaterial, in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Toggle overlay renderer")
                     }
                     Spacer()
                     if let meta = viewModel.meta {
@@ -97,15 +86,23 @@ struct WeatherMapView: View {
                     }
                 }
                 Spacer()
+                HStack {
+                    overlayBackendIndicator
+                    Spacer()
+                }
             }
             .padding()
         }
         .task {
+            applyOverlayModeFromSettings()
             viewModel.setPreferredCenter(locationService.coordinate)
             viewModel.setFavoriteLocations(favoritesStore.favorites)
             if !disableAutoLoad {
                 _ = await locationService.requestFreshLocation()
             }
+        }
+        .onChange(of: overlayModeRawValue) {
+            applyOverlayModeFromSettings()
         }
         .onChange(of: locationService.coordinate.map { "\($0.latitude),\($0.longitude)" }) {
             viewModel.setPreferredCenter(locationService.coordinate)
@@ -121,6 +118,31 @@ struct WeatherMapView: View {
         formatter.timeStyle = .short
         formatter.timeZone = overlayTimeZone
         return formatter.string(from: date)
+    }
+
+    private func applyOverlayModeFromSettings() {
+        let mode = OverlayMode(rawValue: overlayModeRawValue) ?? .metal
+        if overlayModeRawValue != mode.rawValue {
+            overlayModeRawValue = mode.rawValue
+        }
+        viewModel.setOverlayMode(mode)
+    }
+
+    private var overlayBackendIndicator: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(viewModel.overlayMode == .metal ? Color.teal : Color.blue)
+                .frame(width: 6, height: 6)
+            Text("Overlay \(viewModel.overlayMode.displayName)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Overlay backend \(viewModel.overlayMode.displayName)")
     }
 
     struct PreviewConfig {
