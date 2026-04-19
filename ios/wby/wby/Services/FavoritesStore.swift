@@ -3,9 +3,19 @@ import SwiftUI
 
 @Observable
 final class FavoritesStore {
+    private let persistenceEnabled: Bool
     private(set) var favorites: [FavoriteLocation] = []
 
-    init() { load() }
+    init(
+        initialFavorites: [FavoriteLocation] = [],
+        persistenceEnabled: Bool = true
+    ) {
+        self.persistenceEnabled = persistenceEnabled
+        favorites = initialFavorites
+        if persistenceEnabled {
+            load()
+        }
+    }
 
     func add(_ location: FavoriteLocation) {
         guard !favorites.contains(where: {
@@ -31,11 +41,13 @@ final class FavoritesStore {
     }
 
     private func save() {
+        guard persistenceEnabled else { return }
         guard let data = try? JSONEncoder().encode(favorites) else { return }
         try? data.write(to: storeURL)
     }
 
     private func load() {
+        guard persistenceEnabled else { return }
         guard let data = try? Data(contentsOf: storeURL) else { return }
         favorites = (try? JSONDecoder().decode([FavoriteLocation].self, from: data)) ?? []
     }

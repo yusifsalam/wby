@@ -35,3 +35,17 @@ struct TemperatureLegendView: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
     }
 }
+
+#Preview("Temperature Legend") {
+    ZStack {
+        LinearGradient(
+            colors: [Color.blue.opacity(0.65), Color.indigo.opacity(0.85)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+
+        TemperatureLegendView()
+            .padding()
+    }
+}

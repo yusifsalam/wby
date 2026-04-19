@@ -68,6 +68,11 @@ struct PreviewWeather: Equatable {
     }
 }
 
+struct OverlaySeed {
+    let image: UIImage
+    let bbox: MapBBox
+}
+
 @MainActor
 final class WeatherMapViewModel: ObservableObject {
     @Published var meta: OverlayMeta?
@@ -78,6 +83,8 @@ final class WeatherMapViewModel: ObservableObject {
     private let overlaySize: Int = 512
     private let overlayService: MapOverlayService
     private let weatherService: WeatherService
+    private let networkEnabled: Bool
+    private let initialOverlaySeed: OverlaySeed?
     private weak var mapView: MKMapView?
     private var overlayTask: Task<Void, Never>?
     private var overlayLastFetchedAt: Date?
@@ -91,9 +98,22 @@ final class WeatherMapViewModel: ObservableObject {
     private var preferredCenter: CLLocationCoordinate2D?
     private var didCenterOnPreferredLocation = false
 
-    init(overlayService: MapOverlayService, weatherService: WeatherService) {
+    init(
+        overlayService: MapOverlayService,
+        weatherService: WeatherService,
+        networkEnabled: Bool = true,
+        initialMeta: OverlayMeta? = nil,
+        initialFavoriteWeather: [UUID: FavoritePinWeather] = [:],
+        initialOverlaySeed: OverlaySeed? = nil
+    ) {
         self.overlayService = overlayService
         self.weatherService = weatherService
+        self.networkEnabled = networkEnabled
+        self.initialOverlaySeed = initialOverlaySeed
+        self.meta = initialMeta
+        self.favoriteWeatherCache = initialFavoriteWeather.mapValues {
+            CachedFavoritePinWeather(weather: $0, fetchedAt: Date())
+        }
     }
 
     deinit {
@@ -108,6 +128,13 @@ final class WeatherMapViewModel: ObservableObject {
         self.mapView = mapView
         didCenterOnPreferredLocation = false
         applyInitialRegion(on: mapView)
+        if let initialOverlaySeed {
+            applyOverlay(
+                image: initialOverlaySeed.image,
+                bbox: initialOverlaySeed.bbox,
+                on: mapView
+            )
+        }
         updateFavoriteAnnotations(on: mapView, favorites: favoriteLocations)
         scheduleOverlayRefresh(on: mapView)
     }
@@ -155,6 +182,11 @@ final class WeatherMapViewModel: ObservableObject {
         mapView.addAnnotation(annotation)
 
         previewHaptic.impactOccurred()
+        guard networkEnabled else {
+            annotation.loadState = .failed
+            refreshPreviewView(for: annotation, on: mapView)
+            return
+        }
         startPreviewWeatherFetch(for: annotation, on: mapView)
         startPreviewGeocode(for: annotation, on: mapView)
     }
@@ -191,6 +223,7 @@ final class WeatherMapViewModel: ObservableObject {
     }
 
     func scheduleOverlayRefresh(on mapView: MKMapView) {
+        guard networkEnabled else { return }
         if let lastFetched = overlayLastFetchedAt,
            Date().timeIntervalSince(lastFetched) < overlayRefreshInterval
         {
@@ -282,6 +315,10 @@ final class WeatherMapViewModel: ObservableObject {
     }
 
     private func refreshVisibleFavoriteWeather(on mapView: MKMapView) {
+        guard networkEnabled else {
+            cancelFavoriteWeatherTasks(except: [])
+            return
+        }
         if !areFavoritePinsVisible(on: mapView) {
             cancelFavoriteWeatherTasks(except: [])
             return

@@ -217,3 +217,62 @@ final class BubbleAnnotationView: MKAnnotationView {
         hostingController = controller
     }
 }
+
+#Preview("Favorite Pin Bubble") {
+    ZStack {
+        LinearGradient(
+            colors: [Color.cyan.opacity(0.45), Color.blue.opacity(0.75)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+
+        FavoriteWeatherPinBubbleView(
+            currentText: "9°",
+            rangeText: "L 4°  H 12°"
+        )
+        .padding(20)
+    }
+}
+
+#Preview("Preview Pin Bubble Loaded") {
+    ZStack {
+        LinearGradient(
+            colors: [Color.teal.opacity(0.4), Color.indigo.opacity(0.85)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+
+        PreviewPinBubbleView(
+            placeName: "Helsinki",
+            conditionText: "Partly cloudy",
+            symbolSystemName: "cloud.sun.fill",
+            tempText: "8°",
+            rangeText: "L 3°  H 11°",
+            onTap: nil
+        )
+        .padding(20)
+    }
+}
+
+#Preview("Preview Pin Bubble Loading") {
+    ZStack {
+        LinearGradient(
+            colors: [Color.gray.opacity(0.45), Color.black.opacity(0.85)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+
+        PreviewPinBubbleView(
+            placeName: "60.17, 24.94",
+            conditionText: "Loading…",
+            symbolSystemName: nil,
+            tempText: "--°",
+            rangeText: "L --°  H --°",
+            onTap: nil
+        )
+        .padding(20)
+    }
+}
