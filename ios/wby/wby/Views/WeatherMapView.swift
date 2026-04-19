@@ -125,39 +125,18 @@ struct WeatherMapView: View {
 }
 
 #Preview("Weather Map - Populated") {
-    let helsinkiID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEE1")!
-    let tampereID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEE2")!
-    let turkuID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEE3")!
+    let favorites = FavoriteLocation.weatherMapPreviewFavorites
 
     let store = FavoritesStore(
-        initialFavorites: [
-            FavoriteLocation(
-                id: helsinkiID,
-                name: "Helsinki",
-                subtitle: "Finland",
-                latitude: 60.1699,
-                longitude: 24.9384
-            ),
-            FavoriteLocation(
-                id: tampereID,
-                name: "Tampere",
-                subtitle: "Finland",
-                latitude: 61.4978,
-                longitude: 23.7610
-            ),
-            FavoriteLocation(
-                id: turkuID,
-                name: "Turku",
-                subtitle: "Finland",
-                latitude: 60.4518,
-                longitude: 22.2666
-            ),
-        ],
+        initialFavorites: favorites,
         persistenceEnabled: false
     )
 
     let locationService = LocationService()
-    locationService.coordinate = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
+    locationService.coordinate = CLLocationCoordinate2D(
+        latitude: FavoriteLocation.previewHelsinki.latitude,
+        longitude: FavoriteLocation.previewHelsinki.longitude
+    )
 
     return WeatherMapView(
         locationService: locationService,
@@ -171,9 +150,9 @@ struct WeatherMapView: View {
                 maxTemp: 13.0
             ),
             favoriteWeatherByID: [
-                helsinkiID: FavoritePinWeather(current: 8, low: 4, high: 11),
-                tampereID: FavoritePinWeather(current: 5, low: 1, high: 8),
-                turkuID: FavoritePinWeather(current: 7, low: 3, high: 10),
+                FavoriteLocation.previewHelsinki.id: FavoritePinWeather(current: 8, low: 4, high: 11),
+                FavoriteLocation.previewTampere.id: FavoritePinWeather(current: 5, low: 1, high: 8),
+                FavoriteLocation.previewTurku.id: FavoritePinWeather(current: 7, low: 3, high: 10),
             ],
             overlaySeed: WeatherMapPreviewAssets.overlaySeed(),
             canvasOverlay: .init(
