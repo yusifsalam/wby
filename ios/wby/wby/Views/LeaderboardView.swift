@@ -24,6 +24,7 @@ struct LeaderboardView: View {
     let locationService: LocationService
     let weatherService: WeatherService
     private let initialResponse: LeaderboardResponse?
+    private let disableAutoLoad: Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var response: LeaderboardResponse?
@@ -31,10 +32,16 @@ struct LeaderboardView: View {
     @State private var errorMessage: String?
     @State private var timeframe: LeaderboardTimeframe = .now
 
-    init(locationService: LocationService, weatherService: WeatherService, initialResponse: LeaderboardResponse? = nil) {
+    init(
+        locationService: LocationService,
+        weatherService: WeatherService,
+        initialResponse: LeaderboardResponse? = nil,
+        disableAutoLoad: Bool = false
+    ) {
         self.locationService = locationService
         self.weatherService = weatherService
         self.initialResponse = initialResponse
+        self.disableAutoLoad = disableAutoLoad
         _response = State(initialValue: initialResponse)
     }
 
@@ -70,7 +77,10 @@ struct LeaderboardView: View {
                 .padding(.top, 44)
             }
             .scrollBounceBehavior(.always)
-            .refreshable { await fetchLeaderboard() }
+            .refreshable {
+                guard !disableAutoLoad else { return }
+                await fetchLeaderboard()
+            }
 
             VStack {
                 HStack {
@@ -97,8 +107,12 @@ struct LeaderboardView: View {
                 Spacer()
             }
         }
-        .task { await fetchLeaderboard() }
+        .task {
+            guard !disableAutoLoad else { return }
+            await fetchLeaderboard()
+        }
         .onChange(of: timeframe) {
+            guard !disableAutoLoad else { return }
             Task { await fetchLeaderboard() }
         }
     }
@@ -296,7 +310,8 @@ private final class MapSnapshotCache {
                     LeaderboardEntry(type: "warmest", stationName: "Helsinki Kaisaniemi", lat: 60.18, lon: 24.94, value: 8.1, unit: "°C", distanceKm: 12, observedAt: Date(timeIntervalSinceNow: -300)),
                     LeaderboardEntry(type: "windiest", stationName: "Utö", lat: 59.78, lon: 21.37, value: 18.4, unit: "m/s", distanceKm: 195, observedAt: Date(timeIntervalSinceNow: -120)),
                 ]
-            )
+            ),
+            disableAutoLoad: true
         )
     }
 }

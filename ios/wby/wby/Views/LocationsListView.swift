@@ -8,6 +8,7 @@ struct LocationsListView: View {
     let currentLocationName: String?
     let currentCoordinate: CLLocationCoordinate2D?
     let onSelect: (FavoriteLocation?) -> Void
+    let disableAutoLoad: Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var myLocationWeather: WeatherResponse?
@@ -22,13 +23,19 @@ struct LocationsListView: View {
         currentLocationName: String?,
         currentCoordinate: CLLocationCoordinate2D?,
         onSelect: @escaping (FavoriteLocation?) -> Void,
-        previewEditing: Bool = false
+        previewEditing: Bool = false,
+        disableAutoLoad: Bool = false,
+        initialMyLocationWeather: WeatherResponse? = nil,
+        initialFavoriteWeathers: [UUID: WeatherResponse] = [:]
     ) {
         self.favoritesStore = favoritesStore
         self.weatherService = weatherService
         self.currentLocationName = currentLocationName
         self.currentCoordinate = currentCoordinate
         self.onSelect = onSelect
+        self.disableAutoLoad = disableAutoLoad
+        self._myLocationWeather = State(initialValue: initialMyLocationWeather)
+        self._favoriteWeathers = State(initialValue: initialFavoriteWeathers)
         self._editMode = State(initialValue: previewEditing ? .active : .inactive)
     }
 
@@ -77,7 +84,10 @@ struct LocationsListView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .task { await loadWeathers() }
+        .task {
+            guard !disableAutoLoad else { return }
+            await loadWeathers()
+        }
     }
 
     // MARK: - Lists
@@ -316,34 +326,65 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
 
 #Preview {
     let store = LocationsListPreviewFixture.makeStore()
+    let sample = PreviewData.makeSample()
+    let firstID = store.favorites.first?.id
+    let secondID = store.favorites.dropFirst().first?.id
 
     return LocationsListView(
         favoritesStore: store,
         weatherService: WeatherService(),
         currentLocationName: "Helsinki",
-        currentCoordinate: nil,
-        onSelect: { _ in }
+        currentCoordinate: CLLocationCoordinate2D(
+            latitude: FavoriteLocation.previewHelsinki.latitude,
+            longitude: FavoriteLocation.previewHelsinki.longitude
+        ),
+        onSelect: { _ in },
+        disableAutoLoad: true,
+        initialMyLocationWeather: sample,
+        initialFavoriteWeathers: {
+            var out: [UUID: WeatherResponse] = [:]
+            if let firstID { out[firstID] = sample }
+            if let secondID { out[secondID] = sample }
+            return out
+        }()
     )
 }
 
 #Preview("Edit Mode") {
     let store = LocationsListPreviewFixture.makeStore()
+    let sample = PreviewData.makeSample()
+    let firstID = store.favorites.first?.id
+    let secondID = store.favorites.dropFirst().first?.id
 
     return LocationsListView(
         favoritesStore: store,
         weatherService: WeatherService(),
         currentLocationName: "Helsinki",
-        currentCoordinate: nil,
+        currentCoordinate: CLLocationCoordinate2D(
+            latitude: FavoriteLocation.previewHelsinki.latitude,
+            longitude: FavoriteLocation.previewHelsinki.longitude
+        ),
         onSelect: { _ in },
-        previewEditing: true
+        previewEditing: true,
+        disableAutoLoad: true,
+        initialMyLocationWeather: sample,
+        initialFavoriteWeathers: {
+            var out: [UUID: WeatherResponse] = [:]
+            if let firstID { out[firstID] = sample }
+            if let secondID { out[secondID] = sample }
+            return out
+        }()
     )
 }
 
 private enum LocationsListPreviewFixture {
     static func makeStore() -> FavoritesStore {
-        let store = FavoritesStore()
-        store.add(FavoriteLocation(id: UUID(), name: "Tampere", subtitle: "Finland", latitude: 61.4978, longitude: 23.7610))
-        store.add(FavoriteLocation(id: UUID(), name: "Turku", subtitle: "Finland", latitude: 60.4518, longitude: 22.2666))
-        return store
+        FavoritesStore(
+            initialFavorites: [
+                .previewTampere,
+                .previewTurku,
+            ],
+            persistenceEnabled: false
+        )
     }
 }

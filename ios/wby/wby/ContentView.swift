@@ -109,14 +109,16 @@ struct ContentView: View {
                     favoritesStore: favoritesStore,
                     weatherService: weatherService,
                     currentLocationName: locationService.placeName,
-                    currentCoordinate: locationService.coordinate
-                ) { selected in
-                    if let selected {
-                        pendingPageID = .favorite(selected.id)
-                    } else {
-                        pendingPageID = .gps
-                    }
-                }
+                    currentCoordinate: locationService.coordinate,
+                    onSelect: { selected in
+                        if let selected {
+                            pendingPageID = .favorite(selected.id)
+                        } else {
+                            pendingPageID = .gps
+                        }
+                    },
+                    disableAutoLoad: disableAutoLoad
+                )
             }
             .sheet(isPresented: $showingSettings) {
                 NavigationStack {
@@ -127,13 +129,15 @@ struct ContentView: View {
                 WeatherMapView(
                     locationService: locationService,
                     favoritesStore: favoritesStore,
-                    weatherService: weatherService
+                    weatherService: weatherService,
+                    disableAutoLoad: disableAutoLoad
                 )
             }
             .fullScreenCover(isPresented: $showingLeaderboard) {
                 LeaderboardView(
                     locationService: locationService,
-                    weatherService: weatherService
+                    weatherService: weatherService,
+                    disableAutoLoad: disableAutoLoad
                 )
             }
             .toolbar {
