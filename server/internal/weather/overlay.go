@@ -25,13 +25,14 @@ var temperatureColorStops = []struct {
 	temp float64
 	rgb  color.NRGBA
 }{
-	{temp: -40, rgb: color.NRGBA{R: 121, G: 45, B: 199, A: 255}},
-	{temp: -20, rgb: color.NRGBA{R: 63, G: 92, B: 222, A: 255}},
-	{temp: 0, rgb: color.NRGBA{R: 96, G: 191, B: 255, A: 255}},
-	{temp: 10, rgb: color.NRGBA{R: 86, G: 208, B: 209, A: 255}},
-	{temp: 20, rgb: color.NRGBA{R: 116, G: 199, B: 85, A: 255}},
-	{temp: 30, rgb: color.NRGBA{R: 235, G: 168, B: 58, A: 255}},
-	{temp: 40, rgb: color.NRGBA{R: 198, G: 29, B: 33, A: 255}},
+	{temp: -40, rgb: color.NRGBA{R: 80, G: 30, B: 130, A: 255}},
+	{temp: -20, rgb: color.NRGBA{R: 30, G: 55, B: 150, A: 255}},
+	{temp: -10, rgb: color.NRGBA{R: 55, G: 115, B: 220, A: 255}},
+	{temp: 0, rgb: color.NRGBA{R: 80, G: 190, B: 180, A: 255}},
+	{temp: 10, rgb: color.NRGBA{R: 180, G: 215, B: 75, A: 255}},
+	{temp: 20, rgb: color.NRGBA{R: 245, G: 210, B: 55, A: 255}},
+	{temp: 30, rgb: color.NRGBA{R: 210, G: 50, B: 40, A: 255}},
+	{temp: 40, rgb: color.NRGBA{R: 109, G: 22, B: 11, A: 255}},
 }
 
 func RenderTemperatureOverlay(req MapOverlayRequest, samples []TemperatureSample) (*TemperatureOverlay, error) {

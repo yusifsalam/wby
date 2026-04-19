@@ -3,13 +3,14 @@ import SwiftUI
 struct TemperatureLegendView: View {
     private static let labels = ["40", "30", "20", "10", "0", "-20", "-40"]
     private static let colors: [Color] = [
-        Color(red: 198.0 / 255.0, green: 29.0 / 255.0, blue: 33.0 / 255.0),   // 40
-        Color(red: 235.0 / 255.0, green: 168.0 / 255.0, blue: 58.0 / 255.0),  // 30
-        Color(red: 116.0 / 255.0, green: 199.0 / 255.0, blue: 85.0 / 255.0),  // 20
-        Color(red: 86.0 / 255.0, green: 208.0 / 255.0, blue: 209.0 / 255.0),  // 10
-        Color(red: 96.0 / 255.0, green: 191.0 / 255.0, blue: 255.0 / 255.0),  // 0
-        Color(red: 63.0 / 255.0, green: 92.0 / 255.0, blue: 222.0 / 255.0),   // -20
-        Color(red: 121.0 / 255.0, green: 45.0 / 255.0, blue: 199.0 / 255.0),  // -40
+        Color(red: 109.0 / 255.0, green:  22.0 / 255.0, blue:  11.0 / 255.0), //  40 dark red
+        Color(red: 210.0 / 255.0, green:  50.0 / 255.0, blue:  40.0 / 255.0), //  30 red
+        Color(red: 245.0 / 255.0, green: 210.0 / 255.0, blue:  55.0 / 255.0), //  20 yellow
+        Color(red: 180.0 / 255.0, green: 215.0 / 255.0, blue:  75.0 / 255.0), //  10 greenish yellow
+        Color(red:  80.0 / 255.0, green: 190.0 / 255.0, blue: 180.0 / 255.0), //   0 greenish blue
+        Color(red:  55.0 / 255.0, green: 115.0 / 255.0, blue: 220.0 / 255.0), // -10 blue
+        Color(red:  30.0 / 255.0, green:  55.0 / 255.0, blue: 150.0 / 255.0), // -20 dark blue
+        Color(red:  80.0 / 255.0, green:  30.0 / 255.0, blue: 130.0 / 255.0), // -40 purple
     ]
 
     var body: some View {
@@ -38,14 +39,6 @@ struct TemperatureLegendView: View {
 
 #Preview("Temperature Legend") {
     ZStack {
-        LinearGradient(
-            colors: [Color.blue.opacity(0.65), Color.indigo.opacity(0.85)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .ignoresSafeArea()
-
         TemperatureLegendView()
-            .padding()
     }
 }
