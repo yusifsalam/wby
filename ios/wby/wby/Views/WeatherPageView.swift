@@ -210,7 +210,7 @@ struct WeatherPageView: View {
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 8)
             ForEach(forecasts) { day in
-                DailyForecastRow(
+                DailyForecastCard(
                     forecast: day,
                     overallLow: forecasts.compactMap(\.low).min() ?? 0,
                     overallHigh: forecasts.compactMap(\.high).max() ?? 0,

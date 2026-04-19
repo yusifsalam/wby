@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct DailyForecastRow: View {
+struct DailyForecastCard: View {
     let forecast: DailyForecast
     let overallLow: Double
     let overallHigh: Double
@@ -108,7 +108,7 @@ struct DailyForecastRow: View {
 #Preview {
     VStack(spacing: 0) {
         ForEach(sampleForecasts) { day in
-            DailyForecastRow(
+            DailyForecastCard(
                 forecast: day,
                 overallLow: -8,
                 overallHigh: 3,
