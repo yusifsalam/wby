@@ -330,7 +330,7 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
     let firstID = store.favorites.first?.id
     let secondID = store.favorites.dropFirst().first?.id
 
-    return LocationsListView(
+    LocationsListView(
         favoritesStore: store,
         weatherService: WeatherService(),
         currentLocationName: "Helsinki",
@@ -356,7 +356,7 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
     let firstID = store.favorites.first?.id
     let secondID = store.favorites.dropFirst().first?.id
 
-    return LocationsListView(
+    LocationsListView(
         favoritesStore: store,
         weatherService: WeatherService(),
         currentLocationName: "Helsinki",

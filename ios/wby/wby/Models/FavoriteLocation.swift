@@ -8,7 +8,6 @@ struct FavoriteLocation: Codable, Identifiable, Equatable, Hashable {
     let longitude: Double
 }
 
-#if DEBUG
 extension FavoriteLocation {
     static let previewHelsinki = FavoriteLocation(
         id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEE1")!,
@@ -40,4 +39,3 @@ extension FavoriteLocation {
         previewTurku,
     ]
 }
-#endif

@@ -159,45 +159,52 @@ struct WeatherMapView: View {
 }
 
 #Preview("Weather Map - Populated") {
-    let favorites = FavoriteLocation.weatherMapPreviewFavorites
-
-    let store = FavoritesStore(
-        initialFavorites: favorites,
-        persistenceEnabled: false
-    )
-
-    let locationService = LocationService()
-    locationService.coordinate = CLLocationCoordinate2D(
-        latitude: FavoriteLocation.previewHelsinki.latitude,
-        longitude: FavoriteLocation.previewHelsinki.longitude
-    )
-
-    return WeatherMapView(
-        locationService: locationService,
-        favoritesStore: store,
+    WeatherMapView(
+        locationService: WeatherMapPreviewFixture.makeLocationService(),
+        favoritesStore: WeatherMapPreviewFixture.makeStore(),
         weatherService: WeatherService(),
         disableAutoLoad: true,
-        previewConfig: .init(
-            overlayMeta: OverlayMeta(
-                dataTime: Date.now.addingTimeInterval(-10 * 60),
-                minTemp: -8.0,
-                maxTemp: 13.0
-            ),
-            favoriteWeatherByID: [
-                FavoriteLocation.previewHelsinki.id: FavoritePinWeather(current: 8, low: 4, high: 11),
-                FavoriteLocation.previewTampere.id: FavoritePinWeather(current: 5, low: 1, high: 8),
-                FavoriteLocation.previewTurku.id: FavoritePinWeather(current: 7, low: 3, high: 10),
+        previewConfig: WeatherMapPreviewFixture.previewConfig
+    )
+}
+
+private enum WeatherMapPreviewFixture {
+    static func makeStore() -> FavoritesStore {
+        FavoritesStore(
+            initialFavorites: FavoriteLocation.weatherMapPreviewFavorites,
+            persistenceEnabled: false
+        )
+    }
+
+    static func makeLocationService() -> LocationService {
+        let locationService = LocationService()
+        locationService.coordinate = CLLocationCoordinate2D(
+            latitude: FavoriteLocation.previewHelsinki.latitude,
+            longitude: FavoriteLocation.previewHelsinki.longitude
+        )
+        return locationService
+    }
+
+    static let previewConfig = WeatherMapView.PreviewConfig(
+        overlayMeta: OverlayMeta(
+            dataTime: Date.now.addingTimeInterval(-10 * 60),
+            minTemp: -8.0,
+            maxTemp: 13.0
+        ),
+        favoriteWeatherByID: [
+            FavoriteLocation.previewHelsinki.id: FavoritePinWeather(current: 8, low: 4, high: 11),
+            FavoriteLocation.previewTampere.id: FavoritePinWeather(current: 5, low: 1, high: 8),
+            FavoriteLocation.previewTurku.id: FavoritePinWeather(current: 7, low: 3, high: 10),
+        ],
+        overlaySeed: WeatherMapPreviewAssets.overlaySeed(),
+        canvasOverlay: .init(
+            colors: [
+                Color(red: 121.0 / 255.0, green: 45.0 / 255.0, blue: 199.0 / 255.0),
+                Color(red: 96.0 / 255.0, green: 191.0 / 255.0, blue: 255.0 / 255.0),
+                Color(red: 116.0 / 255.0, green: 199.0 / 255.0, blue: 85.0 / 255.0),
+                Color(red: 235.0 / 255.0, green: 168.0 / 255.0, blue: 58.0 / 255.0),
             ],
-            overlaySeed: WeatherMapPreviewAssets.overlaySeed(),
-            canvasOverlay: .init(
-                colors: [
-                    Color(red: 121.0 / 255.0, green: 45.0 / 255.0, blue: 199.0 / 255.0),
-                    Color(red: 96.0 / 255.0, green: 191.0 / 255.0, blue: 255.0 / 255.0),
-                    Color(red: 116.0 / 255.0, green: 199.0 / 255.0, blue: 85.0 / 255.0),
-                    Color(red: 235.0 / 255.0, green: 168.0 / 255.0, blue: 58.0 / 255.0),
-                ],
-                opacity: 0.23
-            )
+            opacity: 0.23
         )
     )
 }
