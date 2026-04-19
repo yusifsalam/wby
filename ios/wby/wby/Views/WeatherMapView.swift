@@ -92,6 +92,7 @@ struct WeatherMapView: View {
 }
 
 private struct TemperatureLegendView: View {
+    private static let labels = ["40", "30", "20", "10", "0", "-20", "-40"]
     private static let colors: [Color] = [
         Color(red: 198.0 / 255.0, green: 29.0 / 255.0, blue: 33.0 / 255.0),   // 40
         Color(red: 235.0 / 255.0, green: 168.0 / 255.0, blue: 58.0 / 255.0),  // 30
@@ -112,13 +113,9 @@ private struct TemperatureLegendView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 3))
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("40")
-                    Text("30")
-                    Text("20")
-                    Text("10")
-                    Text("0")
-                    Text("-20")
-                    Text("-40")
+                    ForEach(Self.labels, id: \.self) { label in
+                        Text(label)
+                    }
                 }
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
@@ -136,36 +133,32 @@ private struct OverlayMeta: Equatable {
     let maxTemp: Double?
 }
 
+private enum TemperatureText {
+    static func rounded(_ value: Double?) -> Int? {
+        value.map { Int($0.rounded()) }
+    }
+
+    static func value(_ value: Int?) -> String {
+        value.map { "\($0)°" } ?? "--°"
+    }
+
+    static func range(low: Int?, high: Int?) -> String {
+        "L \(value(low))  H \(value(high))"
+    }
+}
+
 private struct FavoritePinWeather: Equatable {
     let current: Int?
     let low: Int?
     let high: Int?
 
-    var currentText: String {
-        formatTemperature(current)
-    }
-
-    var rangeText: String {
-        "L \(formatTemperature(low))  H \(formatTemperature(high))"
-    }
-
     static func from(response: WeatherResponse) -> FavoritePinWeather {
         let today = response.dailyForecast.first
         return FavoritePinWeather(
-            current: roundTemperature(response.current.resolvedTemperature ?? response.hourlyForecast.first?.temperature),
-            low: roundTemperature(today?.low),
-            high: roundTemperature(today?.high)
+            current: TemperatureText.rounded(response.current.resolvedTemperature ?? response.hourlyForecast.first?.temperature),
+            low: TemperatureText.rounded(today?.low),
+            high: TemperatureText.rounded(today?.high)
         )
-    }
-
-    private static func roundTemperature(_ value: Double?) -> Int? {
-        guard let value else { return nil }
-        return Int(value.rounded())
-    }
-
-    private func formatTemperature(_ value: Int?) -> String {
-        guard let value else { return "--°" }
-        return "\(value)°"
     }
 }
 
@@ -204,9 +197,7 @@ private final class WeatherMapViewModel: ObservableObject {
 
     deinit {
         overlayTask?.cancel()
-        for task in favoriteWeatherTasks.values {
-            task.cancel()
-        }
+        favoriteWeatherTasks.values.forEach { $0.cancel() }
         previewWeatherTask?.cancel()
         previewGeocodeTask?.cancel()
     }
@@ -254,14 +245,8 @@ private final class WeatherMapViewModel: ObservableObject {
         let point = recognizer.location(in: mapView)
         let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
 
-        previewWeatherTask?.cancel()
-        previewGeocodeTask?.cancel()
-        previewWeatherTask = nil
-        previewGeocodeTask = nil
-
-        if let existing = previewAnnotation {
-            mapView.removeAnnotation(existing)
-        }
+        cancelPreviewTasks()
+        removePreviewAnnotation(from: mapView)
 
         let annotation = PreviewPinAnnotation(coordinate: coordinate)
         annotation.placeName = formatFallbackPlaceName(coordinate)
@@ -274,14 +259,8 @@ private final class WeatherMapViewModel: ObservableObject {
     }
 
     func dismissPreview(on mapView: MKMapView) {
-        previewWeatherTask?.cancel()
-        previewGeocodeTask?.cancel()
-        previewWeatherTask = nil
-        previewGeocodeTask = nil
-        if let annotation = previewAnnotation {
-            mapView.removeAnnotation(annotation)
-        }
-        previewAnnotation = nil
+        cancelPreviewTasks()
+        removePreviewAnnotation(from: mapView)
     }
 
     func updateFavoriteAnnotations(on mapView: MKMapView, favorites: [FavoriteLocation]) {
@@ -293,7 +272,7 @@ private final class WeatherMapViewModel: ObservableObject {
             favoriteWeatherCache[id] = nil
         }
 
-        let existing = mapView.annotations.compactMap { $0 as? FavoritePinAnnotation }
+        let existing = mapView.favoritePinAnnotations
         if !existing.isEmpty {
             mapView.removeAnnotations(existing)
         }
@@ -318,17 +297,13 @@ private final class WeatherMapViewModel: ObservableObject {
         }
 
         overlayTask?.cancel()
-        let bbox = MapBBox.finland
-        let width = overlaySize
-        let height = overlaySize
-
         overlayTask = Task { [weak mapView] in
             guard !Task.isCancelled else { return }
             do {
                 let overlayImage = try await overlayService.fetchTemperatureOverlay(
-                    bbox: bbox,
-                    width: width,
-                    height: height
+                    bbox: .finland,
+                    width: overlaySize,
+                    height: overlaySize
                 )
                 guard !Task.isCancelled, let mapView, let image = UIImage(data: overlayImage.imageData) else { return }
                 overlayLastFetchedAt = Date()
@@ -359,25 +334,18 @@ private final class WeatherMapViewModel: ObservableObject {
                     lat: annotation.coordinate.latitude,
                     lon: annotation.coordinate.longitude
                 )
-                guard !Task.isCancelled, let mapView else { return }
-                guard self.previewAnnotation === annotation else { return }
+                guard let mapView = activePreviewMapView(for: annotation, mapView: mapView) else { return }
 
                 annotation.weather = PreviewWeather.from(response: response)
                 annotation.loadState = .loaded
-                if let view = mapView.view(for: annotation) as? BubbleAnnotationView {
-                    view.configurePreview(with: annotation)
-                }
+                refreshPreviewView(for: annotation, on: mapView)
             } catch WeatherError.httpStatus(404, _) {
-                guard !Task.isCancelled, let mapView else { return }
-                guard self.previewAnnotation === annotation else { return }
+                guard let mapView = activePreviewMapView(for: annotation, mapView: mapView) else { return }
                 self.dismissPreview(on: mapView)
             } catch {
-                guard !Task.isCancelled, let mapView else { return }
-                guard self.previewAnnotation === annotation else { return }
+                guard let mapView = activePreviewMapView(for: annotation, mapView: mapView) else { return }
                 annotation.loadState = .failed
-                if let view = mapView.view(for: annotation) as? BubbleAnnotationView {
-                    view.configurePreview(with: annotation)
-                }
+                refreshPreviewView(for: annotation, on: mapView)
             }
         }
     }
@@ -399,8 +367,7 @@ private final class WeatherMapViewModel: ObservableObject {
             } catch {
                 placemarks = []
             }
-            guard !Task.isCancelled, let mapView else { return }
-            guard self.previewAnnotation === annotation else { return }
+            guard let mapView = activePreviewMapView(for: annotation, mapView: mapView) else { return }
 
             let resolved = placemarks.first.flatMap { placemark in
                 placemark.locality
@@ -409,32 +376,21 @@ private final class WeatherMapViewModel: ObservableObject {
                     ?? placemark.country
             }
             annotation.placeName = resolved ?? formatFallbackPlaceName(annotation.coordinate)
-            if let view = mapView.view(for: annotation) as? BubbleAnnotationView {
-                view.configurePreview(with: annotation)
-            }
+            refreshPreviewView(for: annotation, on: mapView)
         }
     }
 
     private func refreshVisibleFavoriteWeather(on mapView: MKMapView) {
         if !areFavoritePinsVisible(on: mapView) {
-            let activeIDs = Array(favoriteWeatherTasks.keys)
-            for id in activeIDs {
-                favoriteWeatherTasks[id]?.cancel()
-                favoriteWeatherTasks[id] = nil
-            }
+            cancelFavoriteWeatherTasks(except: [])
             return
         }
 
-        let visible = mapView.annotations
-            .compactMap { $0 as? FavoritePinAnnotation }
+        let visible = mapView.favoritePinAnnotations
             .filter { mapView.visibleMapRect.contains(MKMapPoint($0.coordinate)) }
         let visibleIDs = Set(visible.map(\.id))
 
-        let offscreenTaskIDs = favoriteWeatherTasks.keys.filter { !visibleIDs.contains($0) }
-        for id in offscreenTaskIDs {
-            favoriteWeatherTasks[id]?.cancel()
-            favoriteWeatherTasks[id] = nil
-        }
+        cancelFavoriteWeatherTasks(except: visibleIDs)
 
         let now = Date()
         for annotation in visible {
@@ -469,7 +425,7 @@ private final class WeatherMapViewModel: ObservableObject {
                 favoriteWeatherCache[id] = CachedFavoritePinWeather(weather: weather, fetchedAt: Date())
 
                 guard let mapView else { return }
-                guard let annotation = mapView.annotations.compactMap({ $0 as? FavoritePinAnnotation }).first(where: { $0.id == id }) else {
+                guard let annotation = mapView.favoritePinAnnotation(id: id) else {
                     return
                 }
                 apply(weather: weather, to: annotation, on: mapView)
@@ -481,9 +437,7 @@ private final class WeatherMapViewModel: ObservableObject {
 
     private func apply(weather: FavoritePinWeather, to annotation: FavoritePinAnnotation, on mapView: MKMapView) {
         annotation.weather = weather
-        if let view = mapView.view(for: annotation) as? BubbleAnnotationView {
-            view.configureFavorite(with: annotation)
-        }
+        refreshFavoriteView(for: annotation, on: mapView)
     }
 
     private func areFavoritePinsVisible(on mapView: MKMapView) -> Bool {
@@ -492,12 +446,48 @@ private final class WeatherMapViewModel: ObservableObject {
 
     private func applyFavoritePinVisibility(on mapView: MKMapView) {
         let visible = areFavoritePinsVisible(on: mapView)
-        for annotation in mapView.annotations.compactMap({ $0 as? FavoritePinAnnotation }) {
+        for annotation in mapView.favoritePinAnnotations {
             annotation.isVisibleAtCurrentZoom = visible
-            if let view = mapView.view(for: annotation) as? BubbleAnnotationView {
-                view.configureFavorite(with: annotation)
-            }
+            refreshFavoriteView(for: annotation, on: mapView)
         }
+    }
+
+    private func cancelFavoriteWeatherTasks(except retainedIDs: Set<UUID>) {
+        for id in Array(favoriteWeatherTasks.keys) where !retainedIDs.contains(id) {
+            favoriteWeatherTasks[id]?.cancel()
+            favoriteWeatherTasks[id] = nil
+        }
+    }
+
+    private func cancelPreviewTasks() {
+        previewWeatherTask?.cancel()
+        previewGeocodeTask?.cancel()
+        previewWeatherTask = nil
+        previewGeocodeTask = nil
+    }
+
+    private func removePreviewAnnotation(from mapView: MKMapView) {
+        if let previewAnnotation {
+            mapView.removeAnnotation(previewAnnotation)
+        }
+        previewAnnotation = nil
+    }
+
+    private func activePreviewMapView(
+        for annotation: PreviewPinAnnotation,
+        mapView: MKMapView?
+    ) -> MKMapView? {
+        guard !Task.isCancelled, let mapView else { return nil }
+        guard previewAnnotation === annotation else { return nil }
+        return mapView
+    }
+
+    private func refreshFavoriteView(for annotation: FavoritePinAnnotation, on mapView: MKMapView) {
+        mapView.bubbleView(for: annotation)?.configureFavorite(with: annotation)
+    }
+
+    private func refreshPreviewView(for annotation: PreviewPinAnnotation, on mapView: MKMapView) {
+        mapView.bubbleView(for: annotation)?.configurePreview(with: annotation)
     }
 
     private func applyOverlay(image: UIImage, bbox: MapBBox, on mapView: MKMapView) {
@@ -534,9 +524,7 @@ private final class WeatherMapViewModel: ObservableObject {
 private struct WeatherMapUIKitBridge: UIViewRepresentable {
     @ObservedObject var viewModel: WeatherMapViewModel
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(viewModel: viewModel)
-    }
+    func makeCoordinator() -> Coordinator { Coordinator(viewModel: viewModel) }
 
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView(frame: .zero)
@@ -558,9 +546,7 @@ private struct WeatherMapUIKitBridge: UIViewRepresentable {
         return mapView
     }
 
-    func updateUIView(_ : MKMapView, context: Context) {
-        // Intentionally empty: synchronization runs through explicit SwiftUI intents.
-    }
+    func updateUIView(_ : MKMapView, context: Context) { }
 
     @MainActor
     final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
@@ -602,13 +588,11 @@ private struct WeatherMapUIKitBridge: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             if let preview = annotation as? PreviewPinAnnotation {
-                let reuseID = BubbleAnnotationView.previewReuseID
-                let view: BubbleAnnotationView
-                if let reused = mapView.dequeueReusableAnnotationView(withIdentifier: reuseID) as? BubbleAnnotationView {
-                    view = reused
-                } else {
-                    view = BubbleAnnotationView(annotation: annotation, reuseIdentifier: reuseID)
-                }
+                let view = dequeueBubbleView(
+                    in: mapView,
+                    reuseID: BubbleAnnotationView.previewReuseID,
+                    annotation: annotation
+                )
                 view.annotation = preview
                 view.configurePreview(with: preview, onTap: { [weak self, weak mapView] in
                     guard let self, let mapView else { return }
@@ -618,18 +602,27 @@ private struct WeatherMapUIKitBridge: UIViewRepresentable {
             }
 
             if let favorite = annotation as? FavoritePinAnnotation {
-                let reuseID = BubbleAnnotationView.favoriteReuseID
-                let view: BubbleAnnotationView
-                if let reused = mapView.dequeueReusableAnnotationView(withIdentifier: reuseID) as? BubbleAnnotationView {
-                    view = reused
-                } else {
-                    view = BubbleAnnotationView(annotation: annotation, reuseIdentifier: reuseID)
-                }
+                let view = dequeueBubbleView(
+                    in: mapView,
+                    reuseID: BubbleAnnotationView.favoriteReuseID,
+                    annotation: annotation
+                )
                 view.annotation = favorite
                 view.configureFavorite(with: favorite)
                 return view
             }
             return nil
+        }
+
+        private func dequeueBubbleView(
+            in mapView: MKMapView,
+            reuseID: String,
+            annotation: MKAnnotation
+        ) -> BubbleAnnotationView {
+            if let view = mapView.dequeueReusableAnnotationView(withIdentifier: reuseID) as? BubbleAnnotationView {
+                return view
+            }
+            return BubbleAnnotationView(annotation: annotation, reuseIdentifier: reuseID)
         }
 
         @objc func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
@@ -656,9 +649,7 @@ private struct WeatherMapUIKitBridge: UIViewRepresentable {
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
-        ) -> Bool {
-            true
-        }
+        ) -> Bool { true }
     }
 }
 
@@ -730,27 +721,17 @@ private struct PreviewWeather: Equatable {
     static func from(response: WeatherResponse) -> PreviewWeather {
         let today = response.dailyForecast.first
         return PreviewWeather(
-            current: roundTemperature(response.current.resolvedTemperature ?? response.hourlyForecast.first?.temperature),
+            current: TemperatureText.rounded(response.current.resolvedTemperature ?? response.hourlyForecast.first?.temperature),
             conditionText: WeatherSymbols.conditionDescription(from: response),
             symbolCode: WeatherSymbols.primarySymbol(from: response),
-            low: roundTemperature(today?.low),
-            high: roundTemperature(today?.high)
+            low: TemperatureText.rounded(today?.low),
+            high: TemperatureText.rounded(today?.high)
         )
-    }
-
-    private static func roundTemperature(_ value: Double?) -> Int? {
-        guard let value else { return nil }
-        return Int(value.rounded())
     }
 }
 
 private func formatFallbackPlaceName(_ coordinate: CLLocationCoordinate2D) -> String {
-    String(
-        format: "%.2f, %.2f",
-        locale: Locale(identifier: "en_US_POSIX"),
-        coordinate.latitude,
-        coordinate.longitude
-    )
+    String(format: "%.2f, %.2f", locale: Locale(identifier: "en_US_POSIX"), coordinate.latitude, coordinate.longitude)
 }
 
 private final class PreviewPinAnnotation: NSObject, MKAnnotation {
@@ -765,6 +746,20 @@ private final class PreviewPinAnnotation: NSObject, MKAnnotation {
         self.weather = nil
         self.loadState = .loading
         super.init()
+    }
+}
+
+private extension MKMapView {
+    var favoritePinAnnotations: [FavoritePinAnnotation] {
+        annotations.compactMap { $0 as? FavoritePinAnnotation }
+    }
+
+    func favoritePinAnnotation(id: UUID) -> FavoritePinAnnotation? {
+        favoritePinAnnotations.first { $0.id == id }
+    }
+
+    func bubbleView(for annotation: MKAnnotation) -> BubbleAnnotationView? {
+        view(for: annotation) as? BubbleAnnotationView
     }
 }
 
@@ -856,8 +851,9 @@ private final class BubbleAnnotationView: MKAnnotationView {
     }
 
     func configureFavorite(with annotation: FavoritePinAnnotation) {
-        let currentText = annotation.weather?.currentText ?? "--°"
-        let rangeText = annotation.weather?.rangeText ?? "L --°  H --°"
+        let weather = annotation.weather
+        let currentText = TemperatureText.value(weather?.current)
+        let rangeText = TemperatureText.range(low: weather?.low, high: weather?.high)
         centerOffset = CGPoint(x: 0, y: -26)
         bounds = CGRect(x: 0, y: 0, width: 86, height: 54)
         setHostedContent(
@@ -898,8 +894,8 @@ private final class BubbleAnnotationView: MKAnnotationView {
             if let code = weather?.symbolCode {
                 symbolSystemName = SmartSymbol.systemImageName(for: code)
             }
-            tempText = formatTemp(weather?.current)
-            rangeText = "L \(formatTemp(weather?.low))  H \(formatTemp(weather?.high))"
+            tempText = TemperatureText.value(weather?.current)
+            rangeText = TemperatureText.range(low: weather?.low, high: weather?.high)
         }
 
         centerOffset = CGPoint(x: 0, y: -54)
@@ -920,11 +916,6 @@ private final class BubbleAnnotationView: MKAnnotationView {
 
         accessibilityLabel = placeName
         accessibilityValue = "\(tempText), \(conditionText)"
-    }
-
-    private func formatTemp(_ value: Int?) -> String {
-        guard let value else { return "--°" }
-        return "\(value)°"
     }
 
     private func setupView() {
