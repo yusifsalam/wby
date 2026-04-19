@@ -112,6 +112,46 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 	}, nil
 }
 
+func (s *Service) GetTemperatureSamples(ctx context.Context) (*TemperatureSamplesResponse, error) {
+	const margin = 0.2
+	samples, err := s.store.GetLatestTemperatureSamplesInBBox(
+		ctx,
+		finlandMinLon-margin,
+		finlandMinLat-margin,
+		finlandMaxLon+margin,
+		finlandMaxLat+margin,
+		350,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("temperature samples: %w", err)
+	}
+	if len(samples) < overlayMinSamples {
+		return nil, fmt.Errorf("not enough samples")
+	}
+
+	minTemp := samples[0].Temperature
+	maxTemp := samples[0].Temperature
+	dataTime := samples[0].ObservedAt
+	for _, sample := range samples[1:] {
+		if sample.Temperature < minTemp {
+			minTemp = sample.Temperature
+		}
+		if sample.Temperature > maxTemp {
+			maxTemp = sample.Temperature
+		}
+		if sample.ObservedAt.After(dataTime) {
+			dataTime = sample.ObservedAt
+		}
+	}
+
+	return &TemperatureSamplesResponse{
+		DataTime: dataTime.UTC().Truncate(time.Second),
+		MinTemp:  minTemp,
+		MaxTemp:  maxTemp,
+		Samples:  samples,
+	}, nil
+}
+
 func (s *Service) GetTemperatureOverlay(ctx context.Context, req MapOverlayRequest) (*TemperatureOverlay, error) {
 	// Add a small margin so the interpolation near viewport edges has enough support points.
 	const marginDeg = 0.2

@@ -71,6 +71,7 @@ func TestGetTemperatureOverlay_BadRequest(t *testing.T) {
 
 type fakeWeatherService struct {
 	overlay *weather.TemperatureOverlay
+	samples *weather.TemperatureSamplesResponse
 	err     error
 }
 
@@ -91,6 +92,13 @@ func (f fakeWeatherService) GetTemperatureOverlay(ctx context.Context, req weath
 		MinTemp:  0,
 		MaxTemp:  1,
 	}, nil
+}
+
+func (f fakeWeatherService) GetTemperatureSamples(ctx context.Context) (*weather.TemperatureSamplesResponse, error) {
+	if f.samples != nil {
+		return f.samples, nil
+	}
+	panic("not used in this test")
 }
 
 func (f fakeWeatherService) GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*weather.Station, float64, []weather.ClimateNormal, weather.InterpolatedNormal, error) {

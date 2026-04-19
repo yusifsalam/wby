@@ -132,6 +132,13 @@ type TemperatureOverlay struct {
 	MaxTemp  float64
 }
 
+type TemperatureSamplesResponse struct {
+	DataTime time.Time
+	MinTemp  float64
+	MaxTemp  float64
+	Samples  []TemperatureSample
+}
+
 type ClimateNormal struct {
 	FMISID   int
 	Month    int
