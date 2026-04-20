@@ -15,6 +15,7 @@ struct ContentView: View {
     private struct PageBackgroundState: Equatable {
         let scene: WeatherScene
         let precipitation1h: Double?
+        let cloudCover: Double?
     }
 
     @State private var locationService = LocationService()
@@ -27,6 +28,7 @@ struct ContentView: View {
     @State private var showingLeaderboard = false
     @State private var pendingPageID: PageID? = nil
     @State private var pageBackgrounds: [PageID: PageBackgroundState] = [:]
+    @State private var pageScrollOffsets: [PageID: CGFloat] = [:]
     @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
     private let disableAutoLoad: Bool
     private let initialWeather: WeatherResponse?
@@ -42,7 +44,19 @@ struct ContentView: View {
     }
 
     private var activeBackground: PageBackgroundState {
-        pageBackgrounds[currentPageID] ?? PageBackgroundState(scene: .clearDay, precipitation1h: nil)
+        pageBackgrounds[currentPageID] ?? PageBackgroundState(scene: .clearDay, precipitation1h: nil, cloudCover: nil)
+    }
+
+    private var activeScrollDistance: CGFloat {
+        max(0, pageScrollOffsets[currentPageID] ?? 0)
+    }
+
+    private var activeSunOpacity: Double {
+        let fadeStart: CGFloat = 0
+        let fadeEnd: CGFloat = 140
+        if activeScrollDistance <= fadeStart { return 1 }
+        if activeScrollDistance >= fadeEnd { return 0 }
+        return Double(1 - (activeScrollDistance - fadeStart) / (fadeEnd - fadeStart))
     }
 
     init(disableAutoLoad: Bool = false, initialWeather: WeatherResponse? = nil) {
@@ -54,6 +68,7 @@ struct ContentView: View {
         NavigationStack {
             ZStack {
                 rootBackground
+                    .zIndex(0)
 
                 ScrollView(.horizontal) {
                     LazyHStack(spacing: 0) {
@@ -64,11 +79,15 @@ struct ContentView: View {
                                 weatherService: weatherService,
                                 disableAutoLoad: disableAutoLoad,
                                 initialWeather: initialWeather,
-                                onBackgroundUpdate: { scene, precipitation in
+                                onBackgroundUpdate: { scene, precipitation, cloudCover in
                                     pageBackgrounds[page.id] = PageBackgroundState(
                                         scene: scene,
-                                        precipitation1h: precipitation
+                                        precipitation1h: precipitation,
+                                        cloudCover: cloudCover
                                     )
+                                },
+                                onScrollOffsetChange: { offset in
+                                    pageScrollOffsets[page.id] = offset
                                 }
                             )
                             .containerRelativeFrame(.horizontal)
@@ -83,15 +102,18 @@ struct ContentView: View {
                     set: { if let id = $0 { currentPageID = id } }
                 ))
                 .scrollIndicators(.hidden)
+                .zIndex(1)
 
                 VStack {
                     Spacer()
                     bottomBar
                         .padding(.bottom, 4)
                 }
+                .zIndex(2)
             }
             .onChange(of: pages.map(\.id)) {
                 pageBackgrounds = pageBackgrounds.filter { pageIDs.contains($0.key) }
+                pageScrollOffsets = pageScrollOffsets.filter { pageIDs.contains($0.key) }
                 if !pageIDs.contains(currentPageID) {
                     currentPageID = .gps
                 }
@@ -219,9 +241,11 @@ struct ContentView: View {
             .transition(.opacity)
 
             if dynamicEffectsEnabled {
-                WeatherSceneView(
+                WeatherBackgroundView(
                     weatherScene: activeBackground.scene,
-                    precipitation1h: activeBackground.precipitation1h
+                    precipitation1h: activeBackground.precipitation1h,
+                    cloudCover: activeBackground.cloudCover,
+                    sunOpacity: activeSunOpacity
                 )
                 .ignoresSafeArea()
             }

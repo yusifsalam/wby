@@ -6,7 +6,8 @@ struct WeatherPageView: View {
     let locationService: LocationService
     let weatherService: WeatherService
     let disableAutoLoad: Bool
-    let onBackgroundUpdate: (WeatherScene, Double?) -> Void
+    let onBackgroundUpdate: (WeatherScene, Double?, Double?) -> Void
+    let onScrollOffsetChange: (CGFloat) -> Void
 
     @State private var weather: WeatherResponse?
     @State private var climateNormals: ClimateNormalsResponse?
@@ -20,7 +21,8 @@ struct WeatherPageView: View {
         weatherService: WeatherService,
         disableAutoLoad: Bool = false,
         initialWeather: WeatherResponse? = nil,
-        onBackgroundUpdate: @escaping (WeatherScene, Double?) -> Void = { _, _ in }
+        onBackgroundUpdate: @escaping (WeatherScene, Double?, Double?) -> Void = { _, _, _ in },
+        onScrollOffsetChange: @escaping (CGFloat) -> Void = { _ in }
     ) {
         self.location = location
         self.locationService = locationService
@@ -28,6 +30,7 @@ struct WeatherPageView: View {
         self.disableAutoLoad = disableAutoLoad
         self._weather = State(initialValue: initialWeather)
         self.onBackgroundUpdate = onBackgroundUpdate
+        self.onScrollOffsetChange = onScrollOffsetChange
     }
 
     // MARK: - Computed coordinate/name/elevation
@@ -148,6 +151,11 @@ struct WeatherPageView: View {
             }
             .padding()
         }
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y
+        } action: { _, newValue in
+            onScrollOffsetChange(newValue)
+        }
         .scrollBounceBehavior(.always)
         .refreshable {
             if case .gps = location {
@@ -261,7 +269,11 @@ struct WeatherPageView: View {
     }
 
     private func publishBackground() {
-        onBackgroundUpdate(currentScene, weather?.hourlyForecast.first?.precipitation1h)
+        onBackgroundUpdate(
+            currentScene,
+            weather?.hourlyForecast.first?.precipitation1h,
+            weather?.current.resolvedCloudCover
+        )
     }
 }
 // MARK: - Preview

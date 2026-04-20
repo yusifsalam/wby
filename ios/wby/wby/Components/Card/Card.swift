@@ -7,17 +7,11 @@ private struct WeatherCardModifier: ViewModifier {
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.clear)
-                    .glassEffect(in: .rect(cornerRadius: 24, style: .continuous))
-                    .opacity(0.86)
-//                    .background(
-//                        .ultraThinMaterial.opacity(0.38),
-//                        in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-//                    )
-//                    .overlay(
-//                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-//                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-//                    )
+                    .fill(Color(uiColor: .secondarySystemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
             )
     }
 }
