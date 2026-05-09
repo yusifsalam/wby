@@ -11,7 +11,7 @@ actor MapOverlayService {
         try await weatherService.fetchTemperatureOverlay(bbox: bbox, width: width, height: height)
     }
 
-    func fetchTemperatureSamples() async throws -> TemperatureSamplesResponse {
-        try await weatherService.fetchTemperatureSamples()
+    func fetchTemperatureSamples(at: Date? = nil) async throws -> TemperatureSamplesResponse {
+        try await weatherService.fetchTemperatureSamples(at: at)
     }
 }

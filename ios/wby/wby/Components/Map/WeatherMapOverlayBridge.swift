@@ -6,9 +6,11 @@ import UIKit
 nonisolated final class TemperatureImageOverlay: NSObject, MKOverlay {
     let coordinate: CLLocationCoordinate2D
     let boundingMapRect: MKMapRect
-    let image: UIImage
+    let bbox: MapBBox
+    var image: UIImage
 
     init(bbox: MapBBox, image: UIImage) {
+        self.bbox = bbox
         self.image = image
         coordinate = CLLocationCoordinate2D(
             latitude: (bbox.minLat + bbox.maxLat) / 2.0,

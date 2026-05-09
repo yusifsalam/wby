@@ -23,12 +23,22 @@ actor WeatherService {
         )
     }
 
-    func fetchTemperatureSamples() async throws -> TemperatureSamplesResponse {
+    func fetchTemperatureSamples(at: Date? = nil) async throws -> TemperatureSamplesResponse {
+        var queryItems: [URLQueryItem] = []
+        if let at {
+            queryItems.append(URLQueryItem(name: "at", value: Self.iso8601String(at)))
+        }
         return try await fetchJSON(
             path: "v1/map/temperature/samples",
-            queryItems: [],
+            queryItems: queryItems,
             dateDecodingStrategy: .iso8601
         )
+    }
+
+    private static func iso8601String(_ date: Date) -> String {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f.string(from: date)
     }
 
     func fetchTemperatureOverlay(bbox: MapBBox, width: Int, height: Int) async throws -> TemperatureOverlayImage {

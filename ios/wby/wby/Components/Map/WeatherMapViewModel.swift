@@ -77,6 +77,12 @@ struct OverlaySeed {
 final class WeatherMapViewModel: ObservableObject {
     @Published var meta: OverlayMeta?
     @Published var overlayMode: OverlayMode
+    @Published var selectedTime: Date = Date()
+    @Published var isPlaying: Bool = false
+
+    static let scrubberPastHours: Int = 6
+    static let scrubberFutureHours: Int = 12
+    private let playbackInterval: TimeInterval = 0.6
 
     private let favoriteWeatherTTL: TimeInterval = 10 * 60
     private let favoritePinsMaxLatitudeDelta: CLLocationDegrees = 5.8
@@ -94,6 +100,17 @@ final class WeatherMapViewModel: ObservableObject {
     private var samplesTask: Task<Void, Never>?
     private var samplesLastFetchedAt: Date?
     private var cachedSamples: TemperatureSamplesResponse?
+    private var samplesByHour: [Date: TemperatureSamplesResponse] = [:]
+    private var inflightSampleHours: Set<Date> = []
+    private var sparseRetriedHours: Set<Date> = []
+    // Matches server's ForecastBackfillThreshold (weather/service.go).
+    // Below this, the server triggers backfill and shortens its cache window;
+    // a retry above this just hits the server's 5 min cache and gets the same
+    // payload back.
+    private let sparseSampleThreshold: Int = 30
+    private let sparseRetryDelay: TimeInterval = 15
+    private var prefetchTask: Task<Void, Never>?
+    private var playbackTask: Task<Void, Never>?
     private var cachedOverlayImage: TemperatureOverlayImage?
     private var cachedMetalOverlaySeed: OverlaySeed?
     private var favoriteWeatherCache: [UUID: CachedFavoritePinWeather] = [:]
@@ -123,6 +140,7 @@ final class WeatherMapViewModel: ObservableObject {
         self.initialSamples = initialSamples
         self.metalRenderer = TemperatureMetalRenderer()
         self.meta = initialMeta
+        self.selectedTime = Self.snapToHour(Date())
         let resolvedMode: OverlayMode
         if overlayMode == .metal, metalRenderer == nil {
             resolvedMode = .png
@@ -144,6 +162,8 @@ final class WeatherMapViewModel: ObservableObject {
     deinit {
         overlayTask?.cancel()
         samplesTask?.cancel()
+        prefetchTask?.cancel()
+        playbackTask?.cancel()
         favoriteWeatherTasks.values.forEach { $0.cancel() }
         previewWeatherTask?.cancel()
         previewGeocodeTask?.cancel()
@@ -170,6 +190,14 @@ final class WeatherMapViewModel: ObservableObject {
         guard mode != overlayMode else { return }
         if mode == .metal, metalRenderer == nil {
             return
+        }
+        if mode != .metal {
+            // Tear down timeline-only state so playback and prefetch don't keep
+            // running after the scrubber is hidden.
+            stopPlayback()
+            prefetchTask?.cancel()
+            prefetchTask = nil
+            inflightSampleHours.removeAll()
         }
         overlayMode = mode
         mode.save()
@@ -328,21 +356,168 @@ final class WeatherMapViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 samplesLastFetchedAt = Date()
                 cachedSamples = resp
-                updateMetalOverlayCache(from: resp)
-                if overlayMode == .metal {
-                    meta = OverlayMeta(
-                        dataTime: resp.dataTime,
-                        minTemp: resp.minTemp,
-                        maxTemp: resp.maxTemp
-                    )
-                    if let seed = cachedMetalOverlaySeed, let mapView {
-                        applyOverlay(image: seed.image, bbox: seed.bbox, on: mapView)
-                    }
+                samplesByHour[Self.snapToHour(Date())] = resp
+                if isAtLiveNow(selectedTime) {
+                    applyMetalFrame(from: resp)
                 }
             } catch {
                 // Keep previous samples on fetch errors.
             }
         }
+    }
+
+    func setSelectedTime(_ date: Date) {
+        let snapped = Self.snapToHour(date)
+        selectedTime = snapped
+        applySelectedTime()
+    }
+
+    func togglePlayback() {
+        if isPlaying {
+            stopPlayback()
+        } else {
+            startPlayback()
+        }
+    }
+
+    func prefetchTimeline() {
+        guard networkEnabled, overlayMode == .metal else { return }
+        prefetchTask?.cancel()
+        let hours = scrubberHourBuckets()
+        let validHours = Set(hours)
+        samplesByHour = samplesByHour.filter { validHours.contains($0.key) }
+        prefetchTask = Task { [weak self] in
+            for hour in hours {
+                if Task.isCancelled { return }
+                guard let self else { return }
+                if samplesByHour[hour] != nil { continue }
+                if inflightSampleHours.contains(hour) { continue }
+                await fetchSamples(for: hour)
+            }
+        }
+    }
+
+    private func applySelectedTime() {
+        guard overlayMode == .metal else { return }
+        let snapped = Self.snapToHour(selectedTime)
+        if let cached = samplesByHour[snapped] {
+            applyMetalFrame(from: cached)
+            return
+        }
+        guard networkEnabled else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            await fetchSamples(for: snapped)
+        }
+    }
+
+    private func fetchSamples(for hour: Date) async {
+        if inflightSampleHours.contains(hour) { return }
+        inflightSampleHours.insert(hour)
+        defer { inflightSampleHours.remove(hour) }
+        do {
+            let at: Date? = isAtLiveNow(hour) ? nil : hour
+            let resp = try await overlayService.fetchTemperatureSamples(at: at)
+            guard !Task.isCancelled else { return }
+            samplesByHour[hour] = resp
+            if Self.snapToHour(selectedTime) == hour {
+                applyMetalFrame(from: resp)
+            }
+            if resp.samples.count < sparseSampleThreshold && !sparseRetriedHours.contains(hour) {
+                scheduleSparseRetry(for: hour)
+            }
+        } catch {
+            // Keep previous frames on fetch errors; user can retry by scrubbing.
+        }
+    }
+
+    private func scheduleSparseRetry(for hour: Date) {
+        sparseRetriedHours.insert(hour)
+        let delayNs = UInt64(sparseRetryDelay * 1_000_000_000)
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: delayNs)
+            if Task.isCancelled { return }
+            guard let self else { return }
+            // Evict all sparse cache entries so future scrubs re-fetch from
+            // the server (which by now should have completed its forecast
+            // grid backfill).
+            self.samplesByHour = self.samplesByHour.filter {
+                $0.value.samples.count >= self.sparseSampleThreshold
+            }
+            await self.fetchSamples(for: hour)
+        }
+    }
+
+    private func applyMetalFrame(from response: TemperatureSamplesResponse) {
+        cachedSamples = response
+        updateMetalOverlayCache(from: response)
+        if overlayMode == .metal {
+            meta = OverlayMeta(
+                dataTime: response.dataTime,
+                minTemp: response.minTemp,
+                maxTemp: response.maxTemp
+            )
+            if let seed = cachedMetalOverlaySeed, let mapView {
+                applyOverlay(image: seed.image, bbox: seed.bbox, on: mapView)
+            }
+        }
+    }
+
+    private func startPlayback() {
+        guard !isPlaying else { return }
+        isPlaying = true
+        prefetchTimeline()
+        playbackTask?.cancel()
+        let intervalNs = UInt64(playbackInterval * 1_000_000_000)
+        playbackTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: intervalNs)
+                if Task.isCancelled { return }
+                guard let self else { return }
+                if !self.isPlaying { return }
+                self.advancePlaybackOneHour()
+            }
+        }
+    }
+
+    private func stopPlayback() {
+        isPlaying = false
+        playbackTask?.cancel()
+        playbackTask = nil
+    }
+
+    private func advancePlaybackOneHour() {
+        let buckets = scrubberHourBuckets()
+        guard !buckets.isEmpty else { return }
+        let snapped = Self.snapToHour(selectedTime)
+        let nextIndex: Int
+        if let current = buckets.firstIndex(of: snapped) {
+            nextIndex = (current + 1) % buckets.count
+        } else {
+            nextIndex = 0
+        }
+        setSelectedTime(buckets[nextIndex])
+    }
+
+    private func scrubberHourBuckets() -> [Date] {
+        let now = Self.snapToHour(Date())
+        var buckets: [Date] = []
+        let total = Self.scrubberPastHours + Self.scrubberFutureHours + 1
+        buckets.reserveCapacity(total)
+        for offset in -Self.scrubberPastHours...Self.scrubberFutureHours {
+            buckets.append(now.addingTimeInterval(TimeInterval(offset) * 3600))
+        }
+        return buckets
+    }
+
+    private func isAtLiveNow(_ date: Date) -> Bool {
+        Self.snapToHour(date) == Self.snapToHour(Date())
+    }
+
+    static func snapToHour(_ date: Date) -> Date {
+        let interval: TimeInterval = 3600
+        let rounded = (date.timeIntervalSince1970 / interval).rounded() * interval
+        return Date(timeIntervalSince1970: rounded)
     }
 
     private func kickOffRefreshForCurrentMode() {
@@ -564,10 +739,23 @@ final class WeatherMapViewModel: ObservableObject {
 
     private func applyOverlay(image: UIImage, bbox: MapBBox, on mapView: MKMapView) {
         let existing = mapView.overlays.compactMap { $0 as? TemperatureImageOverlay }
+        if let current = existing.first(where: { $0.bbox == bbox }) {
+            current.image = image
+            if let renderer = mapView.renderer(for: current) {
+                renderer.setNeedsDisplay()
+            }
+            // Drop any other stale overlays (different bbox).
+            let stale = existing.filter { $0 !== current }
+            if !stale.isEmpty {
+                mapView.removeOverlays(stale)
+            }
+            return
+        }
+        let new = TemperatureImageOverlay(bbox: bbox, image: image)
+        mapView.addOverlay(new, level: .aboveRoads)
         if !existing.isEmpty {
             mapView.removeOverlays(existing)
         }
-        mapView.addOverlay(TemperatureImageOverlay(bbox: bbox, image: image), level: .aboveRoads)
     }
 
     private func applyInitialRegion(on mapView: MKMapView) {

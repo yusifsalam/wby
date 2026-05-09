@@ -90,6 +90,10 @@ struct WeatherMapView: View {
                     overlayBackendIndicator
                     Spacer()
                 }
+                if viewModel.overlayMode == .metal {
+                    TimeScrubberView(viewModel: viewModel)
+                        .padding(.top, 8)
+                }
             }
             .padding()
         }
@@ -126,6 +130,9 @@ struct WeatherMapView: View {
             overlayModeRawValue = mode.rawValue
         }
         viewModel.setOverlayMode(mode)
+        if mode == .metal {
+            viewModel.prefetchTimeline()
+        }
     }
 
     private var overlayBackendIndicator: some View {
