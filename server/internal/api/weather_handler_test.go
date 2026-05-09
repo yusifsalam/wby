@@ -69,6 +69,10 @@ func (s weatherServiceStub) GetTemperatureSamples(ctx context.Context) (*weather
 	panic("not used in this test")
 }
 
+func (s weatherServiceStub) GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*weather.TemperatureSamplesResponse, error) {
+	panic("not used in this test")
+}
+
 func (s weatherServiceStub) GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*weather.Station, float64, []weather.ClimateNormal, weather.InterpolatedNormal, error) {
 	panic("not used in this test")
 }

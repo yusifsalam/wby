@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -25,6 +26,9 @@ type WeatherStore interface {
 	NearestStation(ctx context.Context, lat, lon float64) (Station, float64, error)
 	LatestObservation(ctx context.Context, fmisid int) (Observation, error)
 	GetLatestTemperatureSamplesInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, limit int) ([]TemperatureSample, error)
+	GetObservationSamplesAtTimeInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time, limit int) ([]TemperatureSample, error)
+	GetHourlyForecastSamplesAtTimeInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time, limit int) ([]TemperatureSample, error)
+	StationsInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64) ([]Station, error)
 	GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]DailyForecast, error)
 	UpsertForecasts(ctx context.Context, forecasts []DailyForecast) error
 	GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64, limit int) ([]HourlyForecast, error)
@@ -49,6 +53,10 @@ type Service struct {
 	hourlyCache      *Cache[[]HourlyForecast]
 	uvCache          *Cache[[]UVDataPoint]
 	leaderboardCache *Cache[[]LeaderboardEntry]
+
+	gridBackfillMu         sync.Mutex
+	gridBackfillInProgress bool
+	gridBackfillLastRun    time.Time
 }
 
 func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL time.Duration) *Service {
@@ -113,18 +121,47 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 }
 
 func (s *Service) GetTemperatureSamples(ctx context.Context) (*TemperatureSamplesResponse, error) {
+	return s.GetTemperatureSamplesAt(ctx, time.Time{})
+}
+
+// GetTemperatureSamplesAt returns temperature samples for the given instant.
+// A zero `at` yields the latest available observations (live "now" path).
+// A past `at` queries observations near that instant; a future `at` queries
+// the hourly forecast snapped to the nearest hour.
+func (s *Service) GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*TemperatureSamplesResponse, error) {
 	const margin = 0.2
-	samples, err := s.store.GetLatestTemperatureSamplesInBBox(
-		ctx,
-		finlandMinLon-margin,
-		finlandMinLat-margin,
-		finlandMaxLon+margin,
-		finlandMaxLat+margin,
-		350,
+	minLon := finlandMinLon - margin
+	minLat := finlandMinLat - margin
+	maxLon := finlandMaxLon + margin
+	maxLat := finlandMaxLat + margin
+
+	var (
+		samples []TemperatureSample
+		err     error
 	)
+	switch {
+	case at.IsZero():
+		samples, err = s.store.GetLatestTemperatureSamplesInBBox(ctx, minLon, minLat, maxLon, maxLat, 350)
+	case !at.After(time.Now()):
+		samples, err = s.store.GetObservationSamplesAtTimeInBBox(ctx, minLon, minLat, maxLon, maxLat, at, 350)
+	default:
+		samples, err = s.store.GetHourlyForecastSamplesAtTimeInBBox(ctx, minLon, minLat, maxLon, maxLat, at, 350)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("temperature samples: %w", err)
 	}
+
+	// Trigger backfill before the min-samples gate so the empty/sparse case
+	// (0-2 forecast rows) still kicks off a fan-out instead of returning 502
+	// with no recovery scheduled. Skip when `at` is beyond the horizon — the
+	// fan-out only fetches the next ForecastBackfillHorizon hours, so refilling
+	// for a request farther out can never satisfy it.
+	now := time.Now()
+	horizonLimit := now.Add(time.Duration(ForecastBackfillHorizon) * time.Hour)
+	if !at.IsZero() && at.After(now) && !at.After(horizonLimit) && len(samples) < ForecastBackfillThreshold {
+		s.triggerForecastGridBackfill(minLon, minLat, maxLon, maxLat)
+	}
+
 	if len(samples) < overlayMinSamples {
 		return nil, fmt.Errorf("not enough samples")
 	}
@@ -150,6 +187,164 @@ func (s *Service) GetTemperatureSamples(ctx context.Context) (*TemperatureSample
 		MaxTemp:  maxTemp,
 		Samples:  samples,
 	}, nil
+}
+
+// ForecastBackfillThreshold is the sample count below which a future-time
+// request schedules a background grid refill. Exported so the API layer can
+// match the predicate when deciding cache policy on sparse responses.
+const ForecastBackfillThreshold = 30
+
+// ForecastBackfillHorizon is the maximum number of hours into the future for
+// which the backfill prefetches hourly forecasts. Requests for `at` beyond this
+// horizon cannot be satisfied by the backfill, so the API layer rejects them.
+const ForecastBackfillHorizon = 24
+
+const (
+	forecastBackfillCooldown = 5 * time.Minute
+	forecastBackfillTimeout  = 2 * time.Minute
+	forecastBackfillWorkers  = 6
+)
+
+// triggerForecastGridBackfill kicks off a one-shot background fan-out that
+// refreshes hourly forecasts for every station in the bbox so that future-time
+// scrubbing has a dense sample field. Deduped by an in-process cooldown.
+func (s *Service) triggerForecastGridBackfill(minLon, minLat, maxLon, maxLat float64) {
+	s.gridBackfillMu.Lock()
+	if s.gridBackfillInProgress {
+		s.gridBackfillMu.Unlock()
+		return
+	}
+	if time.Since(s.gridBackfillLastRun) < forecastBackfillCooldown {
+		s.gridBackfillMu.Unlock()
+		return
+	}
+	s.gridBackfillInProgress = true
+	s.gridBackfillMu.Unlock()
+
+	go func() {
+		defer s.markBackfillDone()
+		ctx, cancel := context.WithTimeout(context.Background(), forecastBackfillTimeout)
+		defer cancel()
+		s.runForecastGridFetch(ctx, minLon, minLat, maxLon, maxLat)
+	}()
+}
+
+// PrewarmForecastGrid runs a synchronous Finland-wide forecast fetch for all
+// known stations. Intended to be invoked at startup and on a periodic loop so
+// the time-scrubber always has a dense field. Skips if a backfill is already
+// running. Returns true if stations were found (whether the fetch succeeded
+// per-station or not); false when the station table is empty or another
+// backfill is already in flight.
+func (s *Service) PrewarmForecastGrid(ctx context.Context) bool {
+	s.gridBackfillMu.Lock()
+	if s.gridBackfillInProgress {
+		s.gridBackfillMu.Unlock()
+		return false
+	}
+	s.gridBackfillInProgress = true
+	s.gridBackfillMu.Unlock()
+	defer s.markBackfillDone()
+
+	const margin = 0.2
+	return s.runForecastGridFetch(
+		ctx,
+		finlandMinLon-margin,
+		finlandMinLat-margin,
+		finlandMaxLon+margin,
+		finlandMaxLat+margin,
+	)
+}
+
+// RunForecastGridPrewarmLoop runs PrewarmForecastGrid immediately, then on
+// `interval`. On a fresh DB the station table may still be empty when the
+// loop first runs, so we retry on a short cadence until stations are present.
+// Returns when ctx is cancelled.
+func (s *Service) RunForecastGridPrewarmLoop(ctx context.Context, interval time.Duration) {
+	const emptyRetryInterval = 30 * time.Second
+	slog.Info("forecast grid prewarm loop starting", "interval", interval)
+
+	for {
+		if s.PrewarmForecastGrid(ctx) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			slog.Info("forecast grid prewarm loop stopped")
+			return
+		case <-time.After(emptyRetryInterval):
+		}
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("forecast grid prewarm loop stopped")
+			return
+		case <-ticker.C:
+			s.PrewarmForecastGrid(ctx)
+		}
+	}
+}
+
+func (s *Service) markBackfillDone() {
+	s.gridBackfillMu.Lock()
+	s.gridBackfillInProgress = false
+	s.gridBackfillLastRun = time.Now()
+	s.gridBackfillMu.Unlock()
+}
+
+func (s *Service) runForecastGridFetch(ctx context.Context, minLon, minLat, maxLon, maxLat float64) bool {
+	stations, err := s.store.StationsInBBox(ctx, minLon, minLat, maxLon, maxLat)
+	if err != nil {
+		slog.Warn("forecast grid fetch: stations lookup failed", "err", err)
+		return false
+	}
+	if len(stations) == 0 {
+		return false
+	}
+
+	slog.Info("forecast grid fetch: starting", "stations", len(stations))
+	start := time.Now()
+	sem := make(chan struct{}, forecastBackfillWorkers)
+	var wg sync.WaitGroup
+	var fetched int64
+	var failed int64
+	var mu sync.Mutex
+
+	for _, station := range stations {
+		sem <- struct{}{}
+		wg.Add(1)
+		go func(st Station) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			gridLat, gridLon := snapToGrid(st.Lat, st.Lon)
+			hourly, err := s.fmi.FetchHourlyForecast(ctx, gridLat, gridLon, ForecastBackfillHorizon)
+			if err != nil {
+				mu.Lock()
+				failed++
+				mu.Unlock()
+				return
+			}
+			fetchedAt := time.Now()
+			for i := range hourly {
+				hourly[i].FetchedAt = fetchedAt
+			}
+			if err := s.store.UpsertHourlyForecasts(ctx, gridLat, gridLon, hourly); err != nil {
+				mu.Lock()
+				failed++
+				mu.Unlock()
+				return
+			}
+			mu.Lock()
+			fetched++
+			mu.Unlock()
+		}(station)
+	}
+	wg.Wait()
+	slog.Info("forecast grid fetch: done", "fetched", fetched, "failed", failed, "duration", time.Since(start))
+	return true
 }
 
 func (s *Service) GetTemperatureOverlay(ctx context.Context, req MapOverlayRequest) (*TemperatureOverlay, error) {

@@ -41,6 +41,7 @@ func main() {
 
 	f := fetcher.New(fmiClient, db)
 	go f.RunObservationLoop(ctx, 10*time.Minute)
+	go svc.RunForecastGridPrewarmLoop(ctx, 30*time.Minute)
 
 	mux := http.NewServeMux()
 	handler := api.NewHandler(svc)

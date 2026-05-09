@@ -26,9 +26,44 @@ type temperatureSampleJSON struct {
 }
 
 func (h *Handler) getTemperatureSamples(w http.ResponseWriter, r *http.Request) {
-	resp, err := h.service.GetTemperatureSamples(r.Context())
+	var (
+		at         time.Time
+		atProvided bool
+	)
+	if raw := r.URL.Query().Get("at"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			writeJSONError(w, "invalid at parameter (expected RFC3339)", http.StatusBadRequest)
+			return
+		}
+		// Don't snap here: rounding 12:31 to 13:00 can flip a historical
+		// request into the future-forecast path. The forecast store
+		// truncates to hour internally; observation queries use a ±30min
+		// window around the requested instant.
+		at = parsed.UTC()
+		atProvided = true
+
+		// Cap future requests at the backfill horizon. Beyond it, no amount
+		// of fan-out can produce data, so reject up-front instead of spinning
+		// useless backfills on every retry.
+		horizon := time.Duration(weather.ForecastBackfillHorizon) * time.Hour
+		if at.After(time.Now().Add(horizon)) {
+			writeJSONError(w, "at exceeds forecast horizon", http.StatusBadRequest)
+			return
+		}
+	}
+
+	var (
+		resp *weather.TemperatureSamplesResponse
+		err  error
+	)
+	if atProvided {
+		resp, err = h.service.GetTemperatureSamplesAt(r.Context(), at)
+	} else {
+		resp, err = h.service.GetTemperatureSamples(r.Context())
+	}
 	if err != nil {
-		slog.Error("get temperature samples failed", "err", err)
+		slog.Error("get temperature samples failed", "err", err, "at", at)
 		writeJSONError(w, "samples unavailable", http.StatusBadGateway)
 		return
 	}
@@ -44,7 +79,17 @@ func (h *Handler) getTemperatureSamples(w http.ResponseWriter, r *http.Request) 
 	digest := sha256.Sum256(body)
 	etag := fmt.Sprintf(`"%x"`, digest)
 	w.Header().Set("ETag", etag)
-	w.Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
+	switch {
+	case atProvided && at.After(time.Now()) && len(resp.Samples) < weather.ForecastBackfillThreshold:
+		// Sparse future response just scheduled a backfill. Keep the cache
+		// window tight so the next request picks up the denser refill
+		// instead of clients/proxies pinning the sparse payload.
+		w.Header().Set("Cache-Control", "public, max-age=15, stale-while-revalidate=60")
+	case atProvided:
+		w.Header().Set("Cache-Control", "public, max-age=300, stale-while-revalidate=900")
+	default:
+		w.Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
+	}
 	if match := r.Header.Get("If-None-Match"); match != "" && match == etag {
 		w.WriteHeader(http.StatusNotModified)
 		return

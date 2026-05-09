@@ -93,6 +93,43 @@ func TestGetTemperatureSamples_NotModified(t *testing.T) {
 	}
 }
 
+func TestGetTemperatureSamples_AtParam_Invalid(t *testing.T) {
+	h := NewHandler(fakeWeatherService{
+		samples: &weather.TemperatureSamplesResponse{
+			DataTime: time.Now().UTC(),
+			Samples:  []weather.TemperatureSample{{}, {}, {}},
+		},
+	})
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/map/temperature/samples?at=not-a-date", nil)
+	h.getTemperatureSamples(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for malformed at, got %d", rr.Code)
+	}
+}
+
+func TestGetTemperatureSamples_AtParam_LongerCache(t *testing.T) {
+	h := NewHandler(fakeWeatherService{
+		samples: &weather.TemperatureSamplesResponse{
+			DataTime: time.Now().UTC(),
+			Samples:  []weather.TemperatureSample{{}, {}, {}},
+		},
+	})
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/map/temperature/samples?at=2026-05-03T08:00:00Z", nil)
+	h.getTemperatureSamples(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	if got := rr.Header().Get("Cache-Control"); got != "public, max-age=300, stale-while-revalidate=900" {
+		t.Fatalf("expected longer cache for historical query, got %q", got)
+	}
+}
+
 func TestGetTemperatureSamples_ETagChangesWhenSamplesChange(t *testing.T) {
 	dataTime := time.Date(2026, 4, 19, 12, 40, 0, 0, time.UTC)
 	base := httptest.NewRecorder()

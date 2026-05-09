@@ -200,6 +200,118 @@ func (s *Store) GetLatestTemperatureSamplesInBBox(ctx context.Context, minLon, m
 	return result, nil
 }
 
+func (s *Store) GetObservationSamplesAtTimeInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time, limit int) ([]weather.TemperatureSample, error) {
+	if limit <= 0 {
+		limit = 300
+	}
+
+	rows, err := s.pool.Query(ctx,
+		`SELECT ST_Y(s.geom::geometry) AS lat,
+		        ST_X(s.geom::geometry) AS lon,
+		        o.temperature,
+		        o.extra,
+		        o.observed_at
+		 FROM stations s
+		 JOIN LATERAL (
+		    SELECT temperature, extra, observed_at
+		    FROM observations o
+		    WHERE o.fmisid = s.fmisid
+		      AND o.observed_at BETWEEN ($5::timestamptz - INTERVAL '30 minutes') AND ($5::timestamptz + INTERVAL '30 minutes')
+		    ORDER BY ABS(EXTRACT(EPOCH FROM (o.observed_at - $5::timestamptz)))
+		    LIMIT 1
+		 ) o ON true
+		 WHERE ST_X(s.geom::geometry) BETWEEN $1 AND $2
+		   AND ST_Y(s.geom::geometry) BETWEEN $3 AND $4
+		 ORDER BY o.observed_at DESC
+		 LIMIT $6`,
+		minLon, maxLon, minLat, maxLat, at, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query observation samples at time: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]weather.TemperatureSample, 0, limit)
+	for rows.Next() {
+		var (
+			lat      float64
+			lon      float64
+			temp     *float64
+			extraRaw []byte
+			obsAt    time.Time
+		)
+		if err := rows.Scan(&lat, &lon, &temp, &extraRaw, &obsAt); err != nil {
+			return nil, fmt.Errorf("scan observation sample: %w", err)
+		}
+
+		resolved := temp
+		if resolved == nil && len(extraRaw) > 0 {
+			extra := decodeNumericExtras(extraRaw)
+			if t2m, ok := extra["t2m"]; ok {
+				resolved = &t2m
+			}
+		}
+		if resolved == nil {
+			continue
+		}
+
+		result = append(result, weather.TemperatureSample{
+			Lat:         lat,
+			Lon:         lon,
+			Temperature: *resolved,
+			ObservedAt:  obsAt,
+		})
+	}
+	return result, nil
+}
+
+func (s *Store) GetHourlyForecastSamplesAtTimeInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time, limit int) ([]weather.TemperatureSample, error) {
+	if limit <= 0 {
+		limit = 300
+	}
+	// Round (not truncate) so 12:59 maps to 13:00 instead of 12:00 — forecast
+	// rows are stored on the hour, and the closer hour is the better match.
+	hour := at.UTC().Round(time.Hour)
+
+	rows, err := s.pool.Query(ctx,
+		`SELECT grid_lat, grid_lon, temperature, forecast_time
+		 FROM hourly_forecasts
+		 WHERE forecast_time = $5
+		   AND grid_lon BETWEEN $1 AND $2
+		   AND grid_lat BETWEEN $3 AND $4
+		   AND temperature IS NOT NULL
+		 LIMIT $6`,
+		minLon, maxLon, minLat, maxLat, hour, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query hourly forecast samples: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]weather.TemperatureSample, 0, limit)
+	for rows.Next() {
+		var (
+			lat      float64
+			lon      float64
+			temp     *float64
+			forecast time.Time
+		)
+		if err := rows.Scan(&lat, &lon, &temp, &forecast); err != nil {
+			return nil, fmt.Errorf("scan hourly forecast sample: %w", err)
+		}
+		if temp == nil {
+			continue
+		}
+		result = append(result, weather.TemperatureSample{
+			Lat:         lat,
+			Lon:         lon,
+			Temperature: *temp,
+			ObservedAt:  forecast,
+		})
+	}
+	return result, nil
+}
+
 func encodeNumericExtras(params map[string]float64) []byte {
 	if len(params) == 0 {
 		return nil
@@ -371,6 +483,30 @@ func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64
 		result = append(result, h)
 	}
 	return result, nil
+}
+
+func (s *Store) StationsInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64) ([]weather.Station, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT fmisid, name, ST_Y(geom::geometry), ST_X(geom::geometry), wmo_code
+		 FROM stations
+		 WHERE ST_X(geom::geometry) BETWEEN $1 AND $2
+		   AND ST_Y(geom::geometry) BETWEEN $3 AND $4`,
+		minLon, maxLon, minLat, maxLat,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("stations in bbox: %w", err)
+	}
+	defer rows.Close()
+
+	var stations []weather.Station
+	for rows.Next() {
+		var st weather.Station
+		if err := rows.Scan(&st.FMISID, &st.Name, &st.Lat, &st.Lon, &st.WMOCode); err != nil {
+			return nil, fmt.Errorf("scan station: %w", err)
+		}
+		stations = append(stations, st)
+	}
+	return stations, rows.Err()
 }
 
 func (s *Store) AllStationFMISIDs(ctx context.Context) ([]int, error) {

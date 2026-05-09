@@ -17,6 +17,7 @@ type WeatherService interface {
 	GetWeather(ctx context.Context, lat, lon float64) (*weather.WeatherResponse, error)
 	GetTemperatureOverlay(ctx context.Context, req weather.MapOverlayRequest) (*weather.TemperatureOverlay, error)
 	GetTemperatureSamples(ctx context.Context) (*weather.TemperatureSamplesResponse, error)
+	GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*weather.TemperatureSamplesResponse, error)
 	GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*weather.Station, float64, []weather.ClimateNormal, weather.InterpolatedNormal, error)
 	GetLeaderboard(ctx context.Context, lat, lon float64, timeframe string) ([]weather.LeaderboardEntry, error)
 }
