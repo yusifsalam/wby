@@ -45,14 +45,42 @@ type ForecastFetcher interface {
 	FetchUVForecast(ctx context.Context, lat, lon float64) ([]UVDataPoint, error)
 }
 
+// WMSTileFetcher fetches a single rasterized WMS tile from FMI. The Service
+// uses it for the precipitation overlay; it is optional.
+type WMSTileFetcher interface {
+	FetchWMSTile(ctx context.Context, req WMSTileRequest) ([]byte, error)
+}
+
+// WMSTileRequest is the request shape passed to a WMSTileFetcher.
+//
+// BBox is in lon/lat degrees (WGS84). The fetcher is responsible for
+// projecting to whatever CRS the layer requires.
+type WMSTileRequest struct {
+	Layer  string
+	Style  string
+	Time   time.Time
+	MinLon float64
+	MinLat float64
+	MaxLon float64
+	MaxLat float64
+	Width  int
+	Height int
+}
+
 type Service struct {
 	store            WeatherStore
 	fmi              ForecastFetcher
+	wms              WMSTileFetcher
 	forecastCache    *Cache[[]DailyForecast]
 	timezoneCache    *Cache[string]
 	hourlyCache      *Cache[[]HourlyForecast]
 	uvCache          *Cache[[]UVDataPoint]
+	precipCache      *Cache[*PrecipitationOverlay]
 	leaderboardCache *Cache[[]LeaderboardEntry]
+
+	precipObsLayer  string
+	precipFcstLayer string
+	precipStyle     string
 
 	gridBackfillMu         sync.Mutex
 	gridBackfillInProgress bool
@@ -60,15 +88,31 @@ type Service struct {
 }
 
 func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL time.Duration) *Service {
+	wms, _ := fmiClient.(WMSTileFetcher)
 	return &Service{
 		store:            store,
 		fmi:              fmiClient,
+		wms:              wms,
 		forecastCache:    NewCache[[]DailyForecast](forecastCacheTTL),
 		timezoneCache:    NewCache[string](forecastCacheTTL),
 		hourlyCache:      NewCache[[]HourlyForecast](forecastCacheTTL),
 		uvCache:          NewCache[[]UVDataPoint](forecastCacheTTL),
+		precipCache:      NewCache[*PrecipitationOverlay](30 * time.Minute),
 		leaderboardCache: NewCache[[]LeaderboardEntry](5 * time.Minute),
 	}
+}
+
+// SetPrecipitationLayers configures the WMS layer names used for the
+// precipitation overlay. Both can be empty to disable the feature.
+func (s *Service) SetPrecipitationLayers(observationLayer, forecastLayer string) {
+	s.precipObsLayer = observationLayer
+	s.precipFcstLayer = forecastLayer
+}
+
+// SetPrecipitationStyle configures the WMS style passed with each
+// precipitation tile request (e.g. "Mobile_dark"). Empty means default.
+func (s *Service) SetPrecipitationStyle(style string) {
+	s.precipStyle = style
 }
 
 func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherResponse, error) {

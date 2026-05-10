@@ -35,9 +35,11 @@ func main() {
 	}
 	defer db.Close()
 
-	fmiClient := fmi.NewClient(cfg.FMIBaseURL, cfg.FMIAPIKey, cfg.FMITimeseriesURL)
+	fmiClient := fmi.NewClientWithWMS(cfg.FMIBaseURL, cfg.FMIAPIKey, cfg.FMITimeseriesURL, cfg.FMIWMSBaseURL)
 
 	svc := weather.NewService(db, fmiClient, 10*time.Minute)
+	svc.SetPrecipitationLayers(cfg.FMIPrecipObsLayer, cfg.FMIPrecipFcstLayer)
+	svc.SetPrecipitationStyle(cfg.FMIPrecipStyle)
 
 	f := fetcher.New(fmiClient, db)
 	go f.RunObservationLoop(ctx, 10*time.Minute)

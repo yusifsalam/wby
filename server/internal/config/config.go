@@ -13,6 +13,10 @@ type Config struct {
 	FMIBaseURL             string
 	FMIAPIKey              string
 	FMITimeseriesURL       string
+	FMIWMSBaseURL          string
+	FMIPrecipObsLayer      string
+	FMIPrecipFcstLayer     string
+	FMIPrecipStyle         string
 	ClientSecrets          map[string]string
 	RequestSignatureMaxAge time.Duration
 }
@@ -24,6 +28,10 @@ func Load() Config {
 		FMIBaseURL:             getEnv("FMI_BASE_URL", "https://opendata.fmi.fi/wfs"),
 		FMIAPIKey:              getEnv("FMI_API_KEY", ""),
 		FMITimeseriesURL:       getEnv("FMI_TIMESERIES_URL", "https://data.fmi.fi"),
+		FMIWMSBaseURL:          getEnv("FMI_WMS_BASE_URL", "https://data.fmi.fi"),
+		FMIPrecipObsLayer:      getEnv("FMI_PRECIP_OBS_LAYER", "weatherapp:finland:precipitationObservations5min"),
+		FMIPrecipFcstLayer:     getEnv("FMI_PRECIP_FCST_LAYER", "weatherapp:finland:precipitationForecast5min"),
+		FMIPrecipStyle:         getEnv("FMI_PRECIP_STYLE", "Mobile_dark"),
 		ClientSecrets:          parseClientSecrets(getEnv("CLIENT_SECRETS", "")),
 		RequestSignatureMaxAge: time.Duration(getEnvInt("REQUEST_SIGNATURE_MAX_AGE_SECONDS", 300)) * time.Second,
 	}

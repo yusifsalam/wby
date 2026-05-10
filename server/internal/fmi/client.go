@@ -17,6 +17,7 @@ type Client struct {
 	baseURL       string
 	apiKey        string
 	timeseriesURL string
+	wmsURL        string
 	httpClient    *http.Client
 }
 
@@ -24,10 +25,15 @@ const forecastDays = 11
 const hourlyForecastHours = 12
 
 func NewClient(baseURL, apiKey, timeseriesURL string) *Client {
+	return NewClientWithWMS(baseURL, apiKey, timeseriesURL, "")
+}
+
+func NewClientWithWMS(baseURL, apiKey, timeseriesURL, wmsURL string) *Client {
 	return &Client{
 		baseURL:       baseURL,
 		apiKey:        apiKey,
 		timeseriesURL: timeseriesURL,
+		wmsURL:        wmsURL,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
