@@ -77,11 +77,17 @@ struct OverlaySeed {
 final class WeatherMapViewModel: ObservableObject {
     @Published var meta: OverlayMeta?
     @Published var overlayMode: OverlayMode
+    @Published var selectedLayer: MapLayerKind
     @Published var selectedTime: Date = Date()
     @Published var isPlaying: Bool = false
 
-    static let scrubberPastHours: Int = 6
-    static let scrubberFutureHours: Int = 12
+    var scrubberPastSteps: Int { selectedLayer.scrubberPastSteps }
+    var scrubberFutureSteps: Int { selectedLayer.scrubberFutureSteps }
+    var scrubberStepSeconds: TimeInterval { selectedLayer.scrubberStepSeconds }
+    var isScrubberVisible: Bool {
+        selectedLayer == .precipitation || (selectedLayer == .temperature && overlayMode == .metal)
+    }
+
     private let playbackInterval: TimeInterval = 0.6
 
     private let favoriteWeatherTTL: TimeInterval = 10 * 60
@@ -113,6 +119,9 @@ final class WeatherMapViewModel: ObservableObject {
     private var playbackTask: Task<Void, Never>?
     private var cachedOverlayImage: TemperatureOverlayImage?
     private var cachedMetalOverlaySeed: OverlaySeed?
+    private var precipImagesByHour: [Date: PrecipitationOverlayImage] = [:]
+    private var inflightPrecipHours: Set<Date> = []
+    private var precipPrefetchTask: Task<Void, Never>?
     private var favoriteWeatherCache: [UUID: CachedFavoritePinWeather] = [:]
     private var favoriteWeatherTasks: [UUID: Task<Void, Never>] = [:]
     private var previewAnnotation: PreviewPinAnnotation?
@@ -131,7 +140,8 @@ final class WeatherMapViewModel: ObservableObject {
         initialFavoriteWeather: [UUID: FavoritePinWeather] = [:],
         initialOverlaySeed: OverlaySeed? = nil,
         initialSamples: TemperatureSamplesResponse? = nil,
-        overlayMode: OverlayMode = OverlayMode.load()
+        overlayMode: OverlayMode = OverlayMode.load(),
+        selectedLayer: MapLayerKind = MapLayerKind.load()
     ) {
         self.overlayService = overlayService
         self.weatherService = weatherService
@@ -140,7 +150,8 @@ final class WeatherMapViewModel: ObservableObject {
         self.initialSamples = initialSamples
         self.metalRenderer = TemperatureMetalRenderer()
         self.meta = initialMeta
-        self.selectedTime = Self.snapToHour(Date())
+        self.selectedLayer = selectedLayer
+        self.selectedTime = Self.snap(Date(), toSeconds: selectedLayer.scrubberStepSeconds)
         let resolvedMode: OverlayMode
         if overlayMode == .metal, metalRenderer == nil {
             resolvedMode = .png
@@ -163,6 +174,7 @@ final class WeatherMapViewModel: ObservableObject {
         overlayTask?.cancel()
         samplesTask?.cancel()
         prefetchTask?.cancel()
+        precipPrefetchTask?.cancel()
         playbackTask?.cancel()
         favoriteWeatherTasks.values.forEach { $0.cancel() }
         previewWeatherTask?.cancel()
@@ -174,7 +186,7 @@ final class WeatherMapViewModel: ObservableObject {
         self.mapView = mapView
         didCenterOnPreferredLocation = false
         applyInitialRegion(on: mapView)
-        if overlayMode == .png, let initialOverlaySeed {
+        if overlayMode == .png, selectedLayer == .temperature, let initialOverlaySeed {
             applyOverlay(
                 image: initialOverlaySeed.image,
                 bbox: initialOverlaySeed.bbox,
@@ -182,8 +194,8 @@ final class WeatherMapViewModel: ObservableObject {
             )
         }
         updateFavoriteAnnotations(on: mapView, favorites: favoriteLocations)
-        applyOverlayModeVisibility()
-        kickOffRefreshForCurrentMode()
+        applyVisibilityForCurrentState()
+        kickOffRefreshForCurrentState()
     }
 
     func setOverlayMode(_ mode: OverlayMode) {
@@ -201,21 +213,42 @@ final class WeatherMapViewModel: ObservableObject {
         }
         overlayMode = mode
         mode.save()
-        applyOverlayModeVisibility()
-        if let cachedSamples, mode == .metal {
-            meta = OverlayMeta(
-                dataTime: cachedSamples.dataTime,
-                minTemp: cachedSamples.minTemp,
-                maxTemp: cachedSamples.maxTemp
-            )
-        } else if let cachedOverlayImage, mode == .png {
-            meta = OverlayMeta(
-                dataTime: cachedOverlayImage.dataTime,
-                minTemp: cachedOverlayImage.minTemp,
-                maxTemp: cachedOverlayImage.maxTemp
-            )
+        applyVisibilityForCurrentState()
+        if selectedLayer == .temperature {
+            if let cachedSamples, mode == .metal {
+                meta = OverlayMeta(
+                    dataTime: cachedSamples.dataTime,
+                    minTemp: cachedSamples.minTemp,
+                    maxTemp: cachedSamples.maxTemp
+                )
+            } else if let cachedOverlayImage, mode == .png {
+                meta = OverlayMeta(
+                    dataTime: cachedOverlayImage.dataTime,
+                    minTemp: cachedOverlayImage.minTemp,
+                    maxTemp: cachedOverlayImage.maxTemp
+                )
+            }
         }
-        kickOffRefreshForCurrentMode()
+        kickOffRefreshForCurrentState()
+    }
+
+    func setSelectedLayer(_ layer: MapLayerKind) {
+        guard layer != selectedLayer else { return }
+        // Tear down timeline state — both layers reuse the scrubber but with
+        // different ranges and frame caches.
+        stopPlayback()
+        prefetchTask?.cancel()
+        prefetchTask = nil
+        precipPrefetchTask?.cancel()
+        precipPrefetchTask = nil
+        inflightSampleHours.removeAll()
+        inflightPrecipHours.removeAll()
+        selectedLayer = layer
+        layer.save()
+        // Snap selectedTime back into the new layer's range.
+        selectedTime = snapToStep(Date())
+        applyVisibilityForCurrentState()
+        kickOffRefreshForCurrentState()
     }
 
     func setFavoriteLocations(_ favorites: [FavoriteLocation]) {
@@ -241,7 +274,20 @@ final class WeatherMapViewModel: ObservableObject {
     func handleRegionDidChange(on mapView: MKMapView) {
         applyFavoritePinVisibility(on: mapView)
         refreshVisibleFavoriteWeather(on: mapView)
-        kickOffRefreshForCurrentMode()
+        // Refresh only the throttled "latest" overlay on region changes.
+        // Don't touch precipitation here: its overlay covers all of Finland
+        // and prefetchTimeline would cancel the in-flight fetches every pan.
+        switch selectedLayer {
+        case .temperature:
+            switch overlayMode {
+            case .png:
+                scheduleOverlayRefresh(on: mapView)
+            case .metal:
+                scheduleSamplesRefresh()
+            }
+        case .precipitation:
+            break
+        }
     }
 
     func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
@@ -356,7 +402,7 @@ final class WeatherMapViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 samplesLastFetchedAt = Date()
                 cachedSamples = resp
-                samplesByHour[Self.snapToHour(Date())] = resp
+                samplesByHour[snapToStep(Date())] = resp
                 if isAtLiveNow(selectedTime) {
                     applyMetalFrame(from: resp)
                 }
@@ -367,7 +413,7 @@ final class WeatherMapViewModel: ObservableObject {
     }
 
     func setSelectedTime(_ date: Date) {
-        let snapped = Self.snapToHour(date)
+        let snapped = snapToStep(date)
         selectedTime = snapped
         applySelectedTime()
     }
@@ -381,33 +427,67 @@ final class WeatherMapViewModel: ObservableObject {
     }
 
     func prefetchTimeline() {
-        guard networkEnabled, overlayMode == .metal else { return }
-        prefetchTask?.cancel()
-        let hours = scrubberHourBuckets()
-        let validHours = Set(hours)
-        samplesByHour = samplesByHour.filter { validHours.contains($0.key) }
-        prefetchTask = Task { [weak self] in
-            for hour in hours {
-                if Task.isCancelled { return }
-                guard let self else { return }
-                if samplesByHour[hour] != nil { continue }
-                if inflightSampleHours.contains(hour) { continue }
-                await fetchSamples(for: hour)
+        guard networkEnabled else { return }
+        let buckets = scrubberStepBuckets()
+        let now = snapToStep(Date())
+        // Fan out from "now" so the visible frame loads first.
+        let ordered = buckets.sorted {
+            abs($0.timeIntervalSince(now)) < abs($1.timeIntervalSince(now))
+        }
+        let validBuckets = Set(buckets)
+        switch selectedLayer {
+        case .temperature:
+            guard overlayMode == .metal else { return }
+            prefetchTask?.cancel()
+            samplesByHour = samplesByHour.filter { validBuckets.contains($0.key) }
+            prefetchTask = Task { [weak self] in
+                for bucket in ordered {
+                    if Task.isCancelled { return }
+                    guard let self else { return }
+                    if samplesByHour[bucket] != nil { continue }
+                    if inflightSampleHours.contains(bucket) { continue }
+                    await fetchSamples(for: bucket)
+                }
+            }
+        case .precipitation:
+            precipPrefetchTask?.cancel()
+            precipImagesByHour = precipImagesByHour.filter { validBuckets.contains($0.key) }
+            precipPrefetchTask = Task { [weak self] in
+                for bucket in ordered {
+                    if Task.isCancelled { return }
+                    guard let self else { return }
+                    if precipImagesByHour[bucket] != nil { continue }
+                    if inflightPrecipHours.contains(bucket) { continue }
+                    await fetchPrecipFrame(for: bucket)
+                }
             }
         }
     }
 
     private func applySelectedTime() {
-        guard overlayMode == .metal else { return }
-        let snapped = Self.snapToHour(selectedTime)
-        if let cached = samplesByHour[snapped] {
-            applyMetalFrame(from: cached)
-            return
-        }
-        guard networkEnabled else { return }
-        Task { [weak self] in
-            guard let self else { return }
-            await fetchSamples(for: snapped)
+        let snapped = snapToStep(selectedTime)
+        switch selectedLayer {
+        case .temperature:
+            guard overlayMode == .metal else { return }
+            if let cached = samplesByHour[snapped] {
+                applyMetalFrame(from: cached)
+                return
+            }
+            guard networkEnabled else { return }
+            Task { [weak self] in
+                guard let self else { return }
+                await fetchSamples(for: snapped)
+            }
+        case .precipitation:
+            if let cached = precipImagesByHour[snapped] {
+                applyPrecipFrame(cached)
+                return
+            }
+            guard networkEnabled else { return }
+            Task { [weak self] in
+                guard let self else { return }
+                await fetchPrecipFrame(for: snapped)
+            }
         }
     }
 
@@ -420,7 +500,7 @@ final class WeatherMapViewModel: ObservableObject {
             let resp = try await overlayService.fetchTemperatureSamples(at: at)
             guard !Task.isCancelled else { return }
             samplesByHour[hour] = resp
-            if Self.snapToHour(selectedTime) == hour {
+            if snapToStep(selectedTime) == hour {
                 applyMetalFrame(from: resp)
             }
             if resp.samples.count < sparseSampleThreshold && !sparseRetriedHours.contains(hour) {
@@ -446,6 +526,46 @@ final class WeatherMapViewModel: ObservableObject {
             }
             await self.fetchSamples(for: hour)
         }
+    }
+
+    private func fetchPrecipFrame(for hour: Date) async {
+        if inflightPrecipHours.contains(hour) { return }
+        inflightPrecipHours.insert(hour)
+        defer { inflightPrecipHours.remove(hour) }
+        do {
+            let target: Date? = isAtLiveNow(hour) ? nil : hour
+            let response = try await overlayService.fetchPrecipitationOverlay(
+                bbox: .finland,
+                width: overlaySize,
+                height: overlaySize,
+                time: target
+            )
+            guard !Task.isCancelled else { return }
+            precipImagesByHour[hour] = response
+            let snappedSelected = snapToStep(selectedTime)
+            if snappedSelected == hour, selectedLayer == .precipitation {
+                applyPrecipFrame(response)
+            } else if selectedLayer == .precipitation,
+                      let mapView,
+                      mapView.overlays.compactMap({ $0 as? TemperatureImageOverlay }).isEmpty {
+                // No exact frame for the selected step yet (e.g. it 502'd).
+                // Show this frame as a placeholder so the map isn't blank.
+                applyPrecipFrame(response)
+            }
+        } catch {
+            // Keep previous frames; user can retry by scrubbing.
+        }
+    }
+
+    private func applyPrecipFrame(_ response: PrecipitationOverlayImage) {
+        guard selectedLayer == .precipitation else { return }
+        guard let mapView, let image = UIImage(data: response.imageData) else { return }
+        meta = OverlayMeta(
+            dataTime: response.dataTime,
+            minTemp: nil,
+            maxTemp: nil
+        )
+        applyOverlay(image: image, bbox: response.bbox, on: mapView)
     }
 
     private func applyMetalFrame(from response: TemperatureSamplesResponse) {
@@ -475,7 +595,7 @@ final class WeatherMapViewModel: ObservableObject {
                 if Task.isCancelled { return }
                 guard let self else { return }
                 if !self.isPlaying { return }
-                self.advancePlaybackOneHour()
+                self.advancePlaybackOneStep()
             }
         }
     }
@@ -486,10 +606,10 @@ final class WeatherMapViewModel: ObservableObject {
         playbackTask = nil
     }
 
-    private func advancePlaybackOneHour() {
-        let buckets = scrubberHourBuckets()
+    private func advancePlaybackOneStep() {
+        let buckets = scrubberStepBuckets()
         guard !buckets.isEmpty else { return }
-        let snapped = Self.snapToHour(selectedTime)
+        let snapped = snapToStep(selectedTime)
         let nextIndex: Int
         if let current = buckets.firstIndex(of: snapped) {
             nextIndex = (current + 1) % buckets.count
@@ -499,58 +619,90 @@ final class WeatherMapViewModel: ObservableObject {
         setSelectedTime(buckets[nextIndex])
     }
 
-    private func scrubberHourBuckets() -> [Date] {
-        let now = Self.snapToHour(Date())
+    private func scrubberStepBuckets() -> [Date] {
+        let step = scrubberStepSeconds
+        let now = snapToStep(Date())
+        let past = scrubberPastSteps
+        let future = scrubberFutureSteps
         var buckets: [Date] = []
-        let total = Self.scrubberPastHours + Self.scrubberFutureHours + 1
-        buckets.reserveCapacity(total)
-        for offset in -Self.scrubberPastHours...Self.scrubberFutureHours {
-            buckets.append(now.addingTimeInterval(TimeInterval(offset) * 3600))
+        buckets.reserveCapacity(past + future + 1)
+        for offset in -past...future {
+            buckets.append(now.addingTimeInterval(TimeInterval(offset) * step))
         }
         return buckets
     }
 
     private func isAtLiveNow(_ date: Date) -> Bool {
-        Self.snapToHour(date) == Self.snapToHour(Date())
+        snapToStep(date) == snapToStep(Date())
     }
 
-    static func snapToHour(_ date: Date) -> Date {
-        let interval: TimeInterval = 3600
-        let rounded = (date.timeIntervalSince1970 / interval).rounded() * interval
-        return Date(timeIntervalSince1970: rounded)
+    /// Snap a date to the active layer's scrubber step (1h for temperature,
+    /// 5min for precipitation). Used as the cache key for both samples and
+    /// precipitation frames.
+    func snapToStep(_ date: Date) -> Date {
+        Self.snap(date, toSeconds: scrubberStepSeconds)
     }
 
-    private func kickOffRefreshForCurrentMode() {
+    static func snap(_ date: Date, toSeconds interval: TimeInterval) -> Date {
+        // Floor (not nearest) so "live now" always lands on the most recent
+        // completed step. For precipitation that means we ask for the most
+        // recently published observation rather than a 5-min mark in the
+        // future, which would route to the (flakier) forecast layer.
+        let floored = (date.timeIntervalSince1970 / interval).rounded(.down) * interval
+        return Date(timeIntervalSince1970: floored)
+    }
+
+    private func kickOffRefreshForCurrentState() {
         guard let mapView else { return }
-        switch overlayMode {
-        case .png:
-            scheduleOverlayRefresh(on: mapView)
-        case .metal:
-            scheduleSamplesRefresh()
+        switch selectedLayer {
+        case .temperature:
+            switch overlayMode {
+            case .png:
+                scheduleOverlayRefresh(on: mapView)
+            case .metal:
+                scheduleSamplesRefresh()
+            }
+        case .precipitation:
+            // Drive the same prefetch that scrubbing uses, ordered closest-to-now,
+            // so the visible frame loads first and the rest of the timeline streams in.
+            let now = snapToStep(Date())
+            if let cached = precipImagesByHour[now] {
+                applyPrecipFrame(cached)
+            }
+            prefetchTimeline()
         }
     }
 
-    private func applyOverlayModeVisibility() {
+    private func applyVisibilityForCurrentState() {
         guard let mapView else { return }
-        switch overlayMode {
-        case .png:
-            if let cachedOverlayImage,
-               let image = UIImage(data: cachedOverlayImage.imageData) {
-                applyOverlay(image: image, bbox: cachedOverlayImage.bbox, on: mapView)
-            }
-        case .metal:
-            if let seed = cachedMetalOverlaySeed {
-                applyOverlay(image: seed.image, bbox: seed.bbox, on: mapView)
-            } else if let cachedSamples {
-                updateMetalOverlayCache(from: cachedSamples)
+        // Always start by clearing any previous overlay so we never stack a
+        // temperature tile under a precipitation tile or vice versa.
+        let existing = mapView.overlays.compactMap { $0 as? TemperatureImageOverlay }
+        if !existing.isEmpty {
+            mapView.removeOverlays(existing)
+        }
+        switch selectedLayer {
+        case .temperature:
+            switch overlayMode {
+            case .png:
+                if let cachedOverlayImage,
+                   let image = UIImage(data: cachedOverlayImage.imageData) {
+                    applyOverlay(image: image, bbox: cachedOverlayImage.bbox, on: mapView)
+                }
+            case .metal:
                 if let seed = cachedMetalOverlaySeed {
                     applyOverlay(image: seed.image, bbox: seed.bbox, on: mapView)
+                } else if let cachedSamples {
+                    updateMetalOverlayCache(from: cachedSamples)
+                    if let seed = cachedMetalOverlaySeed {
+                        applyOverlay(image: seed.image, bbox: seed.bbox, on: mapView)
+                    }
                 }
-            } else {
-                let existing = mapView.overlays.compactMap { $0 as? TemperatureImageOverlay }
-                if !existing.isEmpty {
-                    mapView.removeOverlays(existing)
-                }
+            }
+        case .precipitation:
+            let hour = snapToStep(selectedTime)
+            if let cached = precipImagesByHour[hour] {
+                applyPrecipFrame(cached)
             }
         }
     }

@@ -70,6 +70,42 @@ actor WeatherService {
         )
     }
 
+    func fetchPrecipitationOverlay(
+        bbox: MapBBox,
+        width: Int,
+        height: Int,
+        time: Date?
+    ) async throws -> PrecipitationOverlayImage {
+        let bboxValue = [
+            Self.coordinateString(bbox.minLon),
+            Self.coordinateString(bbox.minLat),
+            Self.coordinateString(bbox.maxLon),
+            Self.coordinateString(bbox.maxLat),
+        ].joined(separator: ",")
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "bbox", value: bboxValue),
+            URLQueryItem(name: "width", value: String(width)),
+            URLQueryItem(name: "height", value: String(height)),
+        ]
+        if let time {
+            queryItems.append(URLQueryItem(name: "time", value: Self.iso8601String(time)))
+        }
+        let (data, httpResponse) = try await performRequest(
+            path: "v1/map/precipitation",
+            queryItems: queryItems
+        )
+
+        let dataTime = httpResponse.value(forHTTPHeaderField: "X-Data-Time").flatMap(Self.parseDate)
+        let layer = httpResponse.value(forHTTPHeaderField: "X-Layer")
+
+        return PrecipitationOverlayImage(
+            imageData: data,
+            bbox: bbox,
+            dataTime: dataTime,
+            layer: layer
+        )
+    }
+
     // MARK: - Climate Normals
 
     func fetchClimateNormals(lat: Double, lon: Double) async throws -> ClimateNormalsResponse {

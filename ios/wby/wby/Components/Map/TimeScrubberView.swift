@@ -4,8 +4,9 @@ struct TimeScrubberView: View {
     @ObservedObject var viewModel: WeatherMapViewModel
     private let timeZone = TimeZone(identifier: "Europe/Helsinki") ?? .current
 
-    private var pastHours: Int { WeatherMapViewModel.scrubberPastHours }
-    private var futureHours: Int { WeatherMapViewModel.scrubberFutureHours }
+    private var pastSteps: Int { viewModel.scrubberPastSteps }
+    private var futureSteps: Int { viewModel.scrubberFutureSteps }
+    private var stepSeconds: TimeInterval { viewModel.scrubberStepSeconds }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -36,10 +37,10 @@ struct TimeScrubberView: View {
 
     private var slider: some View {
         let binding = Binding<Double>(
-            get: { hoursFromNow(viewModel.selectedTime) },
-            set: { newHours in
+            get: { stepsFromNow(viewModel.selectedTime) },
+            set: { newSteps in
                 if viewModel.isPlaying { viewModel.togglePlayback() }
-                let target = Date().addingTimeInterval(newHours * 3600)
+                let target = Date().addingTimeInterval(newSteps * stepSeconds)
                 viewModel.setSelectedTime(target)
             }
         )
@@ -48,7 +49,7 @@ struct TimeScrubberView: View {
                 .padding(.top, 22)
             Slider(
                 value: binding,
-                in: Double(-pastHours)...Double(futureHours)
+                in: Double(-pastSteps)...Double(futureSteps)
             )
             .tint(.teal)
         }
@@ -56,15 +57,21 @@ struct TimeScrubberView: View {
     }
 
     private var ticksRow: some View {
+        // Cap drawn ticks so dense step grids (e.g. 5-min × 48 steps) don't
+        // turn into a solid bar. We always draw the "now" marker plus a
+        // sparser grid that scales with available width.
         GeometryReader { proxy in
             let width = proxy.size.width
-            let total = pastHours + futureHours
+            let total = pastSteps + futureSteps
+            let majorEvery = tickStride(totalSteps: total)
             Canvas { context, size in
                 guard total > 0 else { return }
                 for offset in 0...total {
+                    let isNow = offset == pastSteps
+                    let isMajor = isNow || offset % majorEvery == 0
+                    if !isMajor { continue }
                     let xRatio = Double(offset) / Double(total)
                     let x = xRatio * Double(width)
-                    let isNow = offset == pastHours
                     let height: CGFloat = isNow ? 8 : 4
                     let rect = CGRect(x: x - 0.5, y: 0, width: 1, height: height)
                     let color: Color = isNow ? .teal : .secondary.opacity(0.5)
@@ -89,8 +96,14 @@ struct TimeScrubberView: View {
         }
     }
 
-    private func hoursFromNow(_ date: Date) -> Double {
-        date.timeIntervalSince(Date()) / 3600
+    private func stepsFromNow(_ date: Date) -> Double {
+        date.timeIntervalSince(Date()) / stepSeconds
+    }
+
+    private func tickStride(totalSteps: Int) -> Int {
+        // Aim for at most ~24 visible major ticks regardless of granularity.
+        if totalSteps <= 24 { return 1 }
+        return max(1, Int((Double(totalSteps) / 24.0).rounded(.up)))
     }
 
     private func absoluteLabel(for date: Date) -> String {
@@ -102,10 +115,17 @@ struct TimeScrubberView: View {
     }
 
     private func relativeLabel(for date: Date) -> String {
-        let hours = Int(hoursFromNow(date).rounded())
-        if hours == 0 { return "Now" }
-        if hours > 0 { return "+\(hours)h" }
-        return "\(hours)h"
+        let delta = date.timeIntervalSince(Date())
+        if abs(delta) < 60 { return "Now" }
+        let absMinutes = Int(abs(delta) / 60)
+        let sign = delta >= 0 ? "+" : "-"
+        if absMinutes >= 60 {
+            let h = absMinutes / 60
+            let m = absMinutes % 60
+            if m == 0 { return "\(sign)\(h)h" }
+            return "\(sign)\(h)h\(m)m"
+        }
+        return "\(sign)\(absMinutes)m"
     }
 }
 

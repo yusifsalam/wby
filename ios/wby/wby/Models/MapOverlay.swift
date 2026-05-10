@@ -61,3 +61,10 @@ struct TemperatureOverlayImage: Equatable {
     let minTemp: Double?
     let maxTemp: Double?
 }
+
+struct PrecipitationOverlayImage: Equatable {
+    let imageData: Data
+    let bbox: MapBBox
+    let dataTime: Date?
+    let layer: String?
+}

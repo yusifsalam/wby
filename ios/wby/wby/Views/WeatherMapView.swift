@@ -11,6 +11,7 @@ struct WeatherMapView: View {
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage(OverlayMode.storageKey) private var overlayModeRawValue = OverlayMode.metal.rawValue
+    @AppStorage(MapLayerKind.storageKey) private var layerRawValue = MapLayerKind.temperature.rawValue
     @StateObject private var viewModel: WeatherMapViewModel
 
     init(
@@ -60,37 +61,46 @@ struct WeatherMapView: View {
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.primary)
                                 .frame(width: 36, height: 36)
-                                .background(.ultraThinMaterial, in: Circle())
+                                .glassEffect(in: Circle())
+                                .contentShape(Circle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Close map")
 
-                        TemperatureLegendView()
+                        if viewModel.selectedLayer == .temperature {
+                            TemperatureLegendView()
+                        }
                     }
                     Spacer()
-                    if let meta = viewModel.meta {
-                        VStack(alignment: .trailing, spacing: 4) {
-                            if let min = meta.minTemp, let max = meta.maxTemp {
-                                Text("\(Int(min.rounded()))° ... \(Int(max.rounded()))°")
-                                    .font(.caption2.bold())
+                    VStack(alignment: .trailing, spacing: 10) {
+                        layerMenu
+                        if let meta = viewModel.meta {
+                            VStack(alignment: .trailing, spacing: 4) {
+                                if let min = meta.minTemp, let max = meta.maxTemp {
+                                    Text("\(Int(min.rounded()))° ... \(Int(max.rounded()))°")
+                                        .font(.caption2.bold())
+                                }
+                                if let dataTime = meta.dataTime {
+                                    Text(formatOverlayDataTime(dataTime))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
-                            if let dataTime = meta.dataTime {
-                                Text(formatOverlayDataTime(dataTime))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
+                            .padding(10)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                         }
-                        .padding(10)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                     }
                 }
                 Spacer()
-                HStack {
-                    overlayBackendIndicator
-                    Spacer()
+                if viewModel.selectedLayer == .temperature {
+                    HStack {
+                        overlayBackendIndicator
+                        Spacer()
+                    }
                 }
-                if viewModel.overlayMode == .metal {
+                if viewModel.isScrubberVisible {
                     TimeScrubberView(viewModel: viewModel)
                         .padding(.top, 8)
                 }
@@ -98,6 +108,7 @@ struct WeatherMapView: View {
             .padding()
         }
         .task {
+            applyLayerFromSettings()
             applyOverlayModeFromSettings()
             viewModel.setPreferredCenter(locationService.coordinate)
             viewModel.setFavoriteLocations(favoritesStore.favorites)
@@ -107,6 +118,9 @@ struct WeatherMapView: View {
         }
         .onChange(of: overlayModeRawValue) {
             applyOverlayModeFromSettings()
+        }
+        .onChange(of: layerRawValue) {
+            applyLayerFromSettings()
         }
         .onChange(of: locationService.coordinate.map { "\($0.latitude),\($0.longitude)" }) {
             viewModel.setPreferredCenter(locationService.coordinate)
@@ -130,9 +144,41 @@ struct WeatherMapView: View {
             overlayModeRawValue = mode.rawValue
         }
         viewModel.setOverlayMode(mode)
-        if mode == .metal {
+        if viewModel.isScrubberVisible {
             viewModel.prefetchTimeline()
         }
+    }
+
+    private func applyLayerFromSettings() {
+        let layer = MapLayerKind(rawValue: layerRawValue) ?? .temperature
+        if layerRawValue != layer.rawValue {
+            layerRawValue = layer.rawValue
+        }
+        viewModel.setSelectedLayer(layer)
+        if viewModel.isScrubberVisible {
+            viewModel.prefetchTimeline()
+        }
+    }
+
+    private var layerMenu: some View {
+        Menu {
+            Picker("Layer", selection: $layerRawValue) {
+                ForEach(MapLayerKind.allCases, id: \.rawValue) { layer in
+                    Label(layer.displayName, systemImage: layer.symbolName)
+                        .tag(layer.rawValue)
+                }
+            }
+        } label: {
+            Image(systemName: "square.3.layers.3d")
+                .font(.system(size: 14))
+                .foregroundStyle(.primary)
+                .frame(width: 36, height: 36)
+                .glassEffect(in: Circle())
+                .contentShape(Circle())
+        }
+        .menuStyle(.button)
+        .tint(.primary)
+        .accessibilityLabel("Map layer")
     }
 
     private var overlayBackendIndicator: some View {
