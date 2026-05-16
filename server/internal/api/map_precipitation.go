@@ -37,6 +37,9 @@ func (h *Handler) getPrecipitationOverlay(w http.ResponseWriter, r *http.Request
 			writeJSONError(w, "precipitation overlay not configured", http.StatusNotFound)
 			return
 		}
+		if isClientCanceled(err) {
+			return
+		}
 		slog.Error("get precipitation overlay failed", "err", err, "time", target)
 		writeJSONError(w, "overlay unavailable", http.StatusBadGateway)
 		return

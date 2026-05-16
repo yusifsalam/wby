@@ -89,7 +89,9 @@ func (s *Service) GetPrecipitationOverlay(ctx context.Context, req Precipitation
 		}
 		attemptTarget = attemptTarget.Add(-precipStep)
 	}
-	slog.Warn("precipitation tile fetch failed", "err", lastErr, "layer", layer, "time", target)
+	if !errors.Is(lastErr, context.Canceled) && !errors.Is(lastErr, context.DeadlineExceeded) {
+		slog.Warn("precipitation tile fetch failed", "err", lastErr, "layer", layer, "time", target)
+	}
 	return nil, fmt.Errorf("fetch precipitation tile: %w", lastErr)
 }
 

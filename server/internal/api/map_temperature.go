@@ -24,6 +24,9 @@ func (h *Handler) getTemperatureOverlay(w http.ResponseWriter, r *http.Request) 
 
 	overlay, err := h.service.GetTemperatureOverlay(r.Context(), req)
 	if err != nil {
+		if isClientCanceled(err) {
+			return
+		}
 		slog.Error("get temperature overlay failed", "err", err, "bbox", fmt.Sprintf("%f,%f,%f,%f", req.MinLon, req.MinLat, req.MaxLon, req.MaxLat))
 		writeJSONError(w, "overlay unavailable", http.StatusBadGateway)
 		return

@@ -63,6 +63,9 @@ func (h *Handler) getTemperatureSamples(w http.ResponseWriter, r *http.Request) 
 		resp, err = h.service.GetTemperatureSamples(r.Context())
 	}
 	if err != nil {
+		if isClientCanceled(err) {
+			return
+		}
 		slog.Error("get temperature samples failed", "err", err, "at", at)
 		writeJSONError(w, "samples unavailable", http.StatusBadGateway)
 		return
