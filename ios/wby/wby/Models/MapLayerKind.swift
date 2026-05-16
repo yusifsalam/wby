@@ -28,7 +28,7 @@ enum MapLayerKind: String, CaseIterable {
     var scrubberPastSteps: Int {
         switch self {
         case .temperature: return 6
-        case .precipitation: return 36
+        case .precipitation: return 12
         }
     }
 
@@ -36,7 +36,7 @@ enum MapLayerKind: String, CaseIterable {
     var scrubberFutureSteps: Int {
         switch self {
         case .temperature: return 12
-        case .precipitation: return 48
+        case .precipitation: return 12
         }
     }
 
