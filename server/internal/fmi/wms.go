@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net/http"
 	"net/url"
@@ -58,16 +59,43 @@ func (c *Client) FetchWMSTile(ctx context.Context, req weather.WMSTileRequest) (
 		return nil, fmt.Errorf("build WMS request: %w", err)
 	}
 
+	started := time.Now()
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		slog.Warn("FMI WMS request failed",
+			"err", err,
+			"duration_ms", time.Since(started).Milliseconds(),
+			"layer", req.Layer,
+			"target", req.Time.UTC().Format(time.RFC3339),
+			"width", req.Width,
+			"height", req.Height,
+		)
 		return nil, fmt.Errorf("fetch WMS tile: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		slog.Warn("FMI WMS response read failed",
+			"err", err,
+			"status", resp.StatusCode,
+			"duration_ms", time.Since(started).Milliseconds(),
+			"layer", req.Layer,
+			"target", req.Time.UTC().Format(time.RFC3339),
+			"width", req.Width,
+			"height", req.Height,
+		)
 		return nil, fmt.Errorf("read WMS response: %w", err)
 	}
+	slog.Info("FMI WMS request completed",
+		"status", resp.StatusCode,
+		"duration_ms", time.Since(started).Milliseconds(),
+		"layer", req.Layer,
+		"target", req.Time.UTC().Format(time.RFC3339),
+		"width", req.Width,
+		"height", req.Height,
+		"bytes", len(body),
+	)
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("WMS returned %d for layer %s @ %s: %s",
 			resp.StatusCode, req.Layer, req.Time.UTC().Format(time.RFC3339), truncate(string(body), 256))

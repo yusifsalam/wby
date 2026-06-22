@@ -47,8 +47,22 @@ func (s *Service) GetPrecipitationOverlay(ctx context.Context, req Precipitation
 
 	cacheKey := precipCacheKey(layer, target, req.MapOverlayRequest)
 	if cached, ok := s.precipCache.Get(cacheKey); ok {
+		slog.Info("precipitation overlay cache hit",
+			"layer", layer,
+			"target", target.UTC().Format(time.RFC3339),
+			"cache_key", cacheKey,
+			"width", req.Width,
+			"height", req.Height,
+		)
 		return cached, nil
 	}
+	slog.Info("precipitation overlay cache miss",
+		"layer", layer,
+		"target", target.UTC().Format(time.RFC3339),
+		"cache_key", cacheKey,
+		"width", req.Width,
+		"height", req.Height,
+	)
 
 	// FMI's radar/forecast tiles for the most recent 5-min mark may not be
 	// published yet at the boundary. If the upstream errors, retry up to
@@ -57,6 +71,7 @@ func (s *Service) GetPrecipitationOverlay(ctx context.Context, req Precipitation
 	var lastErr error
 	attemptTarget := target
 	for attempt := 0; attempt < precipFallbackSteps; attempt++ {
+		attemptStarted := time.Now()
 		tile, err := s.wms.FetchWMSTile(ctx, WMSTileRequest{
 			Layer:  layer,
 			Style:  s.precipStyle,
@@ -69,6 +84,14 @@ func (s *Service) GetPrecipitationOverlay(ctx context.Context, req Precipitation
 			Height: req.Height,
 		})
 		if err == nil {
+			slog.Info("precipitation WMS attempt completed",
+				"layer", layer,
+				"target", target.UTC().Format(time.RFC3339),
+				"served", attemptTarget.UTC().Format(time.RFC3339),
+				"attempt", attempt+1,
+				"duration_ms", time.Since(attemptStarted).Milliseconds(),
+				"bytes", len(tile),
+			)
 			overlay := &PrecipitationOverlay{
 				PNG:      tile,
 				DataTime: attemptTarget,
@@ -82,6 +105,16 @@ func (s *Service) GetPrecipitationOverlay(ctx context.Context, req Precipitation
 			return overlay, nil
 		}
 		lastErr = err
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			slog.Warn("precipitation WMS attempt failed",
+				"err", err,
+				"layer", layer,
+				"target", target.UTC().Format(time.RFC3339),
+				"served", attemptTarget.UTC().Format(time.RFC3339),
+				"attempt", attempt+1,
+				"duration_ms", time.Since(attemptStarted).Milliseconds(),
+			)
+		}
 		// Only retry for observation-class targets (live or recent past). Forecast
 		// frames are time-specific so an earlier step would be wrong content.
 		if layer != s.precipObsLayer {
@@ -90,7 +123,11 @@ func (s *Service) GetPrecipitationOverlay(ctx context.Context, req Precipitation
 		attemptTarget = attemptTarget.Add(-precipStep)
 	}
 	if !errors.Is(lastErr, context.Canceled) && !errors.Is(lastErr, context.DeadlineExceeded) {
-		slog.Warn("precipitation tile fetch failed", "err", lastErr, "layer", layer, "time", target)
+		slog.Warn("precipitation tile fetch failed",
+			"err", lastErr,
+			"layer", layer,
+			"target", target.UTC().Format(time.RFC3339),
+		)
 	}
 	return nil, fmt.Errorf("fetch precipitation tile: %w", lastErr)
 }
