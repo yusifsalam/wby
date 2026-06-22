@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This repo has two main apps:
+This repo has three main apps:
 - `server/`: Go backend API + data ingestion.
   - `cmd/server/`: server entrypoint.
   - `cmd/import-normals/`: one-off climate normals importer.
@@ -15,6 +15,10 @@ This repo has two main apps:
   - `scripts/local-dev.sh`: local DB/server bootstrap for macOS.
 - `ios/wby/wby/`: SwiftUI iOS app (`Background/`, `Components/`, `Models/`, `Services/`, `Views/`, `ContentView.swift`).
 - `ios/wby/config/`: environment-specific `Keys.*.plist` files for API base URL and request signing credentials.
+- `gribsvc/`: standalone Python GRIB2 service (FastAPI + pygrib) that serves numeric extraction + PNG tiles; not yet wired into the server.
+  - `app/`: service code (`main.py` routes, `grib.py` parsing seam, `render.py`, `sources.py`, `config.py`).
+  - `tests/`: pytest suite; `explore.ipynb`/`explore.py`: interactive exploration.
+  - `testdata/`: local `.grib2` fixtures (gitignored).
 - `docs/plans/`: implementation and design notes.
 
 ## Build, Test, and Development Commands
@@ -29,6 +33,8 @@ This repo has two main apps:
 - `go run ./server/cmd/server`: direct server run (requires env vars like `DATABASE_URL`).
 - `cd server && docker compose up --build`: run DB + server + Caddy via Docker Compose.
 - Xcode MCP `BuildProject` (project `ios/wby/wby.xcodeproj`, scheme `wby`): preferred iOS build check.
+- `cd gribsvc && pip install -r requirements-dev.txt && pytest`: run GRIB2 service tests (GRIB-fixture tests skip when `testdata/` is empty).
+- `cd gribsvc && GRIB_DATA_DIR=./testdata uvicorn app.main:app --port 9090`: run the GRIB2 service locally.
 
 ## Coding Style & Naming Conventions
 - Go: keep code `gofmt`-clean; package names are lowercase; exported identifiers use `PascalCase`.
@@ -42,6 +48,7 @@ This repo has two main apps:
 - Reuse/add fixtures under `server/internal/fmi/testdata/` for parser behavior.
 - `server/internal/store` tests are integration-style and expect Postgres/PostGIS to be available.
 - For iOS UI changes, keep previews working with mock data and verify in simulator.
+- `gribsvc/` uses pytest; keep `app/grib.py` the only pygrib seam, and let GRIB-fixture tests skip gracefully when `testdata/` is empty.
 
 ## Commit & Pull Request Guidelines
 - Follow existing commit style: scoped, imperative subjects (examples: `server: ...`, `ios: ...`, `tooling: ...`, `feat: ...`, `chore: ...`).

@@ -34,7 +34,10 @@ No linter is configured. Code should be `gofmt`-clean.
 
 ## Architecture
 
-Two apps: a Go backend (`server/`) and a SwiftUI iOS client (`ios/wby/`).
+Three apps: a Go backend (`server/`), a SwiftUI iOS client (`ios/wby/`), and a
+standalone Python GRIB2 service (`gribsvc/`, FastAPI + pygrib) that parses GRIB2
+into JSON values + PNG tiles — not yet wired into the server. See
+`gribsvc/README.md`.
 
 ### Server Data Flow
 
