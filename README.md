@@ -3,6 +3,7 @@
 Weather app with:
 - Go backend (`server/`) for FMI ingestion + weather API
 - SwiftUI iOS client (`ios/wby/`)
+- Python GRIB2 service (`gribsvc/`) that parses GRIB2 into JSON values + PNG tiles (standalone; not yet wired into the server)
 
 ## Repository Layout
 
@@ -18,6 +19,7 @@ Weather app with:
 - `server/scripts/local-dev.sh`: local macOS bootstrap
 - `ios/wby/wby/`: app code (`Background`, `Components`, `Models`, `Services`, `Views`)
 - `ios/wby/config/`: `Keys.$CONFIGURATION.plist` templates and local key files
+- `gribsvc/`: standalone Python GRIB2 service (FastAPI + pygrib); see `gribsvc/README.md`
 
 ## Prerequisites
 
