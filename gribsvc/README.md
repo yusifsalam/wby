@@ -17,12 +17,14 @@ into docker-compose is a separate, later pass.
 
 ```
 app/
-  main.py      FastAPI app + routes
-  grib.py      pygrib parsing (the only pygrib seam)
-  render.py    numpy array -> colormapped PNG (Pillow)
-  sources.py   file resolution (local now, FMI fetch later)
-  config.py    env: GRIB_DATA_DIR, PORT
-testdata/      sample .grib2 fixtures
+  main.py        FastAPI app + routes
+  grib.py        pygrib parsing (the only pygrib seam)
+  render.py      numpy array -> colormapped PNG (Pillow)
+  sources.py     file resolution (local now, FMI fetch later)
+  config.py      env: GRIB_DATA_DIR, PORT
+explore.ipynb    interactive notebook: inspect a file, extract, render, map overlay
+explore.py       same flow as a cell-script (# %% cells)
+testdata/        local .grib2 fixtures (gitignored; drop your own in)
 tests/
 ```
 
@@ -90,6 +92,20 @@ pytest
 
 Tests that need a GRIB file auto-skip when `testdata/` has none; the render
 test runs on a synthetic grid and always executes.
+
+## Interactive exploration
+
+`explore.ipynb` walks through a file end to end: list datasets, inspect a
+message with pygrib, extract point/bbox values, render a tile, and overlay the
+field on a map of Finland (coastlines + borders). Needs the extra dev deps:
+
+```bash
+pip install -r requirements-dev.txt   # adds matplotlib + cartopy
+```
+
+Open it in Jupyter/VS Code/PyCharm with the venv as the kernel, started from
+`gribsvc/` so `from app import ...` resolves. `explore.py` is the same flow as a
+`# %%` cell-script if you prefer running it in an editor instead of a notebook.
 
 ## Docker
 
