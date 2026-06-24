@@ -19,6 +19,18 @@ type Config struct {
 	FMIPrecipStyle         string
 	ClientSecrets          map[string]string
 	RequestSignatureMaxAge time.Duration
+
+	FMIDownloadURL  string
+	GribsvcURL      string
+	GRIBDataDir     string
+	GribFilename    string
+	GribProducer    string
+	GribParams      string
+	GribTempParam   string
+	GribStep        int
+	GribBBox        string
+	GribInterval    time.Duration
+	GribFetchEnable bool
 }
 
 func Load() Config {
@@ -34,6 +46,18 @@ func Load() Config {
 		FMIPrecipStyle:         getEnv("FMI_PRECIP_STYLE", "Mobile_dark"),
 		ClientSecrets:          parseClientSecrets(getEnv("CLIENT_SECRETS", "")),
 		RequestSignatureMaxAge: time.Duration(getEnvInt("REQUEST_SIGNATURE_MAX_AGE_SECONDS", 300)) * time.Second,
+
+		FMIDownloadURL:  getEnv("FMI_DOWNLOAD_URL", "https://opendata.fmi.fi/download"),
+		GribsvcURL:      getEnv("GRIBSVC_URL", "http://gribsvc:9090"),
+		GRIBDataDir:     getEnv("GRIB_DATA_DIR", "/data"),
+		GribFilename:    getEnv("GRIB_FILENAME", "harmonie_surface.grib2"),
+		GribProducer:    getEnv("GRIB_PRODUCER", "harmonie_scandinavia_surface"),
+		GribParams:      getEnv("GRIB_PARAMS", "temperature"),
+		GribTempParam:   getEnv("GRIB_TEMP_PARAM", "2t"),
+		GribStep:        getEnvInt("GRIB_STEP", 8),
+		GribBBox:        getEnv("GRIB_BBOX", "19,59,32,71"),
+		GribInterval:    time.Duration(getEnvInt("GRIB_INTERVAL_MINUTES", 60)) * time.Minute,
+		GribFetchEnable: getEnv("GRIB_FETCH_ENABLE", "") == "1",
 	}
 }
 

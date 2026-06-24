@@ -51,6 +51,15 @@ type WMSTileFetcher interface {
 	FetchWMSTile(ctx context.Context, req WMSTileRequest) ([]byte, error)
 }
 
+// GribTemperatureSource reads a gridded temperature field (as Celsius samples)
+// over a bbox from the gribsvc service, for the map temperature overlay. A zero
+// `at` selects the field's first/earliest message; a non-zero `at` requests
+// that hour. An empty result with a nil error is a soft miss (file/field not
+// available yet) and the caller falls back to its station source. Optional.
+type GribTemperatureSource interface {
+	TemperatureSamples(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) ([]TemperatureSample, time.Time, error)
+}
+
 // WMSTileRequest is the request shape passed to a WMSTileFetcher.
 //
 // BBox is in lon/lat degrees (WGS84). The fetcher is responsible for
@@ -82,6 +91,9 @@ type Service struct {
 	precipFcstLayer string
 	precipStyle     string
 
+	gribTemp      GribTemperatureSource
+	gribTempCache *Cache[[]TemperatureSample]
+
 	gridBackfillMu         sync.Mutex
 	gridBackfillInProgress bool
 	gridBackfillLastRun    time.Time
@@ -99,7 +111,15 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 		uvCache:          NewCache[[]UVDataPoint](forecastCacheTTL),
 		precipCache:      NewCache[*PrecipitationOverlay](30 * time.Minute),
 		leaderboardCache: NewCache[[]LeaderboardEntry](5 * time.Minute),
+		gribTempCache:    NewCache[[]TemperatureSample](10 * time.Minute),
 	}
+}
+
+// SetGribTemperatureSource configures the GRIB-backed temperature field used
+// for the map overlay samples. A nil source (the default) keeps the overlay on
+// the station-interpolation path.
+func (s *Service) SetGribTemperatureSource(src GribTemperatureSource) {
+	s.gribTemp = src
 }
 
 // SetPrecipitationLayers configures the WMS layer names used for the
@@ -185,16 +205,33 @@ func (s *Service) GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*T
 	)
 	switch {
 	case at.IsZero():
-		samples, err = s.store.GetLatestTemperatureSamplesInBBox(ctx, minLon, minLat, maxLon, maxLat, 350)
+		// Current-time overlay: prefer the dense GRIB field, fall back to the
+		// station interpolation if GRIB isn't available yet.
+		samples = s.gribTemperatureSamples(ctx, minLon, minLat, maxLon, maxLat, time.Now())
+		if len(samples) == 0 {
+			samples, err = s.store.GetLatestTemperatureSamplesInBBox(ctx, minLon, minLat, maxLon, maxLat, 350)
+		}
 	case !at.After(time.Now()):
+		// Past: GRIB is a forecast field with no history, so use observations.
 		samples, err = s.store.GetObservationSamplesAtTimeInBBox(ctx, minLon, minLat, maxLon, maxLat, at, 350)
 	default:
-		samples, err = s.store.GetHourlyForecastSamplesAtTimeInBBox(ctx, minLon, minLat, maxLon, maxLat, at, 350)
+		// Future: prefer the GRIB field at that hour, fall back to hourly forecasts.
+		samples = s.gribTemperatureSamples(ctx, minLon, minLat, maxLon, maxLat, at)
+		if len(samples) == 0 {
+			samples, err = s.store.GetHourlyForecastSamplesAtTimeInBBox(ctx, minLon, minLat, maxLon, maxLat, at, 350)
+		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("temperature samples: %w", err)
 	}
 
+	// TODO(grib): remove this station forecast fan-out once the GRIB overlay is
+	// validated end to end. GRIB now supplies the dense future field directly,
+	// so this only fires when GRIB is unavailable and is the ~200-request burst
+	// we built the GRIB service to eliminate. Removing it means dropping
+	// triggerForecastGridBackfill / runForecastGridFetch / PrewarmForecastGrid /
+	// RunForecastGridPrewarmLoop and the future station fallback below.
+	//
 	// Trigger backfill before the min-samples gate so the empty/sparse case
 	// (0-2 forecast rows) still kicks off a fan-out instead of returning 502
 	// with no recovery scheduled. Skip when `at` is beyond the horizon — the
@@ -488,6 +525,34 @@ func (s *Service) getHourlyForecast(ctx context.Context, gridLat, gridLon float6
 	}
 	s.hourlyCache.Set(cacheKey, hourly)
 	return hourly, nil
+}
+
+// gribTemperatureSamples returns the GRIB temperature field over the bbox at the
+// hour containing `at`, as Celsius samples. Results are cached per hour. Returns
+// nil when GRIB is unconfigured, the field isn't available yet, or the call
+// fails — callers fall back to their station-based source.
+func (s *Service) gribTemperatureSamples(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) []TemperatureSample {
+	if s.gribTemp == nil {
+		return nil
+	}
+
+	hour := at.UTC().Truncate(time.Hour)
+	cacheKey := fmt.Sprintf("gribtemp:%s", hour.Format(time.RFC3339))
+	if cached, ok := s.gribTempCache.Get(cacheKey); ok {
+		return cached
+	}
+
+	samples, _, err := s.gribTemp.TemperatureSamples(ctx, minLon, minLat, maxLon, maxLat, hour)
+	if err != nil {
+		slog.Warn("grib temperature samples failed", "err", err, "at", hour)
+		return nil
+	}
+	if len(samples) == 0 {
+		return nil
+	}
+
+	s.gribTempCache.Set(cacheKey, samples)
+	return samples
 }
 
 func snapToGrid(lat, lon float64) (float64, float64) {

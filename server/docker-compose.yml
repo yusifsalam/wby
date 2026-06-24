@@ -16,6 +16,29 @@ services:
       timeout: 3s
       retries: 5
 
+  gribsvc:
+    build: ../gribsvc
+    environment:
+      GRIB_DATA_DIR: /data
+      PORT: "9090"
+    volumes:
+      - gribdata:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(''http://localhost:9090/health'').status==200 else 1)"',
+        ]
+      # Probe rapidly only until first healthy (clears the server's depends_on
+      # gate fast), then settle to an infrequent steady-state check — nothing
+      # reacts to gribsvc going unhealthy after startup, so this is just a
+      # liveness signal.
+      start_period: 15s
+      start_interval: 2s
+      interval: 30m
+      timeout: 3s
+      retries: 3
+
   server:
     build: .
     ports:
@@ -26,10 +49,18 @@ services:
       FMI_BASE_URL: "${FMI_BASE_URL:-https://opendata.fmi.fi/wfs}"
       FMI_API_KEY: "${FMI_API_KEY:-}"
       FMI_TIMESERIES_URL: "${FMI_TIMESERIES_URL:-https://data.fmi.fi}"
+      FMI_DOWNLOAD_URL: "${FMI_DOWNLOAD_URL:-https://opendata.fmi.fi/download}"
+      GRIBSVC_URL: "${GRIBSVC_URL:-http://gribsvc:9090}"
+      GRIB_DATA_DIR: /data
+      GRIB_FETCH_ENABLE: "${GRIB_FETCH_ENABLE:-}"
       CLIENT_SECRETS: "${CLIENT_SECRETS:?CLIENT_SECRETS must be set}"
       REQUEST_SIGNATURE_MAX_AGE_SECONDS: "${REQUEST_SIGNATURE_MAX_AGE_SECONDS:-300}"
+    volumes:
+      - gribdata:/data
     depends_on:
       db:
+        condition: service_healthy
+      gribsvc:
         condition: service_healthy
 
   caddy:
@@ -51,5 +82,6 @@ services:
 
 volumes:
   pgdata:
+  gribdata:
   caddy_data:
   caddy_config:

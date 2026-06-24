@@ -53,3 +53,4 @@ ios/wby/config/Keys.Release.plist
 
 .claude/
 server/server
+server/docker-compose.override.yml

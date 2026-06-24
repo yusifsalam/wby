@@ -13,6 +13,7 @@ import (
 	"wby/internal/config"
 	"wby/internal/fetcher"
 	"wby/internal/fmi"
+	"wby/internal/grib"
 	"wby/internal/store"
 	"wby/internal/weather"
 )
@@ -35,14 +36,24 @@ func main() {
 	}
 	defer db.Close()
 
-	fmiClient := fmi.NewClientWithWMS(cfg.FMIBaseURL, cfg.FMIAPIKey, cfg.FMITimeseriesURL, cfg.FMIWMSBaseURL)
+	fmiClient := fmi.NewClientWithWMS(cfg.FMIBaseURL, cfg.FMIAPIKey, cfg.FMITimeseriesURL, cfg.FMIWMSBaseURL, cfg.FMIDownloadURL)
 
 	svc := weather.NewService(db, fmiClient, 10*time.Minute)
 	svc.SetPrecipitationLayers(cfg.FMIPrecipObsLayer, cfg.FMIPrecipFcstLayer)
 	svc.SetPrecipitationStyle(cfg.FMIPrecipStyle)
+	svc.SetGribTemperatureSource(grib.New(cfg.GribsvcURL, cfg.GribFilename, cfg.GribTempParam, cfg.GribStep))
 
 	f := fetcher.New(fmiClient, db)
 	go f.RunObservationLoop(ctx, 10*time.Minute)
+	if cfg.GribFetchEnable {
+		go f.RunGribLoop(ctx, fetcher.GribJob{
+			DataDir:  cfg.GRIBDataDir,
+			Filename: cfg.GribFilename,
+			Producer: cfg.GribProducer,
+			Params:   cfg.GribParams,
+			BBox:     cfg.GribBBox,
+		}, cfg.GribInterval)
+	}
 	// Disabled: bursts ~200 FMI WFS requests every 30min and on every restart,
 	// which gets the server's IP rate-limited and starves the observation fetcher.
 	// Re-enable only with bounded concurrency, jitter, and FMI error backoff.
