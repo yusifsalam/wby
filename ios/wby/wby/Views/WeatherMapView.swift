@@ -60,9 +60,9 @@ struct WeatherMapView: View {
                             dismiss()
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 14, weight: .bold))
+                                .font(.system(size: 17, weight: .medium))
                                 .foregroundStyle(.primary)
-                                .frame(width: 36, height: 36)
+                                .frame(width: 50, height: 50)
                                 .glassEffect(in: Circle())
                                 .contentShape(Circle())
                         }
@@ -170,9 +170,9 @@ struct WeatherMapView: View {
             }
         } label: {
             Image(systemName: "square.3.layers.3d")
-                .font(.system(size: 14))
+                .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(.primary)
-                .frame(width: 36, height: 36)
+                .frame(width: 50, height: 50)
                 .glassEffect(in: Circle())
                 .contentShape(Circle())
         }

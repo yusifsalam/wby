@@ -74,7 +74,7 @@ struct LeaderboardView: View {
                     }
                 }
                 .padding()
-                .padding(.top, 44)
+                .padding(.top, 82)
             }
             .scrollBounceBehavior(.always)
             .refreshable {
@@ -86,9 +86,11 @@ struct LeaderboardView: View {
                 HStack {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .bold))
-                            .frame(width: 36, height: 36)
-                            .background(.ultraThinMaterial, in: Circle())
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .frame(width: 50, height: 50)
+                            .glassEffect(in: Circle())
+                            .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Close")
