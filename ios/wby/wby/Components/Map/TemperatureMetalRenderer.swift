@@ -1,9 +1,9 @@
 import Foundation
 import Metal
-import UIKit
 import simd
+import UIKit
 
-private let maxSampleCount = 512
+private let maxSampleCount = 2048
 private let coverageInner: Float = 0.35
 private let coverageOuter: Float = 1.10
 private let baseAlpha: Float = 195.0 / 255.0
@@ -20,7 +20,7 @@ private struct ShaderUniforms {
 }
 
 private struct ShaderSample {
-    var coord: SIMD2<Float>  // lat, lon
+    var coord: SIMD2<Float> // lat, lon
     var temp: Float
     var padding: Float
 }
@@ -83,8 +83,8 @@ final class TemperatureMetalRenderer {
 
         guard let pipeline = try? device.makeRenderPipelineState(descriptor: descriptor),
               let samplesBuffer = device.makeBuffer(
-                length: MemoryLayout<ShaderSample>.stride * maxSampleCount,
-                options: .storageModeShared
+                  length: MemoryLayout<ShaderSample>.stride * maxSampleCount,
+                  options: .storageModeShared
               )
         else { return nil }
 
@@ -102,7 +102,6 @@ final class TemperatureMetalRenderer {
             coverageOuter: coverageOuter,
             baseAlpha: baseAlpha
         )
-
     }
 
     func setSamples(_ samples: [TemperatureSample]) {
@@ -175,17 +174,17 @@ final class TemperatureMetalRenderer {
         )
         guard let provider = CGDataProvider(data: Data(bytes) as CFData),
               let image = CGImage(
-                width: width,
-                height: height,
-                bitsPerComponent: 8,
-                bitsPerPixel: 32,
-                bytesPerRow: bytesPerRow,
-                space: colorSpace,
-                bitmapInfo: bitmapInfo,
-                provider: provider,
-                decode: nil,
-                shouldInterpolate: false,
-                intent: .defaultIntent
+                  width: width,
+                  height: height,
+                  bitsPerComponent: 8,
+                  bitsPerPixel: 32,
+                  bytesPerRow: bytesPerRow,
+                  space: colorSpace,
+                  bitmapInfo: bitmapInfo,
+                  provider: provider,
+                  decode: nil,
+                  shouldInterpolate: false,
+                  intent: .defaultIntent
               )
         else { return nil }
 

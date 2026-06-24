@@ -2,7 +2,7 @@
 using namespace metal;
 
 // Keep in sync with TemperatureMetalRenderer.swift.
-constant uint kMaxSamples = 512;
+constant uint kMaxSamples = 2048;
 
 struct Uniforms {
     float topMercY;
