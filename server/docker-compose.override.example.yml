@@ -1,0 +1,21 @@
+# Local-only overrides (gitignored). Compose auto-merges this on top of
+# docker-compose.yml for `docker compose` runs in this directory.
+#
+# postgis/postgis is published amd64-only; on Apple Silicon use the community
+# multi-arch mirror so Postgres runs natively on arm64 instead of under
+# emulation. Production (amd64 VPS) keeps the official image.
+services:
+  db:
+    image: imresamu/postgis:18-3.6
+
+  # caddy is the production HTTPS proxy; locally we hit the server on :8080
+  # directly. A profile keeps it out of the default `docker compose up`.
+  caddy:
+    profiles: ["disabled"]
+
+  # Publish the containerized gribsvc for local inspection (curl localhost:9091).
+  # Not exposed in prod, where only the server talks to it over the compose
+  # network. 9091 avoids clashing with a host-run gribsvc on 9090.
+  gribsvc:
+    ports:
+      - "9091:9090"
