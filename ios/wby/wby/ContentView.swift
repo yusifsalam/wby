@@ -191,37 +191,39 @@ struct ContentView: View {
     }
 
     private var bottomBar: some View {
-        HStack {
-            circleButton(icon: "map") { showingMap = true }
-                .accessibilityLabel("Map")
+        GlassEffectContainer(spacing: 20) {
+            HStack {
+                circleButton(icon: "map") { showingMap = true }
+                    .accessibilityLabel("Map")
 
-            Spacer()
+                Spacer()
 
-            HStack(spacing: 6) {
-                ForEach(pages) { page in
-                    let isCurrent = page.id == currentPageID
-                    if case .gps = page.location {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 8))
-                            .foregroundStyle(isCurrent ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
-                    } else {
-                        Image(systemName: "circle.fill")
-                            .font(.system(size: 7))
-                            .foregroundStyle(isCurrent ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+                HStack(spacing: 6) {
+                    ForEach(pages) { page in
+                        let isCurrent = page.id == currentPageID
+                        if case .gps = page.location {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(isCurrent ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+                        } else {
+                            Image(systemName: "circle.fill")
+                                .font(.system(size: 7))
+                                .foregroundStyle(isCurrent ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+                        }
                     }
                 }
+                .padding(.horizontal, 22)
+                .padding(.vertical, 18)
+                .glassEffect(in: .capsule)
+
+                Spacer()
+
+                circleButton(icon: "chart.bar.fill") { showingLeaderboard = true }
+                    .accessibilityLabel("Leaderboard")
             }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 18)
-            .glassEffect(in: .capsule)
-
-            Spacer()
-
-            circleButton(icon: "chart.bar.fill") { showingLeaderboard = true }
-                .accessibilityLabel("Leaderboard")
+            .padding(.horizontal, 20)
+            .padding(.bottom, 4)
         }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 4)
     }
 
     private func circleButton(icon: String, action: @escaping () -> Void) -> some View {
@@ -230,7 +232,7 @@ struct ContentView: View {
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(.white)
                 .frame(width: 50, height: 50)
-                .glassEffect(in: .circle)
+                .glassEffect(.regular.interactive(), in: .circle)
         }
     }
 

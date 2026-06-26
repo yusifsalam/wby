@@ -53,59 +53,61 @@ struct WeatherMapView: View {
                 .allowsHitTesting(false)
             }
 
-            VStack {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 17, weight: .medium))
-                                .foregroundStyle(.primary)
-                                .frame(width: 50, height: 50)
-                                .glassEffect(in: Circle())
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Close map")
+            GlassEffectContainer(spacing: 10) {
+                VStack {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Button {
+                                dismiss()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 17, weight: .medium))
+                                    .foregroundStyle(.primary)
+                                    .frame(width: 50, height: 50)
+                                    .glassEffect(.regular.interactive(), in: Circle())
+                                    .contentShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Close map")
 
-                        if viewModel.selectedLayer == .temperature {
-                            TemperatureLegendView()
+                            if viewModel.selectedLayer == .temperature {
+                                TemperatureLegendView()
+                            }
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 10) {
+                            layerMenu
+                            if let meta = viewModel.meta {
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    if let min = meta.minTemp, let max = meta.maxTemp {
+                                        Text("\(Int(min.rounded()))° ... \(Int(max.rounded()))°")
+                                            .font(.caption2.bold())
+                                    }
+                                    if let dataTime = meta.dataTime {
+                                        Text(formatOverlayDataTime(dataTime))
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .padding(10)
+                                .glassEffect(in: RoundedRectangle(cornerRadius: 10))
+                            }
                         }
                     }
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 10) {
-                        layerMenu
-                        if let meta = viewModel.meta {
-                            VStack(alignment: .trailing, spacing: 4) {
-                                if let min = meta.minTemp, let max = meta.maxTemp {
-                                    Text("\(Int(min.rounded()))° ... \(Int(max.rounded()))°")
-                                        .font(.caption2.bold())
-                                }
-                                if let dataTime = meta.dataTime {
-                                    Text(formatOverlayDataTime(dataTime))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .padding(10)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    if viewModel.selectedLayer == .temperature {
+                        HStack {
+                            overlayBackendIndicator
+                            Spacer()
                         }
                     }
-                }
-                Spacer()
-                if viewModel.selectedLayer == .temperature {
-                    HStack {
-                        overlayBackendIndicator
-                        Spacer()
+                    if viewModel.isScrubberVisible {
+                        TimeScrubberView(viewModel: viewModel)
+                            .padding(.top, 8)
                     }
                 }
-                if viewModel.isScrubberVisible {
-                    TimeScrubberView(viewModel: viewModel)
-                        .padding(.top, 8)
-                }
+                .padding()
             }
-            .padding()
         }
         .task {
             applyLayerFromSettings()
@@ -173,7 +175,7 @@ struct WeatherMapView: View {
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(.primary)
                 .frame(width: 50, height: 50)
-                .glassEffect(in: Circle())
+                .glassEffect(.regular.interactive(), in: Circle())
                 .contentShape(Circle())
         }
         .menuStyle(.button)
@@ -192,7 +194,7 @@ struct WeatherMapView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(.ultraThinMaterial, in: Capsule())
+        .glassEffect(in: Capsule())
         .allowsHitTesting(false)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Overlay backend \(viewModel.overlayMode.displayName)")

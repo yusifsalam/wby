@@ -20,11 +20,8 @@ private struct FavoriteWeatherPinBubbleView: View {
                     .frame(maxWidth: .infinity)
             }
             .frame(width: 86, height: 44)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.26), lineWidth: 0.5)
-            }
+            .shadow(color: .black.opacity(0.5), radius: 2, y: 0.5)
+            .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             Circle()
                 .fill(Color(red: 0.21, green: 0.69, blue: 1.0))
@@ -79,11 +76,8 @@ private struct PreviewPinBubbleView: View {
                     .frame(maxWidth: .infinity)
             }
             .frame(width: 160, height: 92)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.26), lineWidth: 0.5)
-            }
+            .shadow(color: .black.opacity(0.5), radius: 2, y: 0.5)
+            .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .onTapGesture {
                 onTap?()
             }

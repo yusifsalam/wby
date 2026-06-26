@@ -89,7 +89,7 @@ struct LeaderboardView: View {
                             .font(.system(size: 17, weight: .medium))
                             .foregroundStyle(.primary)
                             .frame(width: 50, height: 50)
-                            .glassEffect(in: Circle())
+                            .glassEffect(.regular.interactive(), in: Circle())
                             .contentShape(Circle())
                     }
                     .buttonStyle(.plain)

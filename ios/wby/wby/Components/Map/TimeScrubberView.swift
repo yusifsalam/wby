@@ -19,7 +19,7 @@ struct TimeScrubberView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .glassEffect(in: RoundedRectangle(cornerRadius: 14))
     }
 
     private var playPauseButton: some View {
@@ -29,7 +29,7 @@ struct TimeScrubberView: View {
             Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
                 .font(.system(size: 13, weight: .bold))
                 .frame(width: 28, height: 28)
-                .background(.ultraThinMaterial, in: Circle())
+                .background(Color.primary.opacity(0.1), in: Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(viewModel.isPlaying ? "Pause time playback" : "Play time playback")

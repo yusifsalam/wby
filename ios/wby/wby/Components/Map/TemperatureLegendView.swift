@@ -33,7 +33,7 @@ struct TemperatureLegendView: View {
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .glassEffect(in: RoundedRectangle(cornerRadius: 10))
     }
 }
 
