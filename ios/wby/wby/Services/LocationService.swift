@@ -6,7 +6,29 @@ import MapKit
 final class LocationService: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
 
-    var coordinate: CLLocationCoordinate2D?
+    // CLLocationManager delivers a stream of near-identical fixes at
+    // kilometer accuracy. CLLocationCoordinate2D isn't Equatable, so the
+    // @Observable setter can't skip redundant writes — back it with an
+    // Equatable struct so identical fixes don't invalidate observing views.
+    private struct Coordinate: Equatable {
+        var latitude: Double
+        var longitude: Double
+    }
+
+    private var storedCoordinate: Coordinate?
+
+    var coordinate: CLLocationCoordinate2D? {
+        get {
+            storedCoordinate.map {
+                CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
+            }
+        }
+        set {
+            storedCoordinate = newValue.map {
+                Coordinate(latitude: $0.latitude, longitude: $0.longitude)
+            }
+        }
+    }
     var altitudeMeters: Double?
     var placeName: String?
     var error: Error?
