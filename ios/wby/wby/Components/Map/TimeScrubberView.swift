@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TimeScrubberView: View {
-    @ObservedObject var viewModel: WeatherMapViewModel
+    let viewModel: WeatherMapViewModel
     private let timeZone = TimeZone(identifier: "Europe/Helsinki") ?? .current
 
     private var pastSteps: Int { viewModel.scrubberPastSteps }
@@ -130,11 +130,11 @@ struct TimeScrubberView: View {
 }
 
 private struct TimeScrubberPreviewHost: View {
-    @StateObject private var viewModel: WeatherMapViewModel
+    @State private var viewModel: WeatherMapViewModel
 
     init() {
         let weatherService = WeatherService()
-        _viewModel = StateObject(
+        _viewModel = State(
             wrappedValue: WeatherMapViewModel(
                 overlayService: MapOverlayService(weatherService: weatherService),
                 weatherService: weatherService,

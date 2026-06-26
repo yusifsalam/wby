@@ -12,7 +12,7 @@ struct WeatherMapView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(OverlayMode.storageKey) private var overlayModeRawValue = OverlayMode.metal.rawValue
     @AppStorage(MapLayerKind.storageKey) private var layerRawValue = MapLayerKind.temperature.rawValue
-    @StateObject private var viewModel: WeatherMapViewModel
+    @State private var viewModel: WeatherMapViewModel
 
     init(
         locationService: LocationService,
@@ -25,7 +25,7 @@ struct WeatherMapView: View {
         self.favoritesStore = favoritesStore
         self.disableAutoLoad = disableAutoLoad
         self.previewConfig = previewConfig
-        _viewModel = StateObject(
+        _viewModel = State(
             wrappedValue: WeatherMapViewModel(
                 overlayService: MapOverlayService(weatherService: weatherService),
                 weatherService: weatherService,

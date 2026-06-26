@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 struct WeatherMapUIKitBridge: UIViewRepresentable {
-    @ObservedObject var viewModel: WeatherMapViewModel
+    let viewModel: WeatherMapViewModel
 
     func makeCoordinator() -> Coordinator { Coordinator(viewModel: viewModel) }
 

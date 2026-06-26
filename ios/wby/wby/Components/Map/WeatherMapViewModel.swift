@@ -1,4 +1,3 @@
-import Combine
 import CoreLocation
 import MapKit
 import UIKit
@@ -74,12 +73,13 @@ struct OverlaySeed {
 }
 
 @MainActor
-final class WeatherMapViewModel: ObservableObject {
-    @Published var meta: OverlayMeta?
-    @Published var overlayMode: OverlayMode
-    @Published var selectedLayer: MapLayerKind
-    @Published var selectedTime: Date = Date()
-    @Published var isPlaying: Bool = false
+@Observable
+final class WeatherMapViewModel {
+    var meta: OverlayMeta?
+    var overlayMode: OverlayMode
+    var selectedLayer: MapLayerKind
+    var selectedTime: Date = Date()
+    var isPlaying: Bool = false
 
     var scrubberPastSteps: Int { selectedLayer.scrubberPastSteps }
     var scrubberFutureSteps: Int { selectedLayer.scrubberFutureSteps }
@@ -100,37 +100,40 @@ final class WeatherMapViewModel: ObservableObject {
     private let initialOverlaySeed: OverlaySeed?
     private let initialSamples: TemperatureSamplesResponse?
     private let metalRenderer: TemperatureMetalRenderer?
-    private weak var mapView: MKMapView?
-    private var overlayTask: Task<Void, Never>?
-    private var overlayLastFetchedAt: Date?
-    private var samplesTask: Task<Void, Never>?
-    private var samplesLastFetchedAt: Date?
-    private var cachedSamples: TemperatureSamplesResponse?
-    private var samplesByHour: [Date: TemperatureSamplesResponse] = [:]
-    private var inflightSampleHours: Set<Date> = []
-    private var sparseRetriedHours: Set<Date> = []
+    // Internal plumbing — never read by views, so kept out of observation
+    // tracking. This also keeps the nonisolated deinit able to touch the task
+    // handles (tracked properties become main-actor-isolated accessors).
+    @ObservationIgnored private weak var mapView: MKMapView?
+    @ObservationIgnored private var overlayTask: Task<Void, Never>?
+    @ObservationIgnored private var overlayLastFetchedAt: Date?
+    @ObservationIgnored private var samplesTask: Task<Void, Never>?
+    @ObservationIgnored private var samplesLastFetchedAt: Date?
+    @ObservationIgnored private var cachedSamples: TemperatureSamplesResponse?
+    @ObservationIgnored private var samplesByHour: [Date: TemperatureSamplesResponse] = [:]
+    @ObservationIgnored private var inflightSampleHours: Set<Date> = []
+    @ObservationIgnored private var sparseRetriedHours: Set<Date> = []
     // Matches server's ForecastBackfillThreshold (weather/service.go).
     // Below this, the server triggers backfill and shortens its cache window;
     // a retry above this just hits the server's 5 min cache and gets the same
     // payload back.
     private let sparseSampleThreshold: Int = 30
     private let sparseRetryDelay: TimeInterval = 15
-    private var prefetchTask: Task<Void, Never>?
-    private var playbackTask: Task<Void, Never>?
-    private var cachedOverlayImage: TemperatureOverlayImage?
-    private var cachedMetalOverlaySeed: OverlaySeed?
-    private var precipImagesByHour: [Date: PrecipitationOverlayImage] = [:]
-    private var inflightPrecipHours: Set<Date> = []
-    private var precipPrefetchTask: Task<Void, Never>?
-    private var favoriteWeatherCache: [UUID: CachedFavoritePinWeather] = [:]
-    private var favoriteWeatherTasks: [UUID: Task<Void, Never>] = [:]
-    private var previewAnnotation: PreviewPinAnnotation?
-    private var previewWeatherTask: Task<Void, Never>?
-    private var previewGeocodeTask: Task<Void, Never>?
+    @ObservationIgnored private var prefetchTask: Task<Void, Never>?
+    @ObservationIgnored private var playbackTask: Task<Void, Never>?
+    @ObservationIgnored private var cachedOverlayImage: TemperatureOverlayImage?
+    @ObservationIgnored private var cachedMetalOverlaySeed: OverlaySeed?
+    @ObservationIgnored private var precipImagesByHour: [Date: PrecipitationOverlayImage] = [:]
+    @ObservationIgnored private var inflightPrecipHours: Set<Date> = []
+    @ObservationIgnored private var precipPrefetchTask: Task<Void, Never>?
+    @ObservationIgnored private var favoriteWeatherCache: [UUID: CachedFavoritePinWeather] = [:]
+    @ObservationIgnored private var favoriteWeatherTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var previewAnnotation: PreviewPinAnnotation?
+    @ObservationIgnored private var previewWeatherTask: Task<Void, Never>?
+    @ObservationIgnored private var previewGeocodeTask: Task<Void, Never>?
     private let previewHaptic = UIImpactFeedbackGenerator(style: .light)
-    private var favoriteLocations: [FavoriteLocation] = []
-    private var preferredCenter: CLLocationCoordinate2D?
-    private var didCenterOnPreferredLocation = false
+    @ObservationIgnored private var favoriteLocations: [FavoriteLocation] = []
+    @ObservationIgnored private var preferredCenter: CLLocationCoordinate2D?
+    @ObservationIgnored private var didCenterOnPreferredLocation = false
 
     init(
         overlayService: MapOverlayService,
