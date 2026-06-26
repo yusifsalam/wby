@@ -1,6 +1,7 @@
-import CoreLocation
+@preconcurrency import CoreLocation
 import MapKit
 
+@MainActor
 @Observable
 final class LocationService: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
@@ -65,7 +66,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         guard let request = MKReverseGeocodingRequest(location: location) else { return }
         request.getMapItems { [weak self] items, _ in
             guard let mapItem = items?.first else { return }
-            self?.placeName = mapItem.areaName
+            Task { @MainActor in self?.placeName = mapItem.areaName }
         }
     }
 

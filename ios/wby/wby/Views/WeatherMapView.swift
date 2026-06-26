@@ -229,6 +229,7 @@ private enum WeatherMapPreviewFixture {
         )
     }
 
+    @MainActor
     static func makeLocationService() -> LocationService {
         let locationService = LocationService()
         locationService.coordinate = CLLocationCoordinate2D(
