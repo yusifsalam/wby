@@ -1,12 +1,22 @@
 import CoreLocation
 import SwiftUI
 
-struct ContentView: View {
-    private enum PageID: Hashable {
-        case gps
-        case favorite(UUID)
-    }
+private enum PageID: Hashable {
+    case gps
+    case favorite(UUID)
+}
 
+/// Holds per-page scroll offsets, which update on every scroll frame. Keeping
+/// this in an `@Observable` model (rather than `@State` on `ContentView`) means
+/// only the views that read an offset re-evaluate when it changes — the paging
+/// `ScrollView` and its page subtree stay stable during scrolling.
+@MainActor
+@Observable
+private final class PageScrollModel {
+    var offsets: [PageID: CGFloat] = [:]
+}
+
+struct ContentView: View {
     private struct Page: Identifiable, Hashable {
         let id: PageID
         let location: WeatherLocation
@@ -28,7 +38,7 @@ struct ContentView: View {
     @State private var showingLeaderboard = false
     @State private var pendingPageID: PageID? = nil
     @State private var pageBackgrounds: [PageID: PageBackgroundState] = [:]
-    @State private var pageScrollOffsets: [PageID: CGFloat] = [:]
+    @State private var scrollModel = PageScrollModel()
     @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
     private let disableAutoLoad: Bool
     private let initialWeather: WeatherResponse?
@@ -47,18 +57,6 @@ struct ContentView: View {
         pageBackgrounds[currentPageID] ?? PageBackgroundState(scene: .clearDay, precipitation1h: nil, cloudCover: nil)
     }
 
-    private var activeScrollDistance: CGFloat {
-        max(0, pageScrollOffsets[currentPageID] ?? 0)
-    }
-
-    private var activeSunOpacity: Double {
-        let fadeStart: CGFloat = 0
-        let fadeEnd: CGFloat = 140
-        if activeScrollDistance <= fadeStart { return 1 }
-        if activeScrollDistance >= fadeEnd { return 0 }
-        return Double(1 - (activeScrollDistance - fadeStart) / (fadeEnd - fadeStart))
-    }
-
     init(disableAutoLoad: Bool = false, initialWeather: WeatherResponse? = nil) {
         self.disableAutoLoad = disableAutoLoad
         self.initialWeather = initialWeather
@@ -67,8 +65,15 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                rootBackground
-                    .zIndex(0)
+                RootBackgroundView(
+                    scene: activeBackground.scene,
+                    precipitation1h: activeBackground.precipitation1h,
+                    cloudCover: activeBackground.cloudCover,
+                    dynamicEffectsEnabled: dynamicEffectsEnabled,
+                    currentPageID: currentPageID,
+                    scrollModel: scrollModel
+                )
+                .zIndex(0)
 
                 ScrollView(.horizontal) {
                     LazyHStack(spacing: 0) {
@@ -87,7 +92,7 @@ struct ContentView: View {
                                     )
                                 },
                                 onScrollOffsetChange: { offset in
-                                    pageScrollOffsets[page.id] = offset
+                                    scrollModel.offsets[page.id] = offset
                                 }
                             )
                             .containerRelativeFrame(.horizontal)
@@ -113,7 +118,7 @@ struct ContentView: View {
             }
             .onChange(of: pages.map(\.id)) {
                 pageBackgrounds = pageBackgrounds.filter { pageIDs.contains($0.key) }
-                pageScrollOffsets = pageScrollOffsets.filter { pageIDs.contains($0.key) }
+                scrollModel.offsets = scrollModel.offsets.filter { pageIDs.contains($0.key) }
                 if !pageIDs.contains(currentPageID) {
                     currentPageID = .gps
                 }
@@ -229,28 +234,51 @@ struct ContentView: View {
         }
     }
 
-    private var rootBackground: some View {
+}
+
+/// Renders the shared backdrop behind the paging weather views. It owns the
+/// read of the high-frequency scroll offset (via `scrollModel`), so the
+/// scroll-driven sun fade re-evaluates only this view rather than the whole
+/// `ContentView` body.
+private struct RootBackgroundView: View {
+    let scene: WeatherScene
+    let precipitation1h: Double?
+    let cloudCover: Double?
+    let dynamicEffectsEnabled: Bool
+    let currentPageID: PageID
+    let scrollModel: PageScrollModel
+
+    private var sunOpacity: Double {
+        let distance = max(0, scrollModel.offsets[currentPageID] ?? 0)
+        let fadeStart: CGFloat = 0
+        let fadeEnd: CGFloat = 140
+        if distance <= fadeStart { return 1 }
+        if distance >= fadeEnd { return 0 }
+        return Double(1 - (distance - fadeStart) / (fadeEnd - fadeStart))
+    }
+
+    var body: some View {
         ZStack {
             LinearGradient(
-                colors: activeBackground.scene.gradientColors,
+                colors: scene.gradientColors,
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-            .id(activeBackground.scene)
+            .id(scene)
             .transition(.opacity)
 
             if dynamicEffectsEnabled {
                 WeatherBackgroundView(
-                    weatherScene: activeBackground.scene,
-                    precipitation1h: activeBackground.precipitation1h,
-                    cloudCover: activeBackground.cloudCover,
-                    sunOpacity: activeSunOpacity
+                    weatherScene: scene,
+                    precipitation1h: precipitation1h,
+                    cloudCover: cloudCover,
+                    sunOpacity: sunOpacity
                 )
                 .ignoresSafeArea()
             }
         }
-        .animation(.easeInOut(duration: 1.5), value: activeBackground.scene)
+        .animation(.easeInOut(duration: 1.5), value: scene)
     }
 }
 
