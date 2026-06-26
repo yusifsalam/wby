@@ -12,10 +12,6 @@ static float hash21(float2 p) {
     return fract(p.x * p.y);
 }
 
-static float2 hash22(float2 p) {
-    return float2(hash21(p), hash21(p + 13.37));
-}
-
 static float valueNoise(float2 p) {
     float2 i = floor(p);
     float2 f = fract(p);
@@ -153,18 +149,6 @@ static float fbm(float2 p) {
 }
 
 // MARK: - Clouds
-
-// Signed-distance for one cumulus silhouette in local coords (scale 1).
-// Union of five circles arranged as body + two side lobes + two top bumps.
-// `v` is a 0..1 per-cloud variation that nudges the top-bump positions.
-static float cloud_sdf(float2 local, float v) {
-    float d = length(local) - 0.90;
-    d = min(d, length(local - float2(-1.12, -0.08)) - 0.75);
-    d = min(d, length(local - float2( 1.05, -0.04)) - 0.78);
-    d = min(d, length(local - float2(-0.38 + v * 0.22, 0.58)) - 0.55);
-    d = min(d, length(local - float2( 0.42 - v * 0.26, 0.66)) - 0.50);
-    return d;
-}
 
 [[ stitchable ]] half4 wby_clouds(float2 pos, float2 size, float time, float coverage, float4 tint) {
     // Pixel-scale domain: cloud "unit" ~ 190 points. Works across device sizes.
