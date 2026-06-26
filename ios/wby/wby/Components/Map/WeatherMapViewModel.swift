@@ -758,21 +758,15 @@ final class WeatherMapViewModel {
         )
         previewGeocodeTask = Task { [weak self, weak mapView] in
             guard let self else { return }
-            let geocoder = CLGeocoder()
-            let placemarks: [CLPlacemark]
-            do {
-                placemarks = try await geocoder.reverseGeocodeLocation(location)
-            } catch {
-                placemarks = []
+            let mapItems: [MKMapItem]
+            if let request = MKReverseGeocodingRequest(location: location) {
+                mapItems = (try? await request.mapItems) ?? []
+            } else {
+                mapItems = []
             }
             guard let mapView = activePreviewMapView(for: annotation, mapView: mapView) else { return }
 
-            let resolved = placemarks.first.flatMap { placemark in
-                placemark.locality
-                    ?? placemark.subLocality
-                    ?? placemark.administrativeArea
-                    ?? placemark.country
-            }
+            let resolved = mapItems.first?.areaName
             annotation.placeName = resolved ?? formatFallbackPlaceName(annotation.coordinate)
             refreshPreviewView(for: annotation, on: mapView)
         }
