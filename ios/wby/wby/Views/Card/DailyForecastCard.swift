@@ -38,11 +38,18 @@ struct DailyForecastCard: View {
         var calendar = Calendar.current
         calendar.timeZone = timeZone
         if calendar.isDateInToday(date) { return "Today" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE"
+        let formatter = Self.weekdayFormatter
         formatter.timeZone = timeZone
         return formatter.string(from: date)
     }
+
+    // Cached: DateFormatter is expensive to allocate, and dayName runs once per
+    // row on every body pass.
+    private static let weekdayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEE"
+        return f
+    }()
 
     private var symbolName: String {
         SmartSymbol.systemImageName(for: forecast.symbol)

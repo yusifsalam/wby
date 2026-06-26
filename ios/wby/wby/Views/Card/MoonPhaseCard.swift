@@ -6,17 +6,23 @@ struct MoonPhaseCard: View {
     let referenceDate: Date
     let timeZone: TimeZone
 
-    private var data: MoonData {
-        Self.calculateMoonData(
+    // Cached: DateFormatter is expensive to allocate.
+    fileprivate static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "H.mm"
+        return f
+    }()
+
+    var body: some View {
+        // Computed once per body pass — calculateMoonData runs trig and
+        // allocates, so reading it through a computed property (6× here) is wasteful.
+        let data = Self.calculateMoonData(
             date: referenceDate,
             latitude: coordinate.latitude,
             longitude: coordinate.longitude,
             timeZone: timeZone
         )
-    }
-
-    var body: some View {
-        FullCard(
+        return FullCard(
             title: data.phaseName,
             icon: data.sfSymbolName,
             rows: [
@@ -45,8 +51,7 @@ struct MoonPhaseCard: View {
 
         var moonsetText: String {
             guard let moonset else { return "--:--" }
-            let formatter = DateFormatter()
-            formatter.dateFormat = "H.mm"
+            let formatter = MoonPhaseCard.timeFormatter
             formatter.timeZone = timeZone
             return formatter.string(from: moonset)
         }

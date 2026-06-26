@@ -66,11 +66,18 @@ struct HourlyForecastCard: View {
         if calendar.isDate(date, equalTo: Date(), toGranularity: .hour) {
             return "Now"
         }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH"
+        let formatter = Self.hourFormatter
         formatter.timeZone = timeZone
         return formatter.string(from: date)
     }
+
+    // Cached: DateFormatter is expensive to allocate, and hourLabel runs once
+    // per cell on every body pass.
+    private static let hourFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH"
+        return f
+    }()
 
     private func formatTemp(_ temp: Double?) -> String {
         guard let temp else { return "--" }

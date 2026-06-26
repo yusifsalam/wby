@@ -7,18 +7,8 @@ struct SunriseCard: View {
     let elevationMeters: Double?
     let timeZone: TimeZone
 
-    private var sunTimes: (sunrise: Date?, sunset: Date?) {
-        Self.calculateSunTimes(
-            date: referenceDate,
-            latitude: coordinate.latitude,
-            longitude: coordinate.longitude,
-            timeZone: timeZone,
-            elevationMeters: elevationMeters ?? 0
-        )
-    }
-
-    private var progress: CGFloat {
-        guard let sunrise = sunTimes.sunrise, let sunset = sunTimes.sunset else { return 0.5 }
+    private func progress(for times: (sunrise: Date?, sunset: Date?)) -> CGFloat {
+        guard let sunrise = times.sunrise, let sunset = times.sunset else { return 0.5 }
         let total = sunset.timeIntervalSince(sunrise)
         guard total > 0 else { return 0.5 }
         let value = referenceDate.timeIntervalSince(sunrise) / total
@@ -26,17 +16,27 @@ struct SunriseCard: View {
     }
 
     var body: some View {
-        HalfCard(
+        // Computed once per body pass — calculateSunTimes runs the NOAA solve
+        // and allocates a Calendar, so reading it through a computed property
+        // (3× here) is wasteful.
+        let times = Self.calculateSunTimes(
+            date: referenceDate,
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            timeZone: timeZone,
+            elevationMeters: elevationMeters ?? 0
+        )
+        return HalfCard(
             title: "SUNRISE",
             icon: "sunrise",
-            keyValue: timeText(sunTimes.sunrise),
-            description: "Sunset: \(timeText(sunTimes.sunset))"
+            keyValue: timeText(times.sunrise),
+            description: "Sunset: \(timeText(times.sunset))"
         ) {
-            sunCurve
+            sunCurve(progress: progress(for: times))
         }
     }
 
-    private var sunCurve: some View {
+    private func sunCurve(progress: CGFloat) -> some View {
         GeometryReader { geo in
             let width = geo.size.width
             let height = geo.size.height
@@ -94,11 +94,17 @@ struct SunriseCard: View {
 
     private func timeText(_ date: Date?) -> String {
         guard let date else { return "--.--" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "H.mm"
+        let formatter = Self.timeFormatter
         formatter.timeZone = timeZone
         return formatter.string(from: date)
     }
+
+    // Cached: DateFormatter is expensive to allocate.
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "H.mm"
+        return f
+    }()
 
     static func isNight(coordinate: CLLocationCoordinate2D, date: Date, timeZone: TimeZone, elevationMeters: Double) -> Bool {
         let times = calculateSunTimes(
