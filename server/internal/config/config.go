@@ -27,6 +27,7 @@ type Config struct {
 	GribProducer    string
 	GribParams      string
 	GribTempParam   string
+	GribPrecipParam string
 	GribStep        int
 	GribBBox        string
 	GribInterval    time.Duration
@@ -52,8 +53,9 @@ func Load() Config {
 		GRIBDataDir:     getEnv("GRIB_DATA_DIR", "/data"),
 		GribFilename:    getEnv("GRIB_FILENAME", "harmonie_surface.grib2"),
 		GribProducer:    getEnv("GRIB_PRODUCER", "harmonie_scandinavia_surface"),
-		GribParams:      getEnv("GRIB_PARAMS", "temperature"),
+		GribParams:      getEnv("GRIB_PARAMS", "temperature,precipitation1h"),
 		GribTempParam:   getEnv("GRIB_TEMP_PARAM", "2t"),
+		GribPrecipParam: getEnv("GRIB_PRECIP_PARAM", "prate"),
 		GribStep:        getEnvInt("GRIB_STEP", 8),
 		GribBBox:        getEnv("GRIB_BBOX", "19,59,32,71"),
 		GribInterval:    time.Duration(getEnvInt("GRIB_INTERVAL_MINUTES", 60)) * time.Minute,

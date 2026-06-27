@@ -125,6 +125,17 @@ type TemperatureSample struct {
 	ObservedAt  time.Time
 }
 
+// FieldSample is a single gridpoint of a GRIB field in its consumer-facing
+// units (Celsius for temperature, mm/h for precipitation rate). It is the
+// units-agnostic carrier the grib client emits; typed views like
+// TemperatureSample are mapped from it.
+type FieldSample struct {
+	Lat        float64
+	Lon        float64
+	Value      float64
+	ObservedAt time.Time
+}
+
 type TemperatureOverlay struct {
 	PNG      []byte
 	DataTime time.Time

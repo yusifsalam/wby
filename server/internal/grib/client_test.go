@@ -112,3 +112,42 @@ func TestTemperatureSamplesSoftMiss(t *testing.T) {
 		}
 	}
 }
+
+func TestPrecipitationSamplesConvertsRateAndDropsFill(t *testing.T) {
+	// prate is kg m^-2 s^-1; one cell is the FMI fill sentinel (the analysis
+	// step), one is masked. Expect mm/h conversion (x3600) and both gaps gone.
+	const body = `{
+		"param":"prate","units":"kg m**-2 s**-1","valid_time":"2026-06-27T04:00:00Z",
+		"rows":2,"cols":2,
+		"lats":[[60.0,60.0],[60.1,60.1]],
+		"lons":[[24.0,24.1],[24.0,24.1]],
+		"values":[[0.001,9999.0],[null,0.0]]
+	}`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	samples, validTime, err := NewPrecipitation(srv.URL, "harmonie_surface.grib2", "prate", 1).
+		Samples(context.Background(), 19, 59, 32, 71, time.Time{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if validTime.IsZero() {
+		t.Fatal("expected non-zero valid time")
+	}
+	// 4 cells minus the fill (9999) and the masked (null) = 2 samples.
+	if len(samples) != 2 {
+		t.Fatalf("expected 2 samples, got %d", len(samples))
+	}
+	// 0.001 kg m^-2 s^-1 -> 3.6 mm/h.
+	if got := samples[0].Value; math.Abs(got-3.6) > 1e-9 {
+		t.Fatalf("expected 3.6 mm/h, got %v", got)
+	}
+	for _, s := range samples {
+		if s.Value >= fmiMissingValue {
+			t.Fatalf("fill sentinel leaked into samples: %v", s.Value)
+		}
+	}
+}

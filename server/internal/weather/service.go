@@ -60,6 +60,14 @@ type GribTemperatureSource interface {
 	TemperatureSamples(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) ([]TemperatureSample, time.Time, error)
 }
 
+// GribPrecipitationSource reads a gridded precipitation-rate field (as mm/h
+// FieldSamples) over a bbox from the gribsvc service, for the 12h precipitation
+// forecast overlay. Same `at` and soft-miss semantics as GribTemperatureSource.
+// Optional.
+type GribPrecipitationSource interface {
+	Samples(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) ([]FieldSample, time.Time, error)
+}
+
 // WMSTileRequest is the request shape passed to a WMSTileFetcher.
 //
 // BBox is in lon/lat degrees (WGS84). The fetcher is responsible for
@@ -94,6 +102,9 @@ type Service struct {
 	gribTemp      GribTemperatureSource
 	gribTempCache *Cache[[]TemperatureSample]
 
+	gribPrecip      GribPrecipitationSource
+	gribPrecipCache *Cache[*PrecipitationOverlay]
+
 	gridBackfillMu         sync.Mutex
 	gridBackfillInProgress bool
 	gridBackfillLastRun    time.Time
@@ -112,6 +123,7 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 		precipCache:      NewCache[*PrecipitationOverlay](30 * time.Minute),
 		leaderboardCache: NewCache[[]LeaderboardEntry](5 * time.Minute),
 		gribTempCache:    NewCache[[]TemperatureSample](10 * time.Minute),
+		gribPrecipCache:  NewCache[*PrecipitationOverlay](10 * time.Minute),
 	}
 }
 
@@ -120,6 +132,13 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 // the station-interpolation path.
 func (s *Service) SetGribTemperatureSource(src GribTemperatureSource) {
 	s.gribTemp = src
+}
+
+// SetGribPrecipitationSource configures the GRIB-backed precipitation-rate
+// field used for the 12h forecast overlay. A nil source (the default) makes
+// GetPrecipitationForecastOverlay report the feature as disabled.
+func (s *Service) SetGribPrecipitationSource(src GribPrecipitationSource) {
+	s.gribPrecip = src
 }
 
 // SetPrecipitationLayers configures the WMS layer names used for the

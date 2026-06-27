@@ -1,7 +1,8 @@
 // Package grib is a thin HTTP client for the standalone gribsvc service
 // (FastAPI + pygrib), which parses GRIB2 files the Go server downloads into a
-// shared directory. The server uses it to read a gridded temperature field for
-// the map overlay, replacing the sparse station interpolation.
+// shared directory. The server uses it to read a gridded field (temperature, or
+// precipitation rate) for the map overlay, replacing the sparse station
+// interpolation.
 package grib
 
 import (
@@ -21,6 +22,17 @@ import (
 // Celsius the overlay/samples consumers expect.
 const kelvinToCelsius = 273.15
 
+// secondsPerHour converts the FMI precipitation-rate field (prate, kg m^-2 s^-1,
+// instantaneous — confirmed not accumulated, so no de-accumulation is needed)
+// to mm/h: 1 kg m^-2 s^-1 = 1 mm/s = 3600 mm/h.
+const secondsPerHour = 3600
+
+// fmiMissingValue is the sentinel FMI uses for absent gridpoints (e.g. the
+// analysis-step precipitation rate). FMI encodes it as a large number rather
+// than a GRIB bitmap, so gribsvc/pygrib hands it back as a real value instead
+// of null. Raw values at or above this are treated as missing and dropped.
+const fmiMissingValue = 9000.0
+
 // maxRenderSamples bounds how many gridpoints we return. The iOS metal overlay
 // renderer consumes only the first kMaxSamples (2048) samples it's given (and
 // gribsvc returns them south-to-north), so an unbounded grid would render as a
@@ -33,22 +45,55 @@ const maxRenderSamples = 2048
 type Client struct {
 	baseURL    string
 	file       string
-	param      string
+	field      field
 	step       int
 	httpClient *http.Client
 }
 
-// New returns a Client pointed at the given gribsvc base URL (e.g.
-// "http://gribsvc:9090"). file/param select the GRIB message; step subsamples
-// the grid (every Nth point in each axis) to keep the sample count bounded.
+// field describes how to select a GRIB message and convert its raw values into
+// consumer-facing units. The conversion is affine (raw*scale + offset), and raw
+// values at or above missingAbove are dropped as FMI fill (0 disables the gate).
+type field struct {
+	param        string
+	scale        float64
+	offset       float64
+	missingAbove float64
+}
+
+// New returns a Client for the GRIB temperature field (2t, Kelvin), converting
+// to Celsius. baseURL is the gribsvc base URL (e.g. "http://gribsvc:9090");
+// file/param select the GRIB message; step subsamples the grid (every Nth point
+// in each axis) to keep the sample count bounded.
 func New(baseURL, file, param string, step int) *Client {
+	return newClient(baseURL, file, step, field{
+		param:        param,
+		scale:        1,
+		offset:       -kelvinToCelsius,
+		missingAbove: fmiMissingValue,
+	})
+}
+
+// NewPrecipitation returns a Client for the GRIB precipitation-rate field
+// (prate, kg m^-2 s^-1), converting to mm/h. Unlike PrecipitationAmount, this
+// field is instantaneous rather than accumulated, so the per-hour samples need
+// no differencing.
+func NewPrecipitation(baseURL, file, param string, step int) *Client {
+	return newClient(baseURL, file, step, field{
+		param:        param,
+		scale:        secondsPerHour,
+		offset:       0,
+		missingAbove: fmiMissingValue,
+	})
+}
+
+func newClient(baseURL, file string, step int, f field) *Client {
 	if step < 1 {
 		step = 1
 	}
 	return &Client{
 		baseURL: baseURL,
 		file:    file,
-		param:   param,
+		field:   f,
 		step:    step,
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
@@ -78,18 +123,18 @@ type bboxResponse struct {
 	Values    [][]*float64 `json:"values"`
 }
 
-// TemperatureSamples extracts the configured field over the bbox and returns it
-// as Celsius temperature samples, one per (unmasked) gridpoint, plus the field's
-// valid time.
+// Samples extracts the configured field over the bbox and returns it as
+// converted samples (in the field's consumer units), one per gridpoint that is
+// neither masked nor FMI fill, plus the field's valid time.
 //
 // A non-nil at requests that exact hour from the file (RFC3339); a zero at lets
 // gribsvc pick the first matching message. When the file/field isn't available
 // yet (gribsvc 404/422) it returns an empty slice and no error, so the caller
 // can fall back to its station-based source rather than failing the request.
-func (c *Client) TemperatureSamples(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) ([]weather.TemperatureSample, time.Time, error) {
+func (c *Client) Samples(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) ([]weather.FieldSample, time.Time, error) {
 	reqBody := bboxRequest{
 		File:  c.file,
-		Param: c.param,
+		Param: c.field.param,
 		BBox:  bbox{MinLon: minLon, MinLat: minLat, MaxLon: maxLon, MaxLat: maxLat},
 		Step:  c.step,
 	}
@@ -144,22 +189,44 @@ func (c *Client) TemperatureSamples(ctx context.Context, minLon, minLat, maxLon,
 		stride = int(math.Ceil(math.Sqrt(float64(total) / float64(maxRenderSamples))))
 	}
 
-	samples := make([]weather.TemperatureSample, 0)
+	samples := make([]weather.FieldSample, 0)
 	for i := 0; i < rows; i += stride {
 		for j := 0; j < cols && j < len(out.Values[i]); j += stride {
 			v := out.Values[i][j]
 			if v == nil { // masked/NaN gridpoint
 				continue
 			}
+			if c.field.missingAbove > 0 && *v >= c.field.missingAbove { // FMI fill sentinel
+				continue
+			}
 			if i >= len(out.Lats) || j >= len(out.Lats[i]) || i >= len(out.Lons) || j >= len(out.Lons[i]) {
 				continue
 			}
-			samples = append(samples, weather.TemperatureSample{
-				Lat:         out.Lats[i][j],
-				Lon:         out.Lons[i][j],
-				Temperature: *v - kelvinToCelsius,
-				ObservedAt:  validTime,
+			samples = append(samples, weather.FieldSample{
+				Lat:        out.Lats[i][j],
+				Lon:        out.Lons[i][j],
+				Value:      *v*c.field.scale + c.field.offset,
+				ObservedAt: validTime,
 			})
+		}
+	}
+	return samples, validTime, nil
+}
+
+// TemperatureSamples is a typed view of Samples for the temperature overlay,
+// mapping each FieldSample's Celsius value into a TemperatureSample.
+func (c *Client) TemperatureSamples(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) ([]weather.TemperatureSample, time.Time, error) {
+	fields, validTime, err := c.Samples(ctx, minLon, minLat, maxLon, maxLat, at)
+	if err != nil {
+		return nil, validTime, err
+	}
+	samples := make([]weather.TemperatureSample, len(fields))
+	for i, f := range fields {
+		samples[i] = weather.TemperatureSample{
+			Lat:         f.Lat,
+			Lon:         f.Lon,
+			Temperature: f.Value,
+			ObservedAt:  f.ObservedAt,
 		}
 	}
 	return samples, validTime, nil
