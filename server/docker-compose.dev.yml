@@ -38,6 +38,9 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - "4321:4321"
+    # --force replaces a stale .astro/dev.json lock left by a previous container
+    # (its PID is gone but the file persists via the bind mount below).
+    command: npm run dev -- --force
     volumes:
       - ../web:/app
       # Keep the image's installed deps; don't let the bind mount shadow them.
