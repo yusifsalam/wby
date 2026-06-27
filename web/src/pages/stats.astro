@@ -5,7 +5,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { cities } from "../lib/cities";
 import { getLeaderboard } from "../lib/weatherPageData";
 import {
-  cacheControlHeader,
+  pageCacheControl,
   LEADERBOARD_TIMEFRAMES,
   type LeaderboardTimeframe,
 } from "../lib/weatherApi";
@@ -25,7 +25,7 @@ try {
   result = await getLeaderboard(timeframe);
   Astro.response.headers.set(
     "Cache-Control",
-    cacheControlHeader({
+    pageCacheControl({
       ttlSeconds: result.config.ttlSeconds,
       staleSeconds: result.config.staleSeconds,
     }),

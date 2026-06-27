@@ -4,7 +4,7 @@ import WeatherUnavailable from "../components/WeatherUnavailable.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { cities } from "../lib/cities";
 import { getCityWeather } from "../lib/weatherPageData";
-import { cacheControlHeader } from "../lib/weatherApi";
+import { pageCacheControl } from "../lib/weatherApi";
 
 const city = cities[0];
 let result: Awaited<ReturnType<typeof getCityWeather>> | undefined;
@@ -14,7 +14,7 @@ try {
   result = await getCityWeather(city);
   Astro.response.headers.set(
     "Cache-Control",
-    cacheControlHeader({
+    pageCacheControl({
       ttlSeconds: result.config.ttlSeconds,
       staleSeconds: result.config.staleSeconds,
     }),

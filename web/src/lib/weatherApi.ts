@@ -178,6 +178,12 @@ export function cacheControlHeader({
   return `public, max-age=${ttlSeconds}, stale-while-revalidate=${staleSeconds}`;
 }
 
+// In `astro dev` we never want the browser to cache pages, so edits show up on
+// reload. The production build keeps the public stale-while-revalidate policy.
+export function pageCacheControl(policy: { ttlSeconds: number; staleSeconds: number }): string {
+  return import.meta.env.DEV ? "no-store" : cacheControlHeader(policy);
+}
+
 function formatCoordinate(value: number): string {
   return Number.isInteger(value) ? String(value) : String(value);
 }
