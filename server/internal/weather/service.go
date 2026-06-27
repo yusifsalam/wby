@@ -51,13 +51,13 @@ type WMSTileFetcher interface {
 	FetchWMSTile(ctx context.Context, req WMSTileRequest) ([]byte, error)
 }
 
-// GribTemperatureSource reads a gridded temperature field (as Celsius samples)
-// over a bbox from the gribsvc service, for the map temperature overlay. A zero
-// `at` selects the field's first/earliest message; a non-zero `at` requests
-// that hour. An empty result with a nil error is a soft miss (file/field not
-// available yet) and the caller falls back to its station source. Optional.
+// GribTemperatureSource reads a gridded temperature field (as a Celsius
+// FieldGrid) over a bbox from the gribsvc service, for the forecast temperature
+// overlay. A non-zero `at` requests that hour. A nil grid with a nil error is a
+// soft miss (file/field not available yet) and the caller falls back to its
+// station source. Optional.
 type GribTemperatureSource interface {
-	TemperatureSamples(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) ([]TemperatureSample, time.Time, error)
+	Grid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) (*FieldGrid, time.Time, error)
 }
 
 // GribPrecipitationSource reads a gridded precipitation-rate field (as mm/h
@@ -100,7 +100,7 @@ type Service struct {
 	precipStyle     string
 
 	gribTemp      GribTemperatureSource
-	gribTempCache *Cache[[]TemperatureSample]
+	gribGridCache *Cache[*FieldGrid]
 
 	gribPrecip      GribPrecipitationSource
 	gribPrecipCache *Cache[*PrecipitationOverlay]
@@ -122,7 +122,7 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 		uvCache:          NewCache[[]UVDataPoint](forecastCacheTTL),
 		precipCache:      NewCache[*PrecipitationOverlay](30 * time.Minute),
 		leaderboardCache: NewCache[[]LeaderboardEntry](5 * time.Minute),
-		gribTempCache:    NewCache[[]TemperatureSample](10 * time.Minute),
+		gribGridCache:    NewCache[*FieldGrid](10 * time.Minute),
 		gribPrecipCache:  NewCache[*PrecipitationOverlay](10 * time.Minute),
 	}
 }
@@ -218,27 +218,29 @@ func (s *Service) GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*T
 	maxLon := finlandMaxLon + margin
 	maxLat := finlandMaxLat + margin
 
+	// GRIB is a forecast field, so it's used only for future instants. It carries
+	// grid topology, letting the client interpolate with hardware bilinear rather
+	// than point IDW. "now" and past instants come from station observations.
+	if at.After(time.Now()) {
+		if grid := s.gribTemperatureGrid(ctx, minLon, minLat, maxLon, maxLat, at); grid != nil {
+			return temperatureGridResponse(grid), nil
+		}
+	}
+
 	var (
 		samples []TemperatureSample
 		err     error
 	)
 	switch {
 	case at.IsZero():
-		// Current-time overlay: prefer the dense GRIB field, fall back to the
-		// station interpolation if GRIB isn't available yet.
-		samples = s.gribTemperatureSamples(ctx, minLon, minLat, maxLon, maxLat, time.Now())
-		if len(samples) == 0 {
-			samples, err = s.store.GetLatestTemperatureSamplesInBBox(ctx, minLon, minLat, maxLon, maxLat, 350)
-		}
+		// Live "now": latest station observations.
+		samples, err = s.store.GetLatestTemperatureSamplesInBBox(ctx, minLon, minLat, maxLon, maxLat, 350)
 	case !at.After(time.Now()):
-		// Past: GRIB is a forecast field with no history, so use observations.
+		// Past: observations near that instant.
 		samples, err = s.store.GetObservationSamplesAtTimeInBBox(ctx, minLon, minLat, maxLon, maxLat, at, 350)
 	default:
-		// Future: prefer the GRIB field at that hour, fall back to hourly forecasts.
-		samples = s.gribTemperatureSamples(ctx, minLon, minLat, maxLon, maxLat, at)
-		if len(samples) == 0 {
-			samples, err = s.store.GetHourlyForecastSamplesAtTimeInBBox(ctx, minLon, minLat, maxLon, maxLat, at, 350)
-		}
+		// Future GRIB miss — fall back to hourly forecasts.
+		samples, err = s.store.GetHourlyForecastSamplesAtTimeInBBox(ctx, minLon, minLat, maxLon, maxLat, at, 350)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("temperature samples: %w", err)
@@ -546,32 +548,58 @@ func (s *Service) getHourlyForecast(ctx context.Context, gridLat, gridLon float6
 	return hourly, nil
 }
 
-// gribTemperatureSamples returns the GRIB temperature field over the bbox at the
-// hour containing `at`, as Celsius samples. Results are cached per hour. Returns
-// nil when GRIB is unconfigured, the field isn't available yet, or the call
-// fails — callers fall back to their station-based source.
-func (s *Service) gribTemperatureSamples(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) []TemperatureSample {
+// gribTemperatureGrid returns the GRIB temperature raster over the bbox at the
+// hour containing `at`, as a Celsius FieldGrid. Results are cached per hour.
+// Returns nil when GRIB is unconfigured, the field isn't available yet, or the
+// call fails — callers fall back to their station-based source.
+func (s *Service) gribTemperatureGrid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) *FieldGrid {
 	if s.gribTemp == nil {
 		return nil
 	}
 
 	hour := at.UTC().Truncate(time.Hour)
-	cacheKey := fmt.Sprintf("gribtemp:%s", hour.Format(time.RFC3339))
-	if cached, ok := s.gribTempCache.Get(cacheKey); ok {
+	cacheKey := fmt.Sprintf("gribgrid:%s", hour.Format(time.RFC3339))
+	if cached, ok := s.gribGridCache.Get(cacheKey); ok {
 		return cached
 	}
 
-	samples, _, err := s.gribTemp.TemperatureSamples(ctx, minLon, minLat, maxLon, maxLat, hour)
+	grid, _, err := s.gribTemp.Grid(ctx, minLon, minLat, maxLon, maxLat, hour)
 	if err != nil {
-		slog.Warn("grib temperature samples failed", "err", err, "at", hour)
+		slog.Warn("grib temperature grid failed", "err", err, "at", hour)
 		return nil
 	}
-	if len(samples) == 0 {
+	if grid == nil || len(grid.Values) == 0 {
 		return nil
 	}
 
-	s.gribTempCache.Set(cacheKey, samples)
-	return samples
+	s.gribGridCache.Set(cacheKey, grid)
+	return grid
+}
+
+// temperatureGridResponse builds a samples response carrying the dense GRIB
+// raster (Samples left empty; clients use Grid). Min/max are over valid cells.
+func temperatureGridResponse(grid *FieldGrid) *TemperatureSamplesResponse {
+	minTemp, maxTemp := math.Inf(1), math.Inf(-1)
+	for _, v := range grid.Values {
+		if v == nil {
+			continue
+		}
+		if *v < minTemp {
+			minTemp = *v
+		}
+		if *v > maxTemp {
+			maxTemp = *v
+		}
+	}
+	if math.IsInf(minTemp, 1) {
+		minTemp, maxTemp = 0, 0
+	}
+	return &TemperatureSamplesResponse{
+		DataTime: grid.ObservedAt.UTC().Truncate(time.Second),
+		MinTemp:  minTemp,
+		MaxTemp:  maxTemp,
+		Grid:     grid,
+	}
 }
 
 func snapToGrid(lat, lon float64) (float64, float64) {

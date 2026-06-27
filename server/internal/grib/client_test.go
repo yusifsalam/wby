@@ -113,6 +113,53 @@ func TestTemperatureSamplesSoftMiss(t *testing.T) {
 	}
 }
 
+func TestGridFlipsConvertsAndMasks(t *testing.T) {
+	// gribsvc rows are south-to-north (row 0 = lat 60.0). Grid must flip to
+	// north-to-south (row 0 = max lat), convert Kelvin->Celsius, and null the
+	// FMI fill sentinel.
+	const body = `{
+		"param":"2t","units":"K","valid_time":"2026-06-24T16:00:00Z",
+		"rows":2,"cols":2,
+		"lats":[[60.0,60.0],[60.1,60.1]],
+		"lons":[[24.0,24.1],[24.0,24.1]],
+		"values":[[293.15,9999.0],[283.15,300.65]]
+	}`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	grid, _, err := New(srv.URL, "f.grib2", "2t", 1).
+		Grid(context.Background(), 19, 59, 32, 71, time.Time{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if grid == nil {
+		t.Fatal("expected a grid")
+	}
+	if grid.Rows != 2 || grid.Cols != 2 {
+		t.Fatalf("unexpected dims: %dx%d", grid.Rows, grid.Cols)
+	}
+	if grid.MinLat != 60.0 || grid.MaxLat != 60.1 {
+		t.Fatalf("unexpected lat bounds: %v..%v", grid.MinLat, grid.MaxLat)
+	}
+	// Row 0 must now be the northern row (lat 60.1): 283.15K->10C, 300.65K->27.5C.
+	if grid.Values[0] == nil || math.Abs(*grid.Values[0]-10.0) > 1e-6 {
+		t.Fatalf("expected north-west cell 10.0C, got %v", grid.Values[0])
+	}
+	if grid.Values[1] == nil || math.Abs(*grid.Values[1]-27.5) > 1e-6 {
+		t.Fatalf("expected north-east cell 27.5C, got %v", grid.Values[1])
+	}
+	// Southern row (originally row 0): 293.15K->20C, then the fill sentinel -> nil.
+	if grid.Values[2] == nil || math.Abs(*grid.Values[2]-20.0) > 1e-6 {
+		t.Fatalf("expected south-west cell 20.0C, got %v", grid.Values[2])
+	}
+	if grid.Values[3] != nil {
+		t.Fatalf("expected south-east fill cell to be nil, got %v", *grid.Values[3])
+	}
+}
+
 func TestPrecipitationSamplesConvertsRateAndDropsFill(t *testing.T) {
 	// prate is kg m^-2 s^-1; one cell is the FMI fill sentinel (the analysis
 	// step), one is masked. Expect mm/h conversion (x3600) and both gaps gone.

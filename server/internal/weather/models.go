@@ -136,6 +136,24 @@ type FieldSample struct {
 	ObservedAt time.Time
 }
 
+// FieldGrid is a regular lat/lon raster of a GRIB field in consumer units. It
+// preserves the grid topology (unlike FieldSample) so clients can upload it as
+// a texture and interpolate with hardware bilinear instead of point IDW.
+//
+// Values is row-major, north-to-south (row 0 = MaxLat), west-to-east, length
+// Rows*Cols; a nil entry is a masked/missing cell. Min/Max bounds are the actual
+// extents of the (possibly strided) grid, i.e. the centres of the corner cells.
+type FieldGrid struct {
+	Rows       int
+	Cols       int
+	MinLat     float64
+	MaxLat     float64
+	MinLon     float64
+	MaxLon     float64
+	Values     []*float64
+	ObservedAt time.Time
+}
+
 type TemperatureOverlay struct {
 	PNG      []byte
 	DataTime time.Time
@@ -148,6 +166,9 @@ type TemperatureSamplesResponse struct {
 	MinTemp  float64
 	MaxTemp  float64
 	Samples  []TemperatureSample
+	// Grid is set when the field came from the dense GRIB raster; clients
+	// prefer it (texture bilinear) over Samples. Nil for station fallbacks.
+	Grid *FieldGrid
 }
 
 type ClimateNormal struct {

@@ -132,45 +132,9 @@ type bboxResponse struct {
 // yet (gribsvc 404/422) it returns an empty slice and no error, so the caller
 // can fall back to its station-based source rather than failing the request.
 func (c *Client) Samples(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) ([]weather.FieldSample, time.Time, error) {
-	reqBody := bboxRequest{
-		File:  c.file,
-		Param: c.field.param,
-		BBox:  bbox{MinLon: minLon, MinLat: minLat, MaxLon: maxLon, MaxLat: maxLat},
-		Step:  c.step,
-	}
-	if !at.IsZero() {
-		reqBody.Time = at.UTC().Format(time.RFC3339)
-	}
-
-	payload, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("marshal extract request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/grib/extract", bytes.NewReader(payload))
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("build extract request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("call gribsvc extract: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// File or field not available yet — a soft miss, let the caller fall back.
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusUnprocessableEntity {
-		return nil, time.Time{}, nil
-	}
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return nil, time.Time{}, fmt.Errorf("gribsvc extract returned %d: %s", resp.StatusCode, string(body))
-	}
-
-	var out bboxResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, time.Time{}, fmt.Errorf("decode extract response: %w", err)
+	out, ok, err := c.fetchBBox(ctx, minLon, minLat, maxLon, maxLat, at)
+	if err != nil || !ok {
+		return nil, time.Time{}, err
 	}
 
 	validTime, _ := time.Parse(time.RFC3339, out.ValidTime)
@@ -211,6 +175,118 @@ func (c *Client) Samples(ctx context.Context, minLon, minLat, maxLon, maxLat flo
 		}
 	}
 	return samples, validTime, nil
+}
+
+// fetchBBox posts the extract request and decodes the grid. ok is false (with a
+// nil error) on a soft miss — the file/field isn't available yet.
+func (c *Client) fetchBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) (bboxResponse, bool, error) {
+	reqBody := bboxRequest{
+		File:  c.file,
+		Param: c.field.param,
+		BBox:  bbox{MinLon: minLon, MinLat: minLat, MaxLon: maxLon, MaxLat: maxLat},
+		Step:  c.step,
+	}
+	if !at.IsZero() {
+		reqBody.Time = at.UTC().Format(time.RFC3339)
+	}
+
+	payload, err := json.Marshal(reqBody)
+	if err != nil {
+		return bboxResponse{}, false, fmt.Errorf("marshal extract request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/grib/extract", bytes.NewReader(payload))
+	if err != nil {
+		return bboxResponse{}, false, fmt.Errorf("build extract request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return bboxResponse{}, false, fmt.Errorf("call gribsvc extract: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// File or field not available yet — a soft miss, let the caller fall back.
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusUnprocessableEntity {
+		return bboxResponse{}, false, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return bboxResponse{}, false, fmt.Errorf("gribsvc extract returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var out bboxResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return bboxResponse{}, false, fmt.Errorf("decode extract response: %w", err)
+	}
+	return out, true, nil
+}
+
+// Grid extracts the configured field over the bbox as a regular lat/lon raster
+// in consumer units, preserving the grid topology for texture upload. Rows are
+// emitted north-to-south (row 0 = MaxLat) regardless of the gribsvc order. Soft
+// misses (file/field not ready) return a nil grid and nil error.
+func (c *Client) Grid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) (*weather.FieldGrid, time.Time, error) {
+	out, ok, err := c.fetchBBox(ctx, minLon, minLat, maxLon, maxLat, at)
+	if err != nil || !ok {
+		return nil, time.Time{}, err
+	}
+
+	validTime, _ := time.Parse(time.RFC3339, out.ValidTime)
+
+	rows := len(out.Values)
+	if rows == 0 {
+		return nil, validTime, nil
+	}
+	cols := len(out.Values[0])
+	if cols == 0 || len(out.Lats) != rows || len(out.Lons) != rows {
+		return nil, validTime, nil
+	}
+
+	// gribsvc returns rows south-to-north; detect the order from the corner
+	// latitudes and flip if needed so row 0 is the northernmost.
+	northToSouth := out.Lats[0][0] >= out.Lats[rows-1][0]
+
+	values := make([]*float64, 0, rows*cols)
+	for r := 0; r < rows; r++ {
+		src := r
+		if !northToSouth {
+			src = rows - 1 - r
+		}
+		row := out.Values[src]
+		for j := 0; j < cols; j++ {
+			var cell *float64
+			if j < len(row) {
+				if v := row[j]; v != nil && !(c.field.missingAbove > 0 && *v >= c.field.missingAbove) {
+					converted := *v*c.field.scale + c.field.offset
+					cell = &converted
+				}
+			}
+			values = append(values, cell)
+		}
+	}
+
+	minLatV, maxLatV := out.Lats[0][0], out.Lats[0][0]
+	minLonV, maxLonV := out.Lons[0][0], out.Lons[0][0]
+	for r := 0; r < rows; r++ {
+		for j := 0; j < cols && j < len(out.Lats[r]) && j < len(out.Lons[r]); j++ {
+			lat, lon := out.Lats[r][j], out.Lons[r][j]
+			minLatV, maxLatV = math.Min(minLatV, lat), math.Max(maxLatV, lat)
+			minLonV, maxLonV = math.Min(minLonV, lon), math.Max(maxLonV, lon)
+		}
+	}
+
+	return &weather.FieldGrid{
+		Rows:       rows,
+		Cols:       cols,
+		MinLat:     minLatV,
+		MaxLat:     maxLatV,
+		MinLon:     minLonV,
+		MaxLon:     maxLonV,
+		Values:     values,
+		ObservedAt: validTime,
+	}, validTime, nil
 }
 
 // TemperatureSamples is a typed view of Samples for the temperature overlay,

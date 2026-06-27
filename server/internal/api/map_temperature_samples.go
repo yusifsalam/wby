@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"time"
 
@@ -16,6 +17,7 @@ type temperatureSamplesJSON struct {
 	MinTemp  float64                 `json:"min_temp"`
 	MaxTemp  float64                 `json:"max_temp"`
 	Samples  []temperatureSampleJSON `json:"samples"`
+	Grid     *temperatureGridJSON    `json:"grid,omitempty"`
 }
 
 type temperatureSampleJSON struct {
@@ -23,6 +25,19 @@ type temperatureSampleJSON struct {
 	Lon        float64   `json:"lon"`
 	Temp       float64   `json:"temp"`
 	ObservedAt time.Time `json:"observed_at"`
+}
+
+// temperatureGridJSON is the dense GRIB raster the client uploads as a texture:
+// a regular lat/lon grid, row-major north-to-south (row 0 = max_lat),
+// west-to-east, length rows*cols, in Celsius; null = masked.
+type temperatureGridJSON struct {
+	Rows   int        `json:"rows"`
+	Cols   int        `json:"cols"`
+	MinLat float64    `json:"min_lat"`
+	MaxLat float64    `json:"max_lat"`
+	MinLon float64    `json:"min_lon"`
+	MaxLon float64    `json:"max_lon"`
+	Values []*float64 `json:"values"`
 }
 
 func (h *Handler) getTemperatureSamples(w http.ResponseWriter, r *http.Request) {
@@ -83,10 +98,11 @@ func (h *Handler) getTemperatureSamples(w http.ResponseWriter, r *http.Request) 
 	etag := fmt.Sprintf(`"%x"`, digest)
 	w.Header().Set("ETag", etag)
 	switch {
-	case atProvided && at.After(time.Now()) && len(resp.Samples) < weather.ForecastBackfillThreshold:
-		// Sparse future response just scheduled a backfill. Keep the cache
-		// window tight so the next request picks up the denser refill
-		// instead of clients/proxies pinning the sparse payload.
+	case atProvided && at.After(time.Now()) && resp.Grid == nil && len(resp.Samples) < weather.ForecastBackfillThreshold:
+		// Sparse future response (station fallback) just scheduled a backfill.
+		// Keep the cache window tight so the next request picks up the denser
+		// refill instead of clients/proxies pinning the sparse payload. The dense
+		// GRIB grid is never sparse, so it takes the normal future cache below.
 		w.Header().Set("Cache-Control", "public, max-age=15, stale-while-revalidate=60")
 	case atProvided:
 		w.Header().Set("Cache-Control", "public, max-age=300, stale-while-revalidate=900")
@@ -117,5 +133,30 @@ func buildTemperatureSamplesJSON(resp *weather.TemperatureSamplesResponse) tempe
 		MinTemp:  resp.MinTemp,
 		MaxTemp:  resp.MaxTemp,
 		Samples:  samples,
+		Grid:     buildTemperatureGridJSON(resp.Grid),
+	}
+}
+
+func buildTemperatureGridJSON(grid *weather.FieldGrid) *temperatureGridJSON {
+	if grid == nil {
+		return nil
+	}
+	values := make([]*float64, len(grid.Values))
+	for i, v := range grid.Values {
+		if v == nil {
+			continue
+		}
+		// Round to 0.1°C — plenty for an overlay and roughly halves the payload.
+		rounded := math.Round(*v*10) / 10
+		values[i] = &rounded
+	}
+	return &temperatureGridJSON{
+		Rows:   grid.Rows,
+		Cols:   grid.Cols,
+		MinLat: grid.MinLat,
+		MaxLat: grid.MaxLat,
+		MinLon: grid.MinLon,
+		MaxLon: grid.MaxLon,
+		Values: values,
 	}
 }
