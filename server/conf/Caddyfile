@@ -1,3 +1,8 @@
+yourweatherapp.fi {
+    encode gzip zstd
+    reverse_proxy web:4321
+}
+
 api.yourweatherapp.fi {
     encode gzip zstd
     root * /srv

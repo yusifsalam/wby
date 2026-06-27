@@ -1,0 +1,38 @@
+---
+import WeatherDashboard from "../components/WeatherDashboard.astro";
+import WeatherUnavailable from "../components/WeatherUnavailable.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { cities } from "../lib/cities";
+import { getCityWeather } from "../lib/weatherPageData";
+import { cacheControlHeader } from "../lib/weatherApi";
+
+const city = cities[0];
+let result: Awaited<ReturnType<typeof getCityWeather>> | undefined;
+let errorMessage = "";
+
+try {
+  result = await getCityWeather(city);
+  Astro.response.headers.set(
+    "Cache-Control",
+    cacheControlHeader({
+      ttlSeconds: result.config.ttlSeconds,
+      staleSeconds: result.config.staleSeconds,
+    }),
+  );
+} catch (error) {
+  Astro.response.headers.set("Cache-Control", "no-store");
+  errorMessage = error instanceof Error ? error.message : "Weather data is unavailable.";
+}
+---
+
+<BaseLayout title={`WBY · ${city.name}`}>
+  {result ? (
+    <WeatherDashboard city={city} cities={cities} weather={result.weather} />
+  ) : (
+    <WeatherUnavailable
+      cities={cities}
+      title="Weather unavailable"
+      message={errorMessage}
+    />
+  )}
+</BaseLayout>

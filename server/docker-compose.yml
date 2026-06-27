@@ -63,6 +63,19 @@ services:
       gribsvc:
         condition: service_healthy
 
+  web:
+    build: ../web
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "4321"
+      WBY_API_BASE_URL: "http://server:${PORT:-8080}"
+      WBY_API_CLIENT_ID: "${WBY_API_CLIENT_ID:-web}"
+      WBY_API_CLIENT_SECRET: "${WBY_API_CLIENT_SECRET:?WBY_API_CLIENT_SECRET must be set}"
+      WBY_CACHE_TTL_SECONDS: "${WBY_CACHE_TTL_SECONDS:-900}"
+      WBY_CACHE_STALE_SECONDS: "${WBY_CACHE_STALE_SECONDS:-3600}"
+    depends_on:
+      - server
+
   caddy:
     image: caddy:2.11
     restart: unless-stopped
@@ -79,6 +92,7 @@ services:
       - caddy_config:/config
     depends_on:
       - server
+      - web
 
 volumes:
   pgdata:

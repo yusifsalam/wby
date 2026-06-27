@@ -1,0 +1,30 @@
+---
+import type { City } from "../lib/cities";
+
+type Props = {
+  cities: readonly City[];
+  title: string;
+  message: string;
+};
+
+const { cities, title, message } = Astro.props;
+---
+
+<main class="app-shell">
+  <header class="topbar">
+    <a class="brand" href="/weather/helsinki" aria-label="Weather by Yusif">
+      <img src="/wby-weather.svg" alt="" />
+      <span>WBY</span>
+    </a>
+    <nav class="city-nav" aria-label="Cities">
+      {cities.map((city) => (
+        <a href={`/weather/${city.slug}`}>{city.name}</a>
+      ))}
+    </nav>
+  </header>
+  <section class="empty-state">
+    <img src="/wby-weather.svg" alt="" />
+    <h1>{title}</h1>
+    <p>{message}</p>
+  </section>
+</main>

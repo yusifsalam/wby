@@ -2,6 +2,7 @@
 
 Weather app with:
 - Go backend (`server/`) for FMI ingestion + weather API
+- Astro SSR web frontend (`web/`) for cached city weather pages
 - SwiftUI iOS client (`ios/wby/`)
 - Python GRIB2 service (`gribsvc/`) that parses GRIB2 into JSON values + PNG tiles (standalone; not yet wired into the server)
 
@@ -17,6 +18,7 @@ Weather app with:
 - `server/internal/weather/`: service/domain/cache logic
 - `server/migrations/`: DB schema
 - `server/scripts/local-dev.sh`: local macOS bootstrap
+- `web/`: Astro SSR frontend; server-side signs requests to the Go API and caches fixed city pages
 - `ios/wby/wby/`: app code (`Background`, `Components`, `Models`, `Services`, `Views`)
 - `ios/wby/config/`: `Keys.$CONFIGURATION.plist` templates and local key files
 - `gribsvc/`: standalone Python GRIB2 service (FastAPI + pygrib); see `gribsvc/README.md`
@@ -24,6 +26,7 @@ Weather app with:
 ## Prerequisites
 
 - Go (matching `server/go.mod`)
+- Node.js 22.12+ (for Astro)
 - PostgreSQL + PostGIS (local)
 - Xcode (for iOS)
 - macOS with Homebrew (recommended for local DB flow)
@@ -64,6 +67,32 @@ The script sources `server/.env` if present. Env vars you can override:
 | `CLIENT_SECRETS` | (empty) | Comma-separated `client_id:secret` pairs for `/v1/*` request signing |
 | `REQUEST_SIGNATURE_MAX_AGE_SECONDS` | `300` | Allowed timestamp skew for signed requests |
 
+## Web Frontend
+
+The Astro app renders fixed Finnish city pages with server-side calls to the signed Go API. The browser never receives the API signing secret.
+
+```bash
+cd web
+npm install
+WBY_API_CLIENT_ID=web WBY_API_CLIENT_SECRET=dev-secret npm run dev
+```
+
+For local development against the Go API, make sure the backend has a matching signing entry:
+
+```bash
+cd server
+CLIENT_SECRETS=web:dev-secret ./scripts/local-dev.sh up
+```
+
+Useful web commands:
+
+```bash
+cd web
+npm test
+npm run check
+npm run build
+```
+
 Import climate normals after stations are loaded:
 
 ```bash
@@ -77,6 +106,8 @@ go run ./cmd/import-normals
 cd server
 docker compose up --build
 ```
+
+Set `CLIENT_SECRETS` and `WBY_API_CLIENT_SECRET` to matching values, for example `CLIENT_SECRETS=web:dev-secret` and `WBY_API_CLIENT_SECRET=dev-secret`.
 
 ## iOS App
 

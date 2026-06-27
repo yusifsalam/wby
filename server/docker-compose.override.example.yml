@@ -19,3 +19,8 @@ services:
   gribsvc:
     ports:
       - "9091:9090"
+
+  # If caddy is disabled locally, publish Astro directly.
+  web:
+    ports:
+      - "4321:4321"

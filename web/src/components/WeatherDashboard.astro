@@ -1,0 +1,147 @@
+---
+import type { City } from "../lib/cities";
+import type { CacheResult } from "../lib/weatherCache";
+import type { DailyForecast, HourlyForecast, WeatherResponse } from "../lib/weatherApi";
+import {
+  dayLabel,
+  formatMillimeters,
+  formatObservedTime,
+  formatPercent,
+  formatSpeed,
+  formatTemperature,
+  formatVisibility,
+  hourLabel,
+} from "../lib/formatters";
+
+type Props = {
+  city: City;
+  cities: readonly City[];
+  weather: CacheResult<WeatherResponse>;
+};
+
+const { city, cities, weather } = Astro.props;
+const data = weather.data;
+const current = data.current;
+const timeZone = data.timezone || "Europe/Helsinki";
+const hourly = data.hourly_forecast.slice(0, 12);
+const daily = data.daily_forecast.slice(0, 7);
+const lows = daily.map((day) => day.low).filter((value): value is number => value != null);
+const highs = daily.map((day) => day.high).filter((value): value is number => value != null);
+const overallLow = lows.length > 0 ? Math.min(...lows) : 0;
+const overallHigh = highs.length > 0 ? Math.max(...highs) : 1;
+
+const details = [
+  ["Wind", formatSpeed(current.wind_speed)],
+  ["Gust", formatSpeed(current.wind_gust)],
+  ["Humidity", formatPercent(current.humidity)],
+  ["Dew point", formatTemperature(current.dew_point)],
+  ["Pressure", current.pressure == null ? "--" : `${Math.round(current.pressure)} hPa`],
+  ["Precip 1h", formatMillimeters(current.precipitation_1h)],
+  ["Visibility", formatVisibility(current.visibility)],
+  ["Cloud cover", formatPercent(current.cloud_cover)],
+];
+
+function tempRangeStyle(day: DailyForecast): string {
+  const range = Math.max(overallHigh - overallLow, 1);
+  const low = day.low ?? overallLow;
+  const high = day.high ?? overallHigh;
+  const start = Math.max(0, Math.min(100, ((Math.min(low, high) - overallLow) / range) * 100));
+  const width = Math.max(4, Math.min(100 - start, (Math.abs(high - low) / range) * 100));
+  return `--range-start:${start}%;--range-width:${width}%`;
+}
+
+function hourlyMeta(hour: HourlyForecast): string {
+  return [formatSpeed(hour.wind_speed), formatMillimeters(hour.precipitation_1h)]
+    .filter((value) => value !== "--")
+    .join(" · ");
+}
+---
+
+<main class="app-shell">
+  <header class="topbar">
+    <a class="brand" href="/weather/helsinki" aria-label="Weather by Yusif">
+      <img src="/wby-weather.svg" alt="" />
+      <span>WBY</span>
+    </a>
+    <nav class="city-nav" aria-label="Cities">
+      {cities.map((navCity) => (
+        <a href={`/weather/${navCity.slug}`} aria-current={navCity.slug === city.slug ? "page" : undefined}>
+          {navCity.name}
+        </a>
+      ))}
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">{data.station.name} · {data.station.distance_km.toFixed(1)} km</p>
+      <h1>{city.name}</h1>
+      <div class="temperature-line">
+        <span>{formatTemperature(current.temperature)}</span>
+        <small>Feels like {formatTemperature(current.feels_like)}</small>
+      </div>
+      <p class="meta-line">
+        Observed {formatObservedTime(current.observed_at, timeZone)}
+        {weather.state === "stale" ? " · cached data refreshing" : ""}
+      </p>
+    </div>
+    <div class="hero-mark" aria-hidden="true">
+      <img src="/wby-weather.svg" alt="" />
+    </div>
+  </section>
+
+  {hourly.length > 0 && (
+    <section class="panel">
+      <div class="section-heading">
+        <h2>Hourly</h2>
+        <span>{timeZone}</span>
+      </div>
+      <div class="hourly-strip">
+        {hourly.map((hour) => (
+          <article class="hour-cell">
+            <time datetime={hour.time}>{hourLabel(hour.time, timeZone)}</time>
+            <strong>{formatTemperature(hour.temperature)}</strong>
+            <span>{hourlyMeta(hour) || "--"}</span>
+          </article>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <section class="content-grid">
+    {daily.length > 0 && (
+      <section class="panel forecast-panel">
+        <div class="section-heading">
+          <h2>Forecast</h2>
+          <span>{daily.length} days</span>
+        </div>
+        <div class="daily-list">
+          {daily.map((day) => (
+            <article class="daily-row">
+              <time datetime={day.date}>{dayLabel(day.date, timeZone)}</time>
+              <span class="low">{formatTemperature(day.low)}</span>
+              <span class="temp-range" style={tempRangeStyle(day)}></span>
+              <span class="high">{formatTemperature(day.high)}</span>
+              <span class="rain">{formatMillimeters(day.precipitation_mm ?? day.precipitation_1h_sum)}</span>
+            </article>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <section class="panel conditions-panel">
+      <div class="section-heading">
+        <h2>Conditions</h2>
+        <span>Latest</span>
+      </div>
+      <dl class="conditions-grid">
+        {details.map(([label, value]) => (
+          <div>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  </section>
+</main>
