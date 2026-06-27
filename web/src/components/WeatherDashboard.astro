@@ -1,6 +1,7 @@
 ---
 import type { City } from "../lib/cities";
 import type { CacheResult } from "../lib/weatherCache";
+import TopBar from "./TopBar.astro";
 import type { DailyForecast, HourlyForecast, WeatherResponse } from "../lib/weatherApi";
 import {
   dayLabel,
@@ -58,30 +59,7 @@ function hourlyMeta(hour: HourlyForecast): string {
 ---
 
 <main class="mx-auto w-[min(1180px,100%)] p-6 max-[820px]:p-4">
-  <header class="grid grid-cols-[auto_1fr] items-center gap-5 pt-2.5 pb-[22px] max-[820px]:grid-cols-1">
-    <a
-      class="inline-flex items-center gap-[9px] font-extrabold tracking-[0.08em]"
-      href="/weather/helsinki"
-      aria-label="Weather by Yusif"
-    >
-      <img class="h-9 w-9" src="/wby-weather.svg" alt="" />
-      <span>WBY</span>
-    </a>
-    <nav
-      class="flex justify-end gap-1.5 overflow-x-auto py-1 max-[820px]:justify-start"
-      aria-label="Cities"
-    >
-      {cities.map((navCity) => (
-        <a
-          class="flex-none rounded-lg border border-transparent px-2.5 py-2 text-[0.9rem] font-[650] text-muted hover:border-line hover:bg-surface hover:text-ink aria-[current=page]:border-line aria-[current=page]:bg-surface aria-[current=page]:text-ink"
-          href={`/weather/${navCity.slug}`}
-          aria-current={navCity.slug === city.slug ? "page" : undefined}
-        >
-          {navCity.name}
-        </a>
-      ))}
-    </nav>
-  </header>
+  <TopBar cities={cities} activeSlug={city.slug} />
 
   <section class="hero-gradient mb-[18px] grid min-h-[310px] grid-cols-[minmax(0,1fr)_minmax(120px,260px)] items-center gap-7 rounded-lg border border-line p-[clamp(22px,5vw,48px)] shadow-hero max-[820px]:min-h-fit max-[820px]:grid-cols-1">
     <div>
@@ -102,7 +80,7 @@ function hourlyMeta(hour: HourlyForecast): string {
   </section>
 
   {hourly.length > 0 && (
-    <section class="rounded-lg border border-line bg-white/92 shadow-panel">
+    <section class="rounded-lg border border-line bg-surface/92 shadow-panel">
       <div class="flex items-center justify-between gap-4 px-[18px] pt-4">
         <h2 class="text-base font-bold">Hourly</h2>
         <span class="text-muted">{timeZone}</span>
@@ -121,7 +99,7 @@ function hourlyMeta(hour: HourlyForecast): string {
 
   <section class="mt-[18px] grid grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)] gap-[18px] max-[820px]:grid-cols-1">
     {daily.length > 0 && (
-      <section class="rounded-lg border border-line bg-white/92 shadow-panel">
+      <section class="rounded-lg border border-line bg-surface/92 shadow-panel">
         <div class="flex items-center justify-between gap-4 px-[18px] pt-4">
           <h2 class="text-base font-bold">Forecast</h2>
           <span class="text-muted">{daily.length} days</span>
@@ -140,7 +118,7 @@ function hourlyMeta(hour: HourlyForecast): string {
       </section>
     )}
 
-    <section class="rounded-lg border border-line bg-white/92 shadow-panel">
+    <section class="rounded-lg border border-line bg-surface/92 shadow-panel">
       <div class="flex items-center justify-between gap-4 px-[18px] pt-4">
         <h2 class="text-base font-bold">Conditions</h2>
         <span class="text-muted">Latest</span>

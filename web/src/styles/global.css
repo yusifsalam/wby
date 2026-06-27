@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: the .dark class on <html> is set by the inline script
+   in BaseLayout and toggled by ThemeToggle.astro. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-page: #f6f8fb;
   --color-surface: #ffffff;
@@ -19,10 +23,26 @@
   --shadow-panel: 0 8px 28px rgba(23, 33, 43, 0.06);
 }
 
+/* Dark palette: re-points the design tokens so every token-based utility
+   (bg-surface, text-ink, border-line, …) adapts automatically. */
+:root.dark {
+  --color-page: #0e151d;
+  --color-surface: #17212b;
+  --color-surface-strong: #1f2c38;
+  --color-ink: #e7eef4;
+  --color-muted: #93a4b3;
+  --color-line: #2b3a48;
+  --color-teal: #2dd4bf;
+}
+
 @layer base {
   html {
     color-scheme: light;
     background: var(--color-page);
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 
   body {
@@ -44,6 +64,12 @@
       var(--color-surface);
   }
 
+  :root.dark .hero-gradient {
+    background:
+      linear-gradient(120deg, rgba(45, 212, 191, 0.1), rgba(245, 158, 11, 0.08)),
+      var(--color-surface);
+  }
+
   /* Daily high/low bar painted via a positioned pseudo-element driven by
      inline --range-start / --range-width custom properties. */
   .temp-range {
@@ -55,6 +81,10 @@
     background: #dfe8ef;
   }
 
+  :root.dark .temp-range {
+    background: #2a3949;
+  }
+
   .temp-range::after {
     content: "";
     position: absolute;
@@ -62,5 +92,28 @@
     width: var(--range-width);
     border-radius: inherit;
     background: linear-gradient(90deg, var(--color-blue), var(--color-teal), var(--color-amber), var(--color-coral));
+  }
+
+  /* Theme toggle: show the icon matching the saved setting (data-theme-setting
+     on <html>), defaulting to the auto icon before/without JS. */
+  .theme-icon {
+    display: none;
+  }
+
+  .theme-icon--auto {
+    display: block;
+  }
+
+  [data-theme-setting="light"] .theme-icon--auto,
+  [data-theme-setting="dark"] .theme-icon--auto {
+    display: none;
+  }
+
+  [data-theme-setting="light"] .theme-icon--light {
+    display: block;
+  }
+
+  [data-theme-setting="dark"] .theme-icon--dark {
+    display: block;
   }
 }
