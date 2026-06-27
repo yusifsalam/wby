@@ -17,7 +17,7 @@ type temperatureSamplesJSON struct {
 	MinTemp  float64                 `json:"min_temp"`
 	MaxTemp  float64                 `json:"max_temp"`
 	Samples  []temperatureSampleJSON `json:"samples"`
-	Grid     *temperatureGridJSON    `json:"grid,omitempty"`
+	Grid     *fieldGridJSON          `json:"grid,omitempty"`
 }
 
 type temperatureSampleJSON struct {
@@ -27,10 +27,10 @@ type temperatureSampleJSON struct {
 	ObservedAt time.Time `json:"observed_at"`
 }
 
-// temperatureGridJSON is the dense GRIB raster the client uploads as a texture:
-// a regular lat/lon grid, row-major north-to-south (row 0 = max_lat),
-// west-to-east, length rows*cols, in Celsius; null = masked.
-type temperatureGridJSON struct {
+// fieldGridJSON is a dense GRIB raster the client uploads as a texture: a
+// regular lat/lon grid, row-major north-to-south (row 0 = max_lat), west-to-east,
+// length rows*cols, in the field's units (°C or mm/h); null = masked.
+type fieldGridJSON struct {
 	Rows   int        `json:"rows"`
 	Cols   int        `json:"cols"`
 	MinLat float64    `json:"min_lat"`
@@ -133,11 +133,13 @@ func buildTemperatureSamplesJSON(resp *weather.TemperatureSamplesResponse) tempe
 		MinTemp:  resp.MinTemp,
 		MaxTemp:  resp.MaxTemp,
 		Samples:  samples,
-		Grid:     buildTemperatureGridJSON(resp.Grid),
+		Grid:     buildFieldGridJSON(resp.Grid),
 	}
 }
 
-func buildTemperatureGridJSON(grid *weather.FieldGrid) *temperatureGridJSON {
+// buildFieldGridJSON converts a FieldGrid to its wire form, rounding values to
+// 0.1 — plenty for an overlay and roughly halves the payload.
+func buildFieldGridJSON(grid *weather.FieldGrid) *fieldGridJSON {
 	if grid == nil {
 		return nil
 	}
@@ -146,11 +148,10 @@ func buildTemperatureGridJSON(grid *weather.FieldGrid) *temperatureGridJSON {
 		if v == nil {
 			continue
 		}
-		// Round to 0.1°C — plenty for an overlay and roughly halves the payload.
 		rounded := math.Round(*v*10) / 10
 		values[i] = &rounded
 	}
-	return &temperatureGridJSON{
+	return &fieldGridJSON{
 		Rows:   grid.Rows,
 		Cols:   grid.Cols,
 		MinLat: grid.MinLat,

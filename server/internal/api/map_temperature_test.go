@@ -112,7 +112,7 @@ func (f fakeWeatherService) GetPrecipitationOverlay(ctx context.Context, req wea
 	panic("not used in this test")
 }
 
-func (f fakeWeatherService) GetPrecipitationForecastOverlay(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationOverlay, error) {
+func (f fakeWeatherService) GetPrecipitationForecastGrid(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationForecastGrid, error) {
 	panic("not used in this test")
 }
 

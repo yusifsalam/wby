@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -96,7 +97,14 @@ func (h *Handler) getPrecipitationOverlay(w http.ResponseWriter, r *http.Request
 	_, _ = w.Write(overlay.PNG)
 }
 
-func (h *Handler) getPrecipitationForecastOverlay(w http.ResponseWriter, r *http.Request) {
+type precipitationForecastJSON struct {
+	DataTime time.Time      `json:"data_time"`
+	Min      float64        `json:"min"`
+	Max      float64        `json:"max"`
+	Grid     *fieldGridJSON `json:"grid,omitempty"`
+}
+
+func (h *Handler) getPrecipitationForecastGrid(w http.ResponseWriter, r *http.Request) {
 	started := time.Now()
 	base, err := parseMapTemperatureRequest(r)
 	if err != nil {
@@ -125,16 +133,14 @@ func (h *Handler) getPrecipitationForecastOverlay(w http.ResponseWriter, r *http
 			"duration_ms", time.Since(started).Milliseconds(),
 			"target", target.UTC().Format(time.RFC3339),
 			"bbox", formatOverlayBBox(base),
-			"width", base.Width,
-			"height", base.Height,
 		}
 		if errText != "" {
 			attrs = append(attrs, "err", errText)
 		}
-		slog.Info("precipitation forecast overlay request completed", attrs...)
+		slog.Info("precipitation forecast grid request completed", attrs...)
 	}()
 
-	overlay, err := h.service.GetPrecipitationForecastOverlay(r.Context(), weather.PrecipitationOverlayRequest{
+	result, err := h.service.GetPrecipitationForecastGrid(r.Context(), weather.PrecipitationOverlayRequest{
 		MapOverlayRequest: base,
 		Time:              target,
 	})
@@ -152,17 +158,29 @@ func (h *Handler) getPrecipitationForecastOverlay(w http.ResponseWriter, r *http
 		}
 		status = http.StatusBadGateway
 		errText = err.Error()
-		slog.Error("get precipitation forecast overlay failed", "err", err, "time", target)
-		writeJSONError(w, "overlay unavailable", http.StatusBadGateway)
+		slog.Error("get precipitation forecast grid failed", "err", err, "time", target)
+		writeJSONError(w, "grid unavailable", http.StatusBadGateway)
 		return
 	}
 
-	w.Header().Set("Content-Type", "image/png")
-	w.Header().Set("Cache-Control", "public, max-age=300")
-	w.Header().Set("X-Data-Time", overlay.DataTime.UTC().Format(time.RFC3339))
-	w.Header().Set("X-Layer", overlay.Layer)
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(overlay.PNG)
+	body, err := json.Marshal(precipitationForecastJSON{
+		DataTime: result.DataTime,
+		Min:      result.Min,
+		Max:      result.Max,
+		Grid:     buildFieldGridJSON(result.Grid),
+	})
+	if err != nil {
+		status = http.StatusBadGateway
+		errText = err.Error()
+		slog.Error("marshal precipitation forecast grid failed", "err", err)
+		writeJSONError(w, "grid unavailable", http.StatusBadGateway)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=300, stale-while-revalidate=900")
+	w.Header().Set("X-Data-Time", result.DataTime.UTC().Format(time.RFC3339))
+	w.Write(body)
 }
 
 func formatOverlayBBox(req weather.MapOverlayRequest) string {

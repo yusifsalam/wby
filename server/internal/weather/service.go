@@ -60,12 +60,12 @@ type GribTemperatureSource interface {
 	Grid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) (*FieldGrid, time.Time, error)
 }
 
-// GribPrecipitationSource reads a gridded precipitation-rate field (as mm/h
-// FieldSamples) over a bbox from the gribsvc service, for the 12h precipitation
+// GribPrecipitationSource reads a gridded precipitation-rate field (as a mm/h
+// FieldGrid) over a bbox from the gribsvc service, for the 12h precipitation
 // forecast overlay. Same `at` and soft-miss semantics as GribTemperatureSource.
 // Optional.
 type GribPrecipitationSource interface {
-	Samples(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) ([]FieldSample, time.Time, error)
+	Grid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) (*FieldGrid, time.Time, error)
 }
 
 // WMSTileRequest is the request shape passed to a WMSTileFetcher.
@@ -103,7 +103,7 @@ type Service struct {
 	gribGridCache *Cache[*FieldGrid]
 
 	gribPrecip      GribPrecipitationSource
-	gribPrecipCache *Cache[*PrecipitationOverlay]
+	gribPrecipCache *Cache[*PrecipitationForecastGrid]
 
 	gridBackfillMu         sync.Mutex
 	gridBackfillInProgress bool
@@ -123,7 +123,7 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 		precipCache:      NewCache[*PrecipitationOverlay](30 * time.Minute),
 		leaderboardCache: NewCache[[]LeaderboardEntry](5 * time.Minute),
 		gribGridCache:    NewCache[*FieldGrid](10 * time.Minute),
-		gribPrecipCache:  NewCache[*PrecipitationOverlay](10 * time.Minute),
+		gribPrecipCache:  NewCache[*PrecipitationForecastGrid](10 * time.Minute),
 	}
 }
 
