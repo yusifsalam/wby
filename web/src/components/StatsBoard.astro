@@ -9,6 +9,7 @@ import { LEADERBOARD_TIMEFRAMES } from "../lib/weatherApi";
 import type { CacheResult } from "../lib/weatherCache";
 import { formatRelativeTime } from "../lib/formatters";
 import TopBar from "./TopBar.astro";
+import Footer from "./Footer.astro";
 
 type Props = {
   cities: readonly City[];
@@ -39,7 +40,7 @@ function metaFor(entry: LeaderboardEntry): { title: string; accent: string } {
 ---
 
 <main class="mx-auto w-[min(1180px,100%)] p-6 max-[820px]:p-4">
-  <TopBar cities={cities} activeSlug="stats" />
+  <TopBar activeSlug="stats" />
 
   <section class="hero-gradient mb-[18px] rounded-lg border border-line p-[clamp(22px,5vw,48px)] shadow-hero">
     <h1 class="mb-4 text-[clamp(2.4rem,8vw,5rem)] font-bold leading-[0.95]">Stats</h1>
@@ -84,4 +85,6 @@ function metaFor(entry: LeaderboardEntry): { title: string; accent: string } {
       <p class="text-muted">No leaderboard data for this timeframe.</p>
     </section>
   )}
+
+  <Footer cities={cities} />
 </main>

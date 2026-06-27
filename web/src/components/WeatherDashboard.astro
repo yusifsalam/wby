@@ -2,6 +2,7 @@
 import type { City } from "../lib/cities";
 import type { CacheResult } from "../lib/weatherCache";
 import TopBar from "./TopBar.astro";
+import Footer from "./Footer.astro";
 import type { DailyForecast, HourlyForecast, WeatherResponse } from "../lib/weatherApi";
 import {
   dayLabel,
@@ -59,7 +60,7 @@ function hourlyMeta(hour: HourlyForecast): string {
 ---
 
 <main class="mx-auto w-[min(1180px,100%)] p-6 max-[820px]:p-4">
-  <TopBar cities={cities} activeSlug={city.slug} />
+  <TopBar activeSlug={city.slug} />
 
   <section class="hero-gradient mb-[18px] grid min-h-[310px] grid-cols-[minmax(0,1fr)_minmax(120px,260px)] items-center gap-7 rounded-lg border border-line p-[clamp(22px,5vw,48px)] shadow-hero max-[820px]:min-h-fit max-[820px]:grid-cols-1">
     <div>
@@ -133,4 +134,6 @@ function hourlyMeta(hour: HourlyForecast): string {
       </dl>
     </section>
   </section>
+
+  <Footer cities={cities} activeSlug={city.slug} />
 </main>

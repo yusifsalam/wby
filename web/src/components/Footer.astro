@@ -1,0 +1,24 @@
+---
+import type { City } from "../lib/cities";
+
+type Props = {
+  cities: readonly City[];
+  activeSlug?: string;
+};
+
+const { cities, activeSlug } = Astro.props;
+---
+
+<footer class="mt-8 border-t border-line pt-5 pb-8">
+  <nav class="flex flex-wrap gap-1.5" aria-label="Cities">
+    {cities.map((city) => (
+      <a
+        class="flex-none rounded-lg border border-transparent px-2.5 py-2 text-[0.9rem] font-[650] text-muted hover:border-line hover:bg-surface hover:text-ink aria-[current=page]:border-line aria-[current=page]:bg-surface aria-[current=page]:text-ink"
+        href={`/weather/${city.slug}`}
+        aria-current={city.slug === activeSlug ? "page" : undefined}
+      >
+        {city.name}
+      </a>
+    ))}
+  </nav>
+</footer>
