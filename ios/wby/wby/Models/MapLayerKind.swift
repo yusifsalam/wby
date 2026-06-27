@@ -3,13 +3,15 @@ import Foundation
 enum MapLayerKind: String, CaseIterable {
     case temperature
     case precipitation
+    case precipitation12h
 
     static let storageKey = "weatherMap.layerKind"
 
     var displayName: String {
         switch self {
         case .temperature: return "Temperature"
-        case .precipitation: return "Precipitation"
+        case .precipitation: return "Precipitation 1h"
+        case .precipitation12h: return "Precipitation 12h"
         }
     }
 
@@ -17,6 +19,7 @@ enum MapLayerKind: String, CaseIterable {
         switch self {
         case .temperature: return "thermometer.medium"
         case .precipitation: return "cloud.heavyrain.fill"
+        case .precipitation12h: return "cloud.sun.rain.fill"
         }
     }
 
@@ -24,11 +27,18 @@ enum MapLayerKind: String, CaseIterable {
         self == .temperature
     }
 
+    /// Whether the layer renders server PNG frames keyed by time (precipitation),
+    /// as opposed to the temperature sample/overlay paths.
+    var usesPrecipitationFrames: Bool {
+        self == .precipitation || self == .precipitation12h
+    }
+
     /// How many timeline steps before "now" the scrubber covers.
     var scrubberPastSteps: Int {
         switch self {
         case .temperature: return 6
         case .precipitation: return 12
+        case .precipitation12h: return 0
         }
     }
 
@@ -37,6 +47,7 @@ enum MapLayerKind: String, CaseIterable {
         switch self {
         case .temperature: return 12
         case .precipitation: return 12
+        case .precipitation12h: return 12
         }
     }
 
@@ -45,6 +56,7 @@ enum MapLayerKind: String, CaseIterable {
         switch self {
         case .temperature: return 3600
         case .precipitation: return 300
+        case .precipitation12h: return 3600
         }
     }
 

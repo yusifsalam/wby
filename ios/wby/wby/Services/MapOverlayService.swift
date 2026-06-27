@@ -28,4 +28,18 @@ actor MapOverlayService {
             time: time
         )
     }
+
+    func fetchPrecipitationForecastOverlay(
+        bbox: MapBBox,
+        width: Int,
+        height: Int,
+        time: Date?
+    ) async throws -> PrecipitationOverlayImage {
+        try await weatherService.fetchPrecipitationForecastOverlay(
+            bbox: bbox,
+            width: width,
+            height: height,
+            time: time
+        )
+    }
 }

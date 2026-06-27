@@ -85,7 +85,7 @@ final class WeatherMapViewModel {
     var scrubberFutureSteps: Int { selectedLayer.scrubberFutureSteps }
     var scrubberStepSeconds: TimeInterval { selectedLayer.scrubberStepSeconds }
     var isScrubberVisible: Bool {
-        selectedLayer == .precipitation || (selectedLayer == .temperature && overlayMode == .metal)
+        selectedLayer.usesPrecipitationFrames || (selectedLayer == .temperature && overlayMode == .metal)
     }
 
     private let playbackInterval: TimeInterval = 0.6
@@ -246,6 +246,9 @@ final class WeatherMapViewModel {
         precipPrefetchTask = nil
         inflightSampleHours.removeAll()
         inflightPrecipHours.removeAll()
+        // The two precipitation layers use different step granularities (5min vs
+        // hourly), so their cached frames aren't interchangeable.
+        precipImagesByHour.removeAll()
         selectedLayer = layer
         layer.save()
         // Snap selectedTime back into the new layer's range.
@@ -288,7 +291,7 @@ final class WeatherMapViewModel {
             case .metal:
                 scheduleSamplesRefresh()
             }
-        case .precipitation:
+        case .precipitation, .precipitation12h:
             break
         }
     }
@@ -452,7 +455,7 @@ final class WeatherMapViewModel {
                     await fetchSamples(for: bucket)
                 }
             }
-        case .precipitation:
+        case .precipitation, .precipitation12h:
             precipPrefetchTask?.cancel()
             precipImagesByHour = precipImagesByHour.filter { validBuckets.contains($0.key) }
             precipPrefetchTask = Task { [weak self] in
@@ -481,7 +484,7 @@ final class WeatherMapViewModel {
                 guard let self else { return }
                 await fetchSamples(for: snapped)
             }
-        case .precipitation:
+        case .precipitation, .precipitation12h:
             if let cached = precipImagesByHour[snapped] {
                 applyPrecipFrame(cached)
                 return
@@ -537,18 +540,29 @@ final class WeatherMapViewModel {
         defer { inflightPrecipHours.remove(hour) }
         do {
             let target: Date? = isAtLiveNow(hour) ? nil : hour
-            let response = try await overlayService.fetchPrecipitationOverlay(
-                bbox: .finland,
-                width: overlaySize,
-                height: overlaySize,
-                time: target
-            )
+            let response: PrecipitationOverlayImage
+            switch selectedLayer {
+            case .precipitation12h:
+                response = try await overlayService.fetchPrecipitationForecastOverlay(
+                    bbox: .finland,
+                    width: overlaySize,
+                    height: overlaySize,
+                    time: target
+                )
+            default:
+                response = try await overlayService.fetchPrecipitationOverlay(
+                    bbox: .finland,
+                    width: overlaySize,
+                    height: overlaySize,
+                    time: target
+                )
+            }
             guard !Task.isCancelled else { return }
             precipImagesByHour[hour] = response
             let snappedSelected = snapToStep(selectedTime)
-            if snappedSelected == hour, selectedLayer == .precipitation {
+            if snappedSelected == hour, selectedLayer.usesPrecipitationFrames {
                 applyPrecipFrame(response)
-            } else if selectedLayer == .precipitation,
+            } else if selectedLayer.usesPrecipitationFrames,
                       let mapView,
                       mapView.overlays.compactMap({ $0 as? TemperatureImageOverlay }).isEmpty {
                 // No exact frame for the selected step yet (e.g. it 502'd).
@@ -561,7 +575,7 @@ final class WeatherMapViewModel {
     }
 
     private func applyPrecipFrame(_ response: PrecipitationOverlayImage) {
-        guard selectedLayer == .precipitation else { return }
+        guard selectedLayer.usesPrecipitationFrames else { return }
         guard let mapView, let image = UIImage(data: response.imageData) else { return }
         meta = OverlayMeta(
             dataTime: response.dataTime,
@@ -665,7 +679,7 @@ final class WeatherMapViewModel {
             case .metal:
                 scheduleSamplesRefresh()
             }
-        case .precipitation:
+        case .precipitation, .precipitation12h:
             // Drive the same prefetch that scrubbing uses, ordered closest-to-now,
             // so the visible frame loads first and the rest of the timeline streams in.
             let now = snapToStep(Date())
@@ -702,7 +716,7 @@ final class WeatherMapViewModel {
                     }
                 }
             }
-        case .precipitation:
+        case .precipitation, .precipitation12h:
             let hour = snapToStep(selectedTime)
             if let cached = precipImagesByHour[hour] {
                 applyPrecipFrame(cached)
