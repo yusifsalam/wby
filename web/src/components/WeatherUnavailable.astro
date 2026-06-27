@@ -10,21 +10,33 @@ type Props = {
 const { cities, title, message } = Astro.props;
 ---
 
-<main class="app-shell">
-  <header class="topbar">
-    <a class="brand" href="/weather/helsinki" aria-label="Weather by Yusif">
-      <img src="/wby-weather.svg" alt="" />
+<main class="mx-auto w-[min(1180px,100%)] p-6 max-[820px]:p-4">
+  <header class="grid grid-cols-[auto_1fr] items-center gap-5 pt-2.5 pb-[22px] max-[820px]:grid-cols-1">
+    <a
+      class="inline-flex items-center gap-[9px] font-extrabold tracking-[0.08em]"
+      href="/weather/helsinki"
+      aria-label="Weather by Yusif"
+    >
+      <img class="h-9 w-9" src="/wby-weather.svg" alt="" />
       <span>WBY</span>
     </a>
-    <nav class="city-nav" aria-label="Cities">
+    <nav
+      class="flex justify-end gap-1.5 overflow-x-auto py-1 max-[820px]:justify-start"
+      aria-label="Cities"
+    >
       {cities.map((city) => (
-        <a href={`/weather/${city.slug}`}>{city.name}</a>
+        <a
+          class="flex-none rounded-lg border border-transparent px-2.5 py-2 text-[0.9rem] font-[650] text-muted hover:border-line hover:bg-surface hover:text-ink"
+          href={`/weather/${city.slug}`}
+        >
+          {city.name}
+        </a>
       ))}
     </nav>
   </header>
-  <section class="empty-state">
-    <img src="/wby-weather.svg" alt="" />
-    <h1>{title}</h1>
-    <p>{message}</p>
+  <section class="grid min-h-[420px] justify-items-center gap-3 px-5 py-20 text-center">
+    <img class="h-24 w-24" src="/wby-weather.svg" alt="" />
+    <h1 class="mb-0 text-[clamp(2rem,7vw,4.5rem)] font-bold">{title}</h1>
+    <p class="max-w-[52ch] text-muted">{message}</p>
   </section>
 </main>
