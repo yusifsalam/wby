@@ -1,0 +1,8 @@
+# Astro dev server with HMR for local development. Source is bind-mounted at
+# runtime (see docker-compose.dev.yml); node_modules stays in this image layer.
+# Not used in production.
+FROM node:22-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+CMD ["npm", "run", "dev"]

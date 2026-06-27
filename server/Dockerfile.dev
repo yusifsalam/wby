@@ -1,0 +1,9 @@
+# Live-reload image for local development. Source is bind-mounted at runtime
+# (see docker-compose.dev.yml); air rebuilds and restarts the binary on file
+# change (see .air.toml). Not used in production.
+FROM golang:1.26-alpine
+WORKDIR /app
+RUN go install github.com/air-verse/air@latest
+COPY go.mod go.sum* ./
+RUN go mod download 2>/dev/null || true
+CMD ["air", "-c", ".air.toml"]

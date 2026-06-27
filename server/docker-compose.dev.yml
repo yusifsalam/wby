@@ -1,0 +1,52 @@
+# Development overlay: live-reload for every service on file change.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Invoking with explicit -f bypasses docker-compose.override.yml, so the
+# Apple-Silicon db image and caddy-disable from there are repeated below to keep
+# this a self-contained dev stack. Each app service bind-mounts its source and
+# runs a watcher (air / uvicorn --reload / astro dev) instead of the baked
+# production binary.
+services:
+  db:
+    # Community multi-arch mirror so Postgres runs natively on arm64 Macs.
+    image: imresamu/postgis:18-3.6
+
+  gribsvc:
+    build:
+      context: ../gribsvc
+      dockerfile: Dockerfile.dev
+    ports:
+      - "9091:9090"
+    volumes:
+      - gribdata:/data
+      - ../gribsvc/app:/app/app
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/app
+      - gribdata:/data
+      - go-build-cache:/root/.cache/go-build
+      - go-mod-cache:/go/pkg/mod
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile.dev
+    ports:
+      - "4321:4321"
+    volumes:
+      - ../web:/app
+      # Keep the image's installed deps; don't let the bind mount shadow them.
+      - /app/node_modules
+
+  # Production HTTPS proxy; not needed locally where we hit services directly.
+  caddy:
+    profiles: ["disabled"]
+
+volumes:
+  go-build-cache:
+  go-mod-cache:
