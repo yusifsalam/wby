@@ -72,6 +72,15 @@ struct OverlaySeed {
     let bbox: MapBBox
 }
 
+/// One precipitation timeline frame as a ready-to-apply overlay image. The
+/// 1h (WMS) layer decodes a server PNG; the 12h layer renders the GRIB grid
+/// client-side via the metal renderer.
+private struct PrecipFrame {
+    let image: UIImage
+    let dataTime: Date?
+    let bbox: MapBBox
+}
+
 @MainActor
 @Observable
 final class WeatherMapViewModel {
@@ -122,7 +131,10 @@ final class WeatherMapViewModel {
     @ObservationIgnored private var playbackTask: Task<Void, Never>?
     @ObservationIgnored private var cachedOverlayImage: TemperatureOverlayImage?
     @ObservationIgnored private var cachedMetalOverlaySeed: OverlaySeed?
-    @ObservationIgnored private var precipImagesByHour: [Date: PrecipitationOverlayImage] = [:]
+    @ObservationIgnored private var precipImagesByHour: [Date: PrecipFrame] = [:]
+    // The 12h precip grid is fetched over a slightly padded bbox so the rendered
+    // Finland extent stays strictly inside the grid (no transparent edge strip).
+    private let precipGridBBox = MapBBox(minLon: 18.8, minLat: 58.8, maxLon: 32.2, maxLat: 71.7)
     @ObservationIgnored private var inflightPrecipHours: Set<Date> = []
     @ObservationIgnored private var precipPrefetchTask: Task<Void, Never>?
     @ObservationIgnored private var favoriteWeatherCache: [UUID: CachedFavoritePinWeather] = [:]
@@ -542,49 +554,68 @@ final class WeatherMapViewModel {
         defer { inflightPrecipHours.remove(hour) }
         do {
             let target: Date? = isAtLiveNow(hour) ? nil : hour
-            let response: PrecipitationOverlayImage
+            let frame: PrecipFrame?
             switch selectedLayer {
             case .precipitation12h:
-                response = try await overlayService.fetchPrecipitationForecastOverlay(
-                    bbox: .finland,
-                    width: overlaySize,
-                    height: overlaySize,
-                    time: target
-                )
+                frame = try await loadPrecipForecastFrame(time: target)
             default:
-                response = try await overlayService.fetchPrecipitationOverlay(
-                    bbox: .finland,
-                    width: overlaySize,
-                    height: overlaySize,
-                    time: target
-                )
+                frame = try await loadPrecipNowcastFrame(time: target)
             }
-            guard !Task.isCancelled else { return }
-            precipImagesByHour[hour] = response
+            guard !Task.isCancelled, let frame else { return }
+            precipImagesByHour[hour] = frame
             let snappedSelected = snapToStep(selectedTime)
             if snappedSelected == hour, selectedLayer.usesPrecipitationFrames {
-                applyPrecipFrame(response)
+                applyPrecipFrame(frame)
             } else if selectedLayer.usesPrecipitationFrames,
                       let mapView,
                       mapView.overlays.compactMap({ $0 as? TemperatureImageOverlay }).isEmpty {
                 // No exact frame for the selected step yet (e.g. it 502'd).
                 // Show this frame as a placeholder so the map isn't blank.
-                applyPrecipFrame(response)
+                applyPrecipFrame(frame)
             }
         } catch {
             // Keep previous frames; user can retry by scrubbing.
         }
     }
 
-    private func applyPrecipFrame(_ response: PrecipitationOverlayImage) {
-        guard selectedLayer.usesPrecipitationFrames else { return }
-        guard let mapView, let image = UIImage(data: response.imageData) else { return }
-        meta = OverlayMeta(
-            dataTime: response.dataTime,
-            minTemp: nil,
-            maxTemp: nil
+    // 1h (WMS) nowcast: decode the server PNG into an overlay image.
+    private func loadPrecipNowcastFrame(time: Date?) async throws -> PrecipFrame? {
+        let response = try await overlayService.fetchPrecipitationOverlay(
+            bbox: .finland,
+            width: overlaySize,
+            height: overlaySize,
+            time: time
         )
-        applyOverlay(image: image, bbox: response.bbox, on: mapView)
+        guard let image = UIImage(data: response.imageData) else { return nil }
+        return PrecipFrame(image: image, dataTime: response.dataTime, bbox: response.bbox)
+    }
+
+    // 12h (Harmonie) forecast: fetch the GRIB raster and render it client-side
+    // via texture bilinear, the same path as the temperature grid overlay.
+    private func loadPrecipForecastFrame(time: Date?) async throws -> PrecipFrame? {
+        guard let renderer = metalRenderer else { return nil }
+        let response = try await overlayService.fetchPrecipitationForecastGrid(
+            bbox: precipGridBBox,
+            width: overlaySize,
+            height: overlaySize,
+            time: time
+        )
+        guard let grid = response.grid,
+              renderer.setGrid(grid, field: .precipitation),
+              let image = renderer.renderImage(
+                  bounds: MercatorBounds.finland,
+                  width: overlaySize,
+                  height: overlaySize
+              )
+        else { return nil }
+        return PrecipFrame(image: image, dataTime: response.dataTime, bbox: .finland)
+    }
+
+    private func applyPrecipFrame(_ frame: PrecipFrame) {
+        guard selectedLayer.usesPrecipitationFrames else { return }
+        guard let mapView else { return }
+        meta = OverlayMeta(dataTime: frame.dataTime, minTemp: nil, maxTemp: nil)
+        applyOverlay(image: frame.image, bbox: frame.bbox, on: mapView)
     }
 
     private func applyMetalFrame(from response: TemperatureSamplesResponse) {

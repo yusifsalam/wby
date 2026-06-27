@@ -29,13 +29,13 @@ actor MapOverlayService {
         )
     }
 
-    func fetchPrecipitationForecastOverlay(
+    func fetchPrecipitationForecastGrid(
         bbox: MapBBox,
         width: Int,
         height: Int,
         time: Date?
-    ) async throws -> PrecipitationOverlayImage {
-        try await weatherService.fetchPrecipitationForecastOverlay(
+    ) async throws -> PrecipitationForecastResponse {
+        try await weatherService.fetchPrecipitationForecastGrid(
             bbox: bbox,
             width: width,
             height: height,

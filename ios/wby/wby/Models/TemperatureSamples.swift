@@ -32,9 +32,25 @@ nonisolated struct TemperatureSamplesResponse: Codable, Equatable {
     }
 }
 
-/// A regular lat/lon raster of temperatures (°C). `values` is row-major,
-/// north-to-south (row 0 = `maxLat`), west-to-east, length `rows*cols`; a nil
-/// entry is a masked cell.
+/// Harmonie precipitation-rate forecast raster (mm/h) at one hour, rendered
+/// client-side via texture bilinear. Reuses `TemperatureGrid` for the raster.
+nonisolated struct PrecipitationForecastResponse: Codable, Equatable {
+    let dataTime: Date
+    let min: Double
+    let max: Double
+    let grid: TemperatureGrid?
+
+    enum CodingKeys: String, CodingKey {
+        case dataTime = "data_time"
+        case min
+        case max
+        case grid
+    }
+}
+
+/// A regular lat/lon raster of field values (°C for temperature, mm/h for
+/// precipitation). `values` is row-major, north-to-south (row 0 = `maxLat`),
+/// west-to-east, length `rows*cols`; a nil entry is a masked cell.
 nonisolated struct TemperatureGrid: Codable, Equatable {
     let rows: Int
     let cols: Int

@@ -56,15 +56,23 @@ private enum RenderMode {
     case grid
 }
 
+/// Which field a grid texture holds, selecting the colour ramp / alpha shader.
+enum GridField {
+    case temperature
+    case precipitation
+}
+
 final class TemperatureMetalRenderer {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let pipeline: MTLRenderPipelineState
     private let gridPipeline: MTLRenderPipelineState
+    private let gridPrecipPipeline: MTLRenderPipelineState
     private let samplesBuffer: MTLBuffer
     private var uniforms: ShaderUniforms
     private var sampleCount: Int = 0
     private var mode: RenderMode = .points
+    private var gridField: GridField = .temperature
     private var fieldTexture: MTLTexture?
 
     init?() {
@@ -81,7 +89,8 @@ final class TemperatureMetalRenderer {
 
         guard let vertexFn = library.makeFunction(name: "temperature_vertex"),
               let fragmentFn = library.makeFunction(name: "temperature_fragment"),
-              let gridFragmentFn = library.makeFunction(name: "temperature_grid_fragment")
+              let gridFragmentFn = library.makeFunction(name: "temperature_grid_fragment"),
+              let gridPrecipFragmentFn = library.makeFunction(name: "precipitation_grid_fragment")
         else { return nil }
 
         func makePipeline(fragment: MTLFunction) -> MTLRenderPipelineState? {
@@ -101,6 +110,7 @@ final class TemperatureMetalRenderer {
 
         guard let pipeline = makePipeline(fragment: fragmentFn),
               let gridPipeline = makePipeline(fragment: gridFragmentFn),
+              let gridPrecipPipeline = makePipeline(fragment: gridPrecipFragmentFn),
               let samplesBuffer = device.makeBuffer(
                   length: MemoryLayout<ShaderSample>.stride * maxSampleCount,
                   options: .storageModeShared
@@ -111,6 +121,7 @@ final class TemperatureMetalRenderer {
         self.commandQueue = queue
         self.pipeline = pipeline
         self.gridPipeline = gridPipeline
+        self.gridPrecipPipeline = gridPrecipPipeline
         self.samplesBuffer = samplesBuffer
         self.uniforms = ShaderUniforms(
             topMercY: Float(MercatorBounds.finland.topMercY),
@@ -139,11 +150,12 @@ final class TemperatureMetalRenderer {
         mode = .points
     }
 
-    /// Uploads a regular lat/lon temperature raster as an rg16Float texture
-    /// (r = temp·valid, g = valid) for hardware-bilinear sampling. Returns false
-    /// if the grid is malformed or the texture can't be allocated.
+    /// Uploads a regular lat/lon field raster as an rg16Float texture
+    /// (r = value·valid, g = valid) for hardware-bilinear sampling. `field`
+    /// selects the colour ramp / alpha shader. Returns false if the grid is
+    /// malformed or the texture can't be allocated.
     @discardableResult
-    func setGrid(_ grid: TemperatureGrid) -> Bool {
+    func setGrid(_ grid: TemperatureGrid, field: GridField = .temperature) -> Bool {
         guard grid.rows > 0, grid.cols > 0,
               grid.values.count == grid.rows * grid.cols else { return false }
 
@@ -181,6 +193,7 @@ final class TemperatureMetalRenderer {
         uniforms.gridMaxLon = Float(grid.maxLon)
         uniforms.gridRows = Float(grid.rows)
         uniforms.gridCols = Float(grid.cols)
+        gridField = field
         mode = .grid
         return true
     }
@@ -227,7 +240,7 @@ final class TemperatureMetalRenderer {
             encoder.setFragmentBytes(&uniformsCopy, length: MemoryLayout<ShaderUniforms>.stride, index: 0)
             encoder.setFragmentBuffer(samplesBuffer, offset: 0, index: 1)
         case .grid:
-            encoder.setRenderPipelineState(gridPipeline)
+            encoder.setRenderPipelineState(gridField == .precipitation ? gridPrecipPipeline : gridPipeline)
             encoder.setFragmentBytes(&uniformsCopy, length: MemoryLayout<ShaderUniforms>.stride, index: 0)
             encoder.setFragmentTexture(fieldTexture, index: 0)
         }

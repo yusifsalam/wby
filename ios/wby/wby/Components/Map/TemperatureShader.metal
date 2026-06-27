@@ -138,21 +138,20 @@ fragment float4 temperature_fragment(
     return float4(rgb * alpha, alpha);
 }
 
-// Grid path: the temperature field is a regular lat/lon raster uploaded as an
-// rg16Float texture where r = temp*valid and g = valid. Hardware bilinear gives
-// smooth interpolation with no IDW bull's-eyes; dividing the bilinearly-sampled
-// r by g (normalized convolution) keeps masked cells from bleeding in.
-fragment float4 temperature_grid_fragment(
-    VertexOut in [[stage_in]],
-    constant Uniforms& uniforms [[buffer(0)]],
-    texture2d<float> field      [[texture(0)]]
-) {
+// Grid path: a field is a regular lat/lon raster uploaded as an rg16Float
+// texture where r = value*valid and g = valid. Hardware bilinear gives smooth
+// interpolation with no IDW bull's-eyes; dividing the bilinearly-sampled r by g
+// (normalized convolution) keeps masked cells from bleeding in.
+//
+// sampleField returns (value, weight). weight < 0 means the fragment is outside
+// the grid; weight == 0 means a fully-masked neighbourhood — both discard.
+static float2 sampleField(float2 uv, constant Uniforms& uniforms, texture2d<float> field) {
     constexpr sampler fieldSampler(coord::normalized,
                                    address::clamp_to_edge,
                                    filter::linear);
 
-    float v = 1.0 - in.uv.y;
-    float u = in.uv.x;
+    float v = 1.0 - uv.y;
+    float u = uv.x;
 
     float mercY = mix(uniforms.topMercY, uniforms.botMercY, v);
     float lat = inverseMercatorLat(mercY);
@@ -163,20 +162,85 @@ fragment float4 temperature_grid_fragment(
     float pu = (lon - uniforms.gridMinLon) / (uniforms.gridMaxLon - uniforms.gridMinLon);
     float pv = (uniforms.gridMaxLat - lat) / (uniforms.gridMaxLat - uniforms.gridMinLat);
     if (pu < 0.0 || pu > 1.0 || pv < 0.0 || pv > 1.0) {
-        return float4(0.0);
+        return float2(0.0, -1.0);
     }
     float tu = (pu * (uniforms.gridCols - 1.0) + 0.5) / uniforms.gridCols;
     float tv = (pv * (uniforms.gridRows - 1.0) + 0.5) / uniforms.gridRows;
 
     float2 rg = field.sample(fieldSampler, float2(tu, tv)).rg;
-    float weight = rg.g;
-    if (weight < 0.02) {
+    if (rg.g < 0.02) {
+        return float2(0.0, 0.0);
+    }
+    return float2(rg.r / rg.g, rg.g);
+}
+
+fragment float4 temperature_grid_fragment(
+    VertexOut in [[stage_in]],
+    constant Uniforms& uniforms [[buffer(0)]],
+    texture2d<float> field      [[texture(0)]]
+) {
+    float2 vw = sampleField(in.uv, uniforms, field);
+    float weight = vw.y;
+    if (weight <= 0.0) {
         return float4(0.0);
     }
-    float temp = rg.r / weight;
-    float3 rgb = rampColor(temp);
-
+    float3 rgb = rampColor(vw.x);
     float alpha = uniforms.baseAlpha * smoothstep(0.0, 0.6, clamp(weight, 0.0, 1.0));
+    if (alpha <= 0.0) {
+        return float4(0.0);
+    }
+    return float4(rgb * alpha, alpha);
+}
+
+constant float3 kPrecipStops[8] = {
+    float3(120.0, 180.0, 235.0) / 255.0,
+    float3( 70.0, 110.0, 220.0) / 255.0,
+    float3( 60.0, 180.0, 160.0) / 255.0,
+    float3( 90.0, 200.0,  90.0) / 255.0,
+    float3(235.0, 210.0,  70.0) / 255.0,
+    float3(235.0, 150.0,  60.0) / 255.0,
+    float3(210.0,  50.0,  40.0) / 255.0,
+    float3(180.0,  40.0, 150.0) / 255.0
+};
+
+constant float kPrecipRates[8] = { 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0 };
+
+// Below this mm/h a pixel is dry (transparent); alpha ramps from
+// kPrecipMinAlphaFrac of base up to full at kPrecipOpaque.
+constant float kPrecipDry = 0.1;
+constant float kPrecipOpaque = 1.0;
+constant float kPrecipMinAlphaFrac = 0.45;
+
+static float3 precipRampColor(float rate) {
+    if (rate <= kPrecipRates[0]) { return kPrecipStops[0]; }
+    for (int i = 0; i < 7; ++i) {
+        float a = kPrecipRates[i];
+        float b = kPrecipRates[i + 1];
+        if (rate <= b) {
+            float t = (rate - a) / (b - a);
+            return mix(kPrecipStops[i], kPrecipStops[i + 1], t);
+        }
+    }
+    return kPrecipStops[7];
+}
+
+fragment float4 precipitation_grid_fragment(
+    VertexOut in [[stage_in]],
+    constant Uniforms& uniforms [[buffer(0)]],
+    texture2d<float> field      [[texture(0)]]
+) {
+    float2 vw = sampleField(in.uv, uniforms, field);
+    float weight = vw.y;
+    float rate = vw.x;
+    if (weight <= 0.0 || rate < kPrecipDry) {
+        return float4(0.0);
+    }
+    float3 rgb = precipRampColor(rate);
+    float intensity = rate >= kPrecipOpaque
+        ? 1.0
+        : (rate - kPrecipDry) / (kPrecipOpaque - kPrecipDry);
+    float frac = kPrecipMinAlphaFrac + (1.0 - kPrecipMinAlphaFrac) * intensity;
+    float alpha = uniforms.baseAlpha * clamp(weight, 0.0, 1.0) * frac;
     if (alpha <= 0.0) {
         return float4(0.0);
     }

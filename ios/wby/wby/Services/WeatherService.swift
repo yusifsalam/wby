@@ -106,14 +106,15 @@ actor WeatherService {
         )
     }
 
-    /// Harmonie precipitation-rate forecast overlay (hourly, mm/h), distinct from
-    /// the 5-min WMS nowcast above.
-    func fetchPrecipitationForecastOverlay(
+    /// Harmonie precipitation-rate forecast raster (hourly, mm/h). Unlike the
+    /// 5-min WMS nowcast above, this returns the grid for client-side texture
+    /// rendering, mirroring the temperature forecast grid.
+    func fetchPrecipitationForecastGrid(
         bbox: MapBBox,
         width: Int,
         height: Int,
         time: Date?
-    ) async throws -> PrecipitationOverlayImage {
+    ) async throws -> PrecipitationForecastResponse {
         let bboxValue = [
             Self.coordinateString(bbox.minLon),
             Self.coordinateString(bbox.minLat),
@@ -128,19 +129,10 @@ actor WeatherService {
         if let time {
             queryItems.append(URLQueryItem(name: "time", value: Self.iso8601String(time)))
         }
-        let (data, httpResponse) = try await performRequest(
+        return try await fetchJSON(
             path: "v1/map/precipitation/forecast",
-            queryItems: queryItems
-        )
-
-        let dataTime = httpResponse.value(forHTTPHeaderField: "X-Data-Time").flatMap(Self.parseDate)
-        let layer = httpResponse.value(forHTTPHeaderField: "X-Layer")
-
-        return PrecipitationOverlayImage(
-            imageData: data,
-            bbox: bbox,
-            dataTime: dataTime,
-            layer: layer
+            queryItems: queryItems,
+            dateDecodingStrategy: .iso8601
         )
     }
 
