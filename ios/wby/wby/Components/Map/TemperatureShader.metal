@@ -13,6 +13,14 @@ struct Uniforms {
     float coverageInner;
     float coverageOuter;
     float baseAlpha;
+    // Grid-path only: geographic bounds (cell centres) and dimensions of the
+    // texture field. Ignored by the point-cloud fragment.
+    float gridMinLat;
+    float gridMaxLat;
+    float gridMinLon;
+    float gridMaxLon;
+    float gridRows;
+    float gridCols;
 };
 
 struct Sample {
@@ -127,5 +135,50 @@ fragment float4 temperature_fragment(
         return float4(0.0);
     }
 
+    return float4(rgb * alpha, alpha);
+}
+
+// Grid path: the temperature field is a regular lat/lon raster uploaded as an
+// rg16Float texture where r = temp*valid and g = valid. Hardware bilinear gives
+// smooth interpolation with no IDW bull's-eyes; dividing the bilinearly-sampled
+// r by g (normalized convolution) keeps masked cells from bleeding in.
+fragment float4 temperature_grid_fragment(
+    VertexOut in [[stage_in]],
+    constant Uniforms& uniforms [[buffer(0)]],
+    texture2d<float> field      [[texture(0)]]
+) {
+    constexpr sampler fieldSampler(coord::normalized,
+                                   address::clamp_to_edge,
+                                   filter::linear);
+
+    float v = 1.0 - in.uv.y;
+    float u = in.uv.x;
+
+    float mercY = mix(uniforms.topMercY, uniforms.botMercY, v);
+    float lat = inverseMercatorLat(mercY);
+    float lon = mix(uniforms.leftLon, uniforms.rightLon, u);
+
+    // Position within the grid's cell-centre span, then a half-texel correction
+    // so bilinear aligns to cell centres (row 0 / v=0 is the northern edge).
+    float pu = (lon - uniforms.gridMinLon) / (uniforms.gridMaxLon - uniforms.gridMinLon);
+    float pv = (uniforms.gridMaxLat - lat) / (uniforms.gridMaxLat - uniforms.gridMinLat);
+    if (pu < 0.0 || pu > 1.0 || pv < 0.0 || pv > 1.0) {
+        return float4(0.0);
+    }
+    float tu = (pu * (uniforms.gridCols - 1.0) + 0.5) / uniforms.gridCols;
+    float tv = (pv * (uniforms.gridRows - 1.0) + 0.5) / uniforms.gridRows;
+
+    float2 rg = field.sample(fieldSampler, float2(tu, tv)).rg;
+    float weight = rg.g;
+    if (weight < 0.02) {
+        return float4(0.0);
+    }
+    float temp = rg.r / weight;
+    float3 rgb = rampColor(temp);
+
+    float alpha = uniforms.baseAlpha * smoothstep(0.0, 0.6, clamp(weight, 0.0, 1.0));
+    if (alpha <= 0.0) {
+        return float4(0.0);
+    }
     return float4(rgb * alpha, alpha);
 }

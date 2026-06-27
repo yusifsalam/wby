@@ -17,6 +17,12 @@ private struct ShaderUniforms {
     var coverageInner: Float
     var coverageOuter: Float
     var baseAlpha: Float
+    var gridMinLat: Float = 0
+    var gridMaxLat: Float = 0
+    var gridMinLon: Float = 0
+    var gridMaxLon: Float = 0
+    var gridRows: Float = 0
+    var gridCols: Float = 0
 }
 
 private struct ShaderSample {
@@ -45,13 +51,21 @@ struct MercatorBounds: Equatable {
     }
 }
 
+private enum RenderMode {
+    case points
+    case grid
+}
+
 final class TemperatureMetalRenderer {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let pipeline: MTLRenderPipelineState
+    private let gridPipeline: MTLRenderPipelineState
     private let samplesBuffer: MTLBuffer
     private var uniforms: ShaderUniforms
     private var sampleCount: Int = 0
+    private var mode: RenderMode = .points
+    private var fieldTexture: MTLTexture?
 
     init?() {
         guard let device = MTLCreateSystemDefaultDevice(),
@@ -66,22 +80,27 @@ final class TemperatureMetalRenderer {
         }
 
         guard let vertexFn = library.makeFunction(name: "temperature_vertex"),
-              let fragmentFn = library.makeFunction(name: "temperature_fragment")
+              let fragmentFn = library.makeFunction(name: "temperature_fragment"),
+              let gridFragmentFn = library.makeFunction(name: "temperature_grid_fragment")
         else { return nil }
 
-        let descriptor = MTLRenderPipelineDescriptor()
-        descriptor.vertexFunction = vertexFn
-        descriptor.fragmentFunction = fragmentFn
-        descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
-        descriptor.colorAttachments[0].isBlendingEnabled = true
-        descriptor.colorAttachments[0].rgbBlendOperation = .add
-        descriptor.colorAttachments[0].alphaBlendOperation = .add
-        descriptor.colorAttachments[0].sourceRGBBlendFactor = .one
-        descriptor.colorAttachments[0].sourceAlphaBlendFactor = .one
-        descriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
-        descriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        func makePipeline(fragment: MTLFunction) -> MTLRenderPipelineState? {
+            let descriptor = MTLRenderPipelineDescriptor()
+            descriptor.vertexFunction = vertexFn
+            descriptor.fragmentFunction = fragment
+            descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+            descriptor.colorAttachments[0].isBlendingEnabled = true
+            descriptor.colorAttachments[0].rgbBlendOperation = .add
+            descriptor.colorAttachments[0].alphaBlendOperation = .add
+            descriptor.colorAttachments[0].sourceRGBBlendFactor = .one
+            descriptor.colorAttachments[0].sourceAlphaBlendFactor = .one
+            descriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+            descriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+            return try? device.makeRenderPipelineState(descriptor: descriptor)
+        }
 
-        guard let pipeline = try? device.makeRenderPipelineState(descriptor: descriptor),
+        guard let pipeline = makePipeline(fragment: fragmentFn),
+              let gridPipeline = makePipeline(fragment: gridFragmentFn),
               let samplesBuffer = device.makeBuffer(
                   length: MemoryLayout<ShaderSample>.stride * maxSampleCount,
                   options: .storageModeShared
@@ -91,6 +110,7 @@ final class TemperatureMetalRenderer {
         self.device = device
         self.commandQueue = queue
         self.pipeline = pipeline
+        self.gridPipeline = gridPipeline
         self.samplesBuffer = samplesBuffer
         self.uniforms = ShaderUniforms(
             topMercY: Float(MercatorBounds.finland.topMercY),
@@ -116,10 +136,62 @@ final class TemperatureMetalRenderer {
         }
         sampleCount = capped.count
         uniforms.sampleCount = UInt32(capped.count)
+        mode = .points
+    }
+
+    /// Uploads a regular lat/lon temperature raster as an rg16Float texture
+    /// (r = temp·valid, g = valid) for hardware-bilinear sampling. Returns false
+    /// if the grid is malformed or the texture can't be allocated.
+    @discardableResult
+    func setGrid(_ grid: TemperatureGrid) -> Bool {
+        guard grid.rows > 0, grid.cols > 0,
+              grid.values.count == grid.rows * grid.cols else { return false }
+
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rg16Float,
+            width: grid.cols,
+            height: grid.rows,
+            mipmapped: false
+        )
+        descriptor.usage = [.shaderRead]
+        descriptor.storageMode = .shared
+        guard let texture = device.makeTexture(descriptor: descriptor) else { return false }
+
+        var texels = [Float16](repeating: 0, count: grid.rows * grid.cols * 2)
+        for (i, value) in grid.values.enumerated() {
+            if let value {
+                texels[i * 2] = Float16(value)      // temp · valid
+                texels[i * 2 + 1] = 1                // valid
+            }
+            // nil cell stays (0, 0): zero weight, excluded by normalized convolution.
+        }
+        texels.withUnsafeBytes { raw in
+            texture.replace(
+                region: MTLRegionMake2D(0, 0, grid.cols, grid.rows),
+                mipmapLevel: 0,
+                withBytes: raw.baseAddress!,
+                bytesPerRow: grid.cols * 2 * MemoryLayout<Float16>.stride
+            )
+        }
+
+        fieldTexture = texture
+        uniforms.gridMinLat = Float(grid.minLat)
+        uniforms.gridMaxLat = Float(grid.maxLat)
+        uniforms.gridMinLon = Float(grid.minLon)
+        uniforms.gridMaxLon = Float(grid.maxLon)
+        uniforms.gridRows = Float(grid.rows)
+        uniforms.gridCols = Float(grid.cols)
+        mode = .grid
+        return true
     }
 
     func renderImage(bounds: MercatorBounds, width: Int, height: Int) -> UIImage? {
-        guard sampleCount > 0, width > 0, height > 0 else { return nil }
+        guard width > 0, height > 0 else { return nil }
+        switch mode {
+        case .points where sampleCount > 0: break
+        case .grid where fieldTexture != nil: break
+        default: return nil
+        }
 
         uniforms.topMercY = Float(bounds.topMercY)
         uniforms.botMercY = Float(bounds.botMercY)
@@ -148,10 +220,17 @@ final class TemperatureMetalRenderer {
             return nil
         }
 
-        encoder.setRenderPipelineState(pipeline)
         var uniformsCopy = uniforms
-        encoder.setFragmentBytes(&uniformsCopy, length: MemoryLayout<ShaderUniforms>.stride, index: 0)
-        encoder.setFragmentBuffer(samplesBuffer, offset: 0, index: 1)
+        switch mode {
+        case .points:
+            encoder.setRenderPipelineState(pipeline)
+            encoder.setFragmentBytes(&uniformsCopy, length: MemoryLayout<ShaderUniforms>.stride, index: 0)
+            encoder.setFragmentBuffer(samplesBuffer, offset: 0, index: 1)
+        case .grid:
+            encoder.setRenderPipelineState(gridPipeline)
+            encoder.setFragmentBytes(&uniformsCopy, length: MemoryLayout<ShaderUniforms>.stride, index: 0)
+            encoder.setFragmentTexture(fieldTexture, index: 0)
+        }
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
 

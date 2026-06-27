@@ -509,7 +509,9 @@ final class WeatherMapViewModel {
             if snapToStep(selectedTime) == hour {
                 applyMetalFrame(from: resp)
             }
-            if resp.samples.count < sparseSampleThreshold && !sparseRetriedHours.contains(hour) {
+            // The dense GRIB grid is never sparse; only the station-sample
+            // fallback (grid == nil) can trip the backfill retry.
+            if resp.grid == nil && resp.samples.count < sparseSampleThreshold && !sparseRetriedHours.contains(hour) {
                 scheduleSparseRetry(for: hour)
             }
         } catch {
@@ -528,7 +530,7 @@ final class WeatherMapViewModel {
             // the server (which by now should have completed its forecast
             // grid backfill).
             self.samplesByHour = self.samplesByHour.filter {
-                $0.value.samples.count >= self.sparseSampleThreshold
+                $0.value.grid != nil || $0.value.samples.count >= self.sparseSampleThreshold
             }
             await self.fetchSamples(for: hour)
         }
@@ -726,7 +728,13 @@ final class WeatherMapViewModel {
 
     private func updateMetalOverlayCache(from response: TemperatureSamplesResponse) {
         guard let renderer = metalRenderer else { return }
-        renderer.setSamples(response.samples)
+        // Forecast frames carry the dense GRIB raster (texture bilinear); station
+        // fallbacks (now/past) carry irregular samples (point IDW).
+        if let grid = response.grid {
+            renderer.setGrid(grid)
+        } else {
+            renderer.setSamples(response.samples)
+        }
         guard let image = renderer.renderImage(
             bounds: MercatorBounds.finland,
             width: overlaySize,
