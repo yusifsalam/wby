@@ -32,6 +32,13 @@ const { cities, activeSlug } = Astro.props;
         {city.name}
       </a>
     ))}
+    <a
+      class="flex-none rounded-lg border border-transparent px-2.5 py-2 text-[0.9rem] font-[650] text-muted hover:border-line hover:bg-surface hover:text-ink aria-[current=page]:border-line aria-[current=page]:bg-surface aria-[current=page]:text-ink"
+      href="/stats"
+      aria-current={activeSlug === "stats" ? "page" : undefined}
+    >
+      Stats
+    </a>
   </nav>
   <div class="max-[820px]:col-start-2 max-[820px]:row-start-1 max-[820px]:justify-self-end">
     <ThemeToggle />

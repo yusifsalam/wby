@@ -1,0 +1,49 @@
+---
+import StatsBoard from "../components/StatsBoard.astro";
+import WeatherUnavailable from "../components/WeatherUnavailable.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { cities } from "../lib/cities";
+import { getLeaderboard } from "../lib/weatherPageData";
+import {
+  cacheControlHeader,
+  LEADERBOARD_TIMEFRAMES,
+  type LeaderboardTimeframe,
+} from "../lib/weatherApi";
+
+function parseTimeframe(value: string | null): LeaderboardTimeframe {
+  return LEADERBOARD_TIMEFRAMES.includes(value as LeaderboardTimeframe)
+    ? (value as LeaderboardTimeframe)
+    : "now";
+}
+
+const timeframe = parseTimeframe(Astro.url.searchParams.get("timeframe"));
+
+let result: Awaited<ReturnType<typeof getLeaderboard>> | undefined;
+let errorMessage = "";
+
+try {
+  result = await getLeaderboard(timeframe);
+  Astro.response.headers.set(
+    "Cache-Control",
+    cacheControlHeader({
+      ttlSeconds: result.config.ttlSeconds,
+      staleSeconds: result.config.staleSeconds,
+    }),
+  );
+} catch (error) {
+  Astro.response.headers.set("Cache-Control", "no-store");
+  errorMessage = error instanceof Error ? error.message : "Leaderboard data is unavailable.";
+}
+---
+
+<BaseLayout title="WBY · Stats">
+  {result ? (
+    <StatsBoard cities={cities} timeframe={result.timeframe} leaderboard={result.leaderboard} />
+  ) : (
+    <WeatherUnavailable
+      cities={cities}
+      title="Stats unavailable"
+      message={errorMessage}
+    />
+  )}
+</BaseLayout>

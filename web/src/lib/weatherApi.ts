@@ -63,6 +63,56 @@ export type WeatherResponse = {
   timezone: string;
 };
 
+export const LEADERBOARD_TIMEFRAMES = ["now", "1h", "24h", "3d", "7d"] as const;
+export type LeaderboardTimeframe = (typeof LEADERBOARD_TIMEFRAMES)[number];
+
+export type LeaderboardEntry = {
+  type: string;
+  station_name: string;
+  lat: number;
+  lon: number;
+  value: number;
+  unit: string;
+  distance_km: number;
+  observed_at: string;
+};
+
+export type LeaderboardResponse = {
+  timeframe: string;
+  leaderboard: LeaderboardEntry[];
+};
+
+type SignedGetInput = {
+  config: WebConfig;
+  path: string;
+  params: Record<string, string>;
+  timestamp: string;
+  fetchImpl: typeof fetch;
+};
+
+async function signedGet<T>({ config, path, params, timestamp, fetchImpl }: SignedGetInput): Promise<T> {
+  const url = new URL(path, config.apiBaseUrl);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+
+  const headers = createSignedHeaders({
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+    method: "GET",
+    path: url.pathname,
+    rawQuery: url.searchParams.toString(),
+    timestamp,
+  });
+
+  const response = await fetchImpl(url, { method: "GET", headers });
+  if (!response.ok) {
+    throw new Error(`Weather API failed with ${response.status}: ${await errorMessage(response)}`);
+  }
+
+  return (await response.json()) as T;
+}
+
 type FetchWeatherInput = {
   city: City;
   config: WebConfig;
@@ -76,26 +126,46 @@ export async function fetchWeatherForCity({
   timestamp = String(Math.floor(Date.now() / 1000)),
   fetchImpl = fetch,
 }: FetchWeatherInput): Promise<WeatherResponse> {
-  const url = new URL("/v1/weather", config.apiBaseUrl);
-  url.searchParams.set("lat", formatCoordinate(city.latitude));
-  url.searchParams.set("lon", formatCoordinate(city.longitude));
-
-  const rawQuery = url.searchParams.toString();
-  const headers = createSignedHeaders({
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
-    method: "GET",
-    path: url.pathname,
-    rawQuery,
+  return signedGet<WeatherResponse>({
+    config,
+    path: "/v1/weather",
+    params: {
+      lat: formatCoordinate(city.latitude),
+      lon: formatCoordinate(city.longitude),
+    },
     timestamp,
+    fetchImpl,
   });
+}
 
-  const response = await fetchImpl(url, { method: "GET", headers });
-  if (!response.ok) {
-    throw new Error(`Weather API failed with ${response.status}: ${await errorMessage(response)}`);
-  }
+type FetchLeaderboardInput = {
+  config: WebConfig;
+  timeframe: LeaderboardTimeframe;
+  lat: number;
+  lon: number;
+  timestamp?: string;
+  fetchImpl?: typeof fetch;
+};
 
-  return (await response.json()) as WeatherResponse;
+export async function fetchLeaderboard({
+  config,
+  timeframe,
+  lat,
+  lon,
+  timestamp = String(Math.floor(Date.now() / 1000)),
+  fetchImpl = fetch,
+}: FetchLeaderboardInput): Promise<LeaderboardResponse> {
+  return signedGet<LeaderboardResponse>({
+    config,
+    path: "/v1/leaderboard",
+    params: {
+      lat: formatCoordinate(lat),
+      lon: formatCoordinate(lon),
+      timeframe,
+    },
+    timestamp,
+    fetchImpl,
+  });
 }
 
 export function cacheControlHeader({

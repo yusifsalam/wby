@@ -4,6 +4,7 @@ import {
   formatMillimeters,
   formatObservedTime,
   formatPercent,
+  formatRelativeTime,
   formatSpeed,
   formatTemperature,
   formatVisibility,
@@ -19,6 +20,14 @@ describe("weather value formatters", () => {
     expect(formatMillimeters(0.24)).toBe("0.2 mm");
     expect(formatMillimeters(2.01)).toBe("2 mm");
     expect(formatVisibility(15000)).toBe("15.0 km");
+  });
+
+  it("formats relative observation times", () => {
+    const now = new Date("2026-06-27T12:00:00Z").getTime();
+    expect(formatRelativeTime("2026-06-27T11:59:30Z", now)).toBe("just now");
+    expect(formatRelativeTime("2026-06-27T11:45:00Z", now)).toBe("15 min ago");
+    expect(formatRelativeTime("2026-06-27T09:00:00Z", now)).toBe("3h ago");
+    expect(formatRelativeTime("2026-06-24T12:00:00Z", now)).toBe("3d ago");
   });
 
   it("formats times in the weather response timezone", () => {
