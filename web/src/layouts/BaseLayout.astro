@@ -23,16 +23,16 @@ const {
     <title>{title}</title>
     <script is:inline>
       // Resolve the theme before first paint to avoid a flash of the wrong mode.
-      (function () {
+      (() => {
         try {
-          var setting = localStorage.getItem("theme") || "auto";
-          var dark =
+          const setting = localStorage.getItem("theme") || "auto";
+          const dark =
             setting === "dark" ||
             (setting !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-          var root = document.documentElement;
+          const root = document.documentElement;
           root.dataset.themeSetting = setting;
           root.classList.toggle("dark", dark);
-        } catch (e) {}
+        } catch {}
       })();
     </script>
   </head>

@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!!**/dist"]
+    "includes": ["**", "!!**/dist", "!!public"]
   },
   "formatter": {
     "enabled": true,
@@ -39,5 +39,17 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.astro"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useValidAriaValues": "off"
+          }
+        }
+      }
+    }
+  ]
 }
