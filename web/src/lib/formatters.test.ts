@@ -31,7 +31,9 @@ describe("weather value formatters", () => {
   });
 
   it("formats times in the weather response timezone", () => {
-    expect(formatObservedTime("2026-01-27T10:00:00Z", "Europe/Helsinki")).toBe("12:00");
+    expect(formatObservedTime("2026-01-27T10:00:00Z", "Europe/Helsinki")).toBe(
+      "12:00",
+    );
     expect(hourLabel("2026-01-27T10:00:00Z", "Europe/Helsinki")).toBe("12");
     expect(dayLabel("2026-01-27", "Europe/Helsinki")).toBe("Tue");
   });

@@ -37,26 +37,47 @@ export class WeatherCache<T> {
       const data = await loader();
       const loadedEntry = { data, updatedAt: this.now() };
       this.entries.set(key, loadedEntry);
-      return { state: "fresh", data: loadedEntry.data, updatedAt: loadedEntry.updatedAt };
+      return {
+        state: "fresh",
+        data: loadedEntry.data,
+        updatedAt: loadedEntry.updatedAt,
+      };
     }
 
     const age = currentTime - entry.updatedAt;
     if (age <= this.ttlMs) {
-      return { state: "fresh", data: entry.data, updatedAt: entry.updatedAt };
+      return {
+        state: "fresh",
+        data: entry.data,
+        updatedAt: entry.updatedAt,
+      };
     }
 
     if (age <= this.ttlMs + this.staleMs) {
       const refresh = this.refresh(key, entry, loader);
-      return { state: "stale", data: entry.data, updatedAt: entry.updatedAt, refresh };
+      return {
+        state: "stale",
+        data: entry.data,
+        updatedAt: entry.updatedAt,
+        refresh,
+      };
     }
 
     const data = await loader();
     const loadedEntry = { data, updatedAt: this.now() };
     this.entries.set(key, loadedEntry);
-    return { state: "fresh", data: loadedEntry.data, updatedAt: loadedEntry.updatedAt };
+    return {
+      state: "fresh",
+      data: loadedEntry.data,
+      updatedAt: loadedEntry.updatedAt,
+    };
   }
 
-  private refresh(key: string, entry: CacheEntry<T>, loader: () => Promise<T>): Promise<void> {
+  private refresh(
+    key: string,
+    entry: CacheEntry<T>,
+    loader: () => Promise<T>,
+  ): Promise<void> {
     if (entry.refresh) {
       return entry.refresh;
     }
@@ -66,7 +87,10 @@ export class WeatherCache<T> {
         this.entries.set(key, { data, updatedAt: this.now() });
       })
       .catch(() => {
-        this.entries.set(key, { data: entry.data, updatedAt: entry.updatedAt });
+        this.entries.set(key, {
+          data: entry.data,
+          updatedAt: entry.updatedAt,
+        });
       });
 
     return entry.refresh;

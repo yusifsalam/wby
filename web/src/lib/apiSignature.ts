@@ -12,11 +12,18 @@ type SignedHeadersInput = SignaturePayloadInput & {
   clientSecret: string;
 };
 
-export function signaturePayload({ method, path, rawQuery, timestamp }: SignaturePayloadInput): string {
+export function signaturePayload({
+  method,
+  path,
+  rawQuery,
+  timestamp,
+}: SignaturePayloadInput): string {
   return `${method}\n${path}\n${rawQuery}\n${timestamp}`;
 }
 
-export function createSignedHeaders(input: SignedHeadersInput): Record<string, string> {
+export function createSignedHeaders(
+  input: SignedHeadersInput,
+): Record<string, string> {
   const signature = createHmac("sha256", input.clientSecret)
     .update(signaturePayload(input))
     .digest("hex");

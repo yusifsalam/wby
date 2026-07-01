@@ -43,8 +43,14 @@ export function formatObservedTime(value: string, timeZone: string): string {
   return timeFormatter(timeZone).format(new Date(value));
 }
 
-export function formatRelativeTime(value: string, now: number = Date.now()): string {
-  const seconds = Math.max(0, Math.round((now - new Date(value).getTime()) / 1000));
+export function formatRelativeTime(
+  value: string,
+  now: number = Date.now(),
+): string {
+  const seconds = Math.max(
+    0,
+    Math.round((now - new Date(value).getTime()) / 1000),
+  );
   if (seconds < 60) {
     return "just now";
   }

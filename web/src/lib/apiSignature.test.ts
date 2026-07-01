@@ -28,7 +28,8 @@ describe("createSignedHeaders", () => {
     ).toEqual({
       "X-Client-ID": "web",
       "X-Timestamp": "1769500800",
-      "X-Signature": "2dd7fac401190a36426d6962abbc92d59ba892b02429c044497d3d3e552670b0",
+      "X-Signature":
+        "2dd7fac401190a36426d6962abbc92d59ba892b02429c044497d3d3e552670b0",
     });
   });
 });

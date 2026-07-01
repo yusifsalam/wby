@@ -17,7 +17,10 @@ export type CityWeatherResult = {
   weather: CacheResult<WeatherResponse>;
 };
 
-export async function getCityWeather(city: City, env = process.env): Promise<CityWeatherResult> {
+export async function getCityWeather(
+  city: City,
+  env = process.env,
+): Promise<CityWeatherResult> {
   const config = readWebConfig(env);
   const cache = cacheFor(config);
   const weather = await cache.get(city.slug, () =>
@@ -63,7 +66,9 @@ function cacheFor(config: WebRuntimeConfig): WeatherCache<WeatherResponse> {
   return cacheFromMap(caches, config);
 }
 
-function leaderboardCacheFor(config: WebRuntimeConfig): WeatherCache<LeaderboardResponse> {
+function leaderboardCacheFor(
+  config: WebRuntimeConfig,
+): WeatherCache<LeaderboardResponse> {
   return cacheFromMap(leaderboardCaches, config);
 }
 

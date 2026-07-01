@@ -90,7 +90,13 @@ type SignedGetInput = {
   fetchImpl: typeof fetch;
 };
 
-async function signedGet<T>({ config, path, params, timestamp, fetchImpl }: SignedGetInput): Promise<T> {
+async function signedGet<T>({
+  config,
+  path,
+  params,
+  timestamp,
+  fetchImpl,
+}: SignedGetInput): Promise<T> {
   const url = new URL(path, config.apiBaseUrl);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
@@ -107,7 +113,9 @@ async function signedGet<T>({ config, path, params, timestamp, fetchImpl }: Sign
 
   const response = await fetchImpl(url, { method: "GET", headers });
   if (!response.ok) {
-    throw new Error(`Weather API failed with ${response.status}: ${await errorMessage(response)}`);
+    throw new Error(
+      `Weather API failed with ${response.status}: ${await errorMessage(response)}`,
+    );
   }
 
   return (await response.json()) as T;
@@ -180,7 +188,10 @@ export function cacheControlHeader({
 
 // In `astro dev` we never want the browser to cache pages, so edits show up on
 // reload. The production build keeps the public stale-while-revalidate policy.
-export function pageCacheControl(policy: { ttlSeconds: number; staleSeconds: number }): string {
+export function pageCacheControl(policy: {
+  ttlSeconds: number;
+  staleSeconds: number;
+}): string {
   return import.meta.env.DEV ? "no-store" : cacheControlHeader(policy);
 }
 

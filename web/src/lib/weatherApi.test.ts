@@ -26,7 +26,10 @@ const sampleWeather = {
 describe("fetchWeatherForCity", () => {
   it("fetches a city from the signed Go weather endpoint", async () => {
     const calls: Array<{ url: string; headers: Headers }> = [];
-    const fetchImpl = async (url: string | URL | Request, init?: RequestInit) => {
+    const fetchImpl = async (
+      url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       calls.push({
         url: String(url),
         headers: new Headers(init?.headers),
@@ -50,7 +53,9 @@ describe("fetchWeatherForCity", () => {
 
     expect(weather.current.temperature).toBe(4.4);
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).toBe("http://server:8080/v1/weather?lat=60.1699&lon=24.9384");
+    expect(calls[0].url).toBe(
+      "http://server:8080/v1/weather?lat=60.1699&lon=24.9384",
+    );
     expect(calls[0].headers.get("X-Client-ID")).toBe("web");
     expect(calls[0].headers.get("X-Timestamp")).toBe("1769500800");
     expect(calls[0].headers.get("X-Signature")).toBe(
@@ -69,12 +74,19 @@ describe("fetchWeatherForCity", () => {
         },
         timestamp: "1769500800",
         fetchImpl: async () =>
-          new Response(JSON.stringify({ error: "no weather coverage for this location" }), {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          }),
+          new Response(
+            JSON.stringify({
+              error: "no weather coverage for this location",
+            }),
+            {
+              status: 404,
+              headers: { "Content-Type": "application/json" },
+            },
+          ),
       }),
-    ).rejects.toThrow("Weather API failed with 404: no weather coverage for this location");
+    ).rejects.toThrow(
+      "Weather API failed with 404: no weather coverage for this location",
+    );
   });
 });
 
