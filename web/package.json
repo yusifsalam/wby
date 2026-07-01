@@ -11,7 +11,10 @@
     "check": "astro check",
     "preview": "astro preview",
     "astro": "astro",
-    "test": "vitest run"
+    "test": "vitest run",
+    "format": "biome format --write",
+    "lint": "biome lint",
+    "fix": "biome check --write"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.9",
@@ -22,5 +25,8 @@
     "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.1"
   }
 }
