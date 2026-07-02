@@ -1,0 +1,762 @@
+---
+import TopBar from "../components/TopBar.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import "maplibre-gl/dist/maplibre-gl.css";
+---
+
+<BaseLayout title="WBY · Map" description="Temperature and precipitation maps for Finland.">
+  <main class="mx-auto flex min-h-screen w-[min(1180px,100%)] flex-col p-6 max-[820px]:p-4">
+    <TopBar activeSlug="map" />
+
+    <section class="relative overflow-hidden rounded-lg border border-line shadow-hero">
+      <div id="map" class="h-[calc(100vh-180px)] min-h-[440px] w-full bg-surface"></div>
+
+      <!-- Layer toggle -->
+      <div
+        id="layer-toggle"
+        class="absolute left-3 top-3 z-10 inline-flex gap-1 rounded-lg border border-line bg-surface/90 p-1 shadow-panel backdrop-blur"
+      >
+        <button
+          type="button"
+          data-layer="temperature"
+          class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-[current=true]:bg-page aria-[current=true]:text-ink aria-[current=true]:shadow-panel"
+          aria-current="true"
+        >Temperature</button>
+        <button
+          type="button"
+          data-layer="precipitation"
+          class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-[current=true]:bg-page aria-[current=true]:text-ink aria-[current=true]:shadow-panel"
+          aria-current="false"
+        >Precipitation</button>
+      </div>
+
+      <!-- Opacity -->
+      <div class="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-line bg-surface/90 px-3 py-2 text-[0.8rem] font-[650] text-muted shadow-panel backdrop-blur">
+        <span>Opacity</span>
+        <input id="opacity" type="range" min="0" max="100" value="80" class="w-24 accent-teal" aria-label="Overlay opacity" />
+      </div>
+
+      <!-- Legend -->
+      <div class="pointer-events-none absolute bottom-14 left-3 z-10 rounded-lg border border-line bg-surface/90 px-3 py-2 shadow-panel backdrop-blur">
+        <div id="legend-temperature">
+          <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Temperature °C</p>
+          <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#3a0a54,#00e5ff,#a8e05f,#ffb300,#8b0000)"></div>
+          <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
+            <span>-40</span><span>0</span><span>20</span><span>40</span>
+          </div>
+        </div>
+        <div id="legend-precipitation" hidden>
+          <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain mm/h</p>
+          <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#a8e0ff,#3fa0ff,#1436ff,#8b00ff,#ff00aa)"></div>
+          <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
+            <span>0.1</span><span>1</span><span>5</span><span>20+</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Time scrubber -->
+      <div class="absolute bottom-3 left-3 right-3 z-10 flex items-center gap-3 rounded-lg border border-line bg-surface/90 px-3 py-2 shadow-panel backdrop-blur">
+        <button
+          id="play"
+          type="button"
+          aria-pressed="false"
+          aria-label="Play forecast animation"
+          class="flex-none rounded-md px-2 py-0.5 text-[1rem] leading-none text-ink hover:text-teal"
+        >▶</button>
+        <span class="flex-none text-[0.8rem] font-[650] text-muted">Time</span>
+        <input id="time" type="range" value="0" class="flex-1 accent-teal" aria-label="Forecast time" />
+        <span id="time-label" class="w-36 flex-none text-right text-[0.85rem] font-[650] text-ink tabular-nums">Now</span>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<script>
+  import type { Feature, Polygon } from "geojson";
+  import maplibregl from "maplibre-gl";
+  import { FINLAND_RINGS } from "../lib/finland-outline";
+
+  type Layer = "temperature" | "precipitation";
+
+  const STYLES = {
+    light: "https://tiles.openfreemap.org/styles/positron",
+    dark: "https://tiles.openfreemap.org/styles/dark",
+  };
+
+  const styleFor = () =>
+    document.documentElement.classList.contains("dark") ? STYLES.dark : STYLES.light;
+
+  // Frame manifest: the server publishes the discrete scrubbable instants per
+  // layer (index of "now", step). Snapping the scrubber to these instants keeps
+  // overlay URLs stable across scrubs so HTTP caches actually hit. Falls back to
+  // a client-derived schedule if the manifest can't be fetched.
+  type FrameSet = { times: string[]; nowIndex: number; stepSeconds: number };
+  type Manifest = Record<Layer, FrameSet>;
+
+  function fallbackFrameSet(layer: Layer): FrameSet {
+    const nowMs = Date.now();
+    if (layer === "temperature") {
+      const base = Math.floor(nowMs / 3_600_000) * 3_600_000;
+      // now + 48 forecast hours, matching the server's MapForecastHorizon.
+      return {
+        times: Array.from({ length: 49 }, (_, i) =>
+          new Date(base + i * 3_600_000).toISOString(),
+        ),
+        nowIndex: 0,
+        stepSeconds: 3600,
+      };
+    }
+    const base = Math.floor(nowMs / 300_000) * 300_000;
+    return {
+      times: Array.from({ length: 25 }, (_, i) =>
+        new Date(base + (i - 12) * 300_000).toISOString(),
+      ),
+      nowIndex: 12,
+      stepSeconds: 300,
+    };
+  }
+
+  let manifest: Manifest = {
+    temperature: fallbackFrameSet("temperature"),
+    precipitation: fallbackFrameSet("precipitation"),
+  };
+
+  // Server frame-set shape. The backend's JSON contract is snake_case, so map it
+  // to the camelCase FrameSet the rest of this module uses — a bare `as FrameSet`
+  // cast leaves nowIndex/stepSeconds undefined at runtime (NaN offsets, a slider
+  // that can't seek).
+  type FrameSetJSON = {
+    times?: string[];
+    now_index?: number;
+    step_seconds?: number;
+  };
+
+  function normalizeFrameSet(raw: FrameSetJSON | undefined, layer: Layer): FrameSet {
+    if (!raw?.times?.length || raw.now_index == null || raw.step_seconds == null) {
+      return fallbackFrameSet(layer);
+    }
+    return {
+      times: raw.times,
+      nowIndex: raw.now_index,
+      stepSeconds: raw.step_seconds,
+    };
+  }
+
+  async function loadManifest() {
+    try {
+      const res = await fetch("/api/map/frames");
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        temperature?: FrameSetJSON;
+        precipitation?: FrameSetJSON;
+      };
+      manifest = {
+        temperature: normalizeFrameSet(data.temperature, "temperature"),
+        precipitation: normalizeFrameSet(data.precipitation, "precipitation"),
+      };
+    } catch (err) {
+      console.error("frame manifest fetch failed", err);
+    }
+  }
+
+  let layer: Layer = "temperature";
+  let opacity = 0.8;
+  // Index into the active layer's frame list. nowIndex means the live frame.
+  let frameIndex = manifest[layer].nowIndex;
+
+  const map = new maplibregl.Map({
+    container: "map",
+    style: styleFor(),
+    center: [26, 64.5],
+    zoom: 4.3,
+    attributionControl: { compact: true },
+  });
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+
+  // The frame instant for the active scrubber position, or null for the live
+  // "now" frame (rendered by omitting the time param so the server applies its
+  // latest-observation + fallback logic). Snapped to the manifest, so identical
+  // instants share a cacheable overlay URL.
+  function timeParamAt(index: number): string | null {
+    const frames = manifest[layer];
+    if (index === frames.nowIndex) return null;
+    return frames.times[index] ?? null;
+  }
+  const timeParam = () => timeParamAt(frameIndex);
+
+  type Corners = [
+    [number, number],
+    [number, number],
+    [number, number],
+    [number, number],
+  ];
+  type Frame = { url: string; corners: Corners };
+
+  // 8-stop temperature ramp, matching the server's rampColorForTemperature
+  // (internal/weather/overlay.go) so the grid render agrees with the PNG/iOS.
+  const TEMP_STOPS: [number, [number, number, number]][] = [
+    [-40, [80, 30, 130]],
+    [-20, [30, 55, 150]],
+    [-10, [55, 115, 220]],
+    [0, [80, 190, 180]],
+    [10, [180, 215, 75]],
+    [20, [245, 210, 55]],
+    [30, [210, 50, 40]],
+    [40, [109, 22, 11]],
+  ];
+
+  function rampColor(temp: number): [number, number, number] {
+    if (temp <= TEMP_STOPS[0][0]) return TEMP_STOPS[0][1];
+    const last = TEMP_STOPS.length - 1;
+    if (temp >= TEMP_STOPS[last][0]) return TEMP_STOPS[last][1];
+    for (let i = 0; i < last; i++) {
+      const [at, a] = TEMP_STOPS[i];
+      const [bt, b] = TEMP_STOPS[i + 1];
+      if (temp > bt) continue;
+      const t = (temp - at) / (bt - at);
+      return [
+        Math.round(a[0] + (b[0] - a[0]) * t),
+        Math.round(a[1] + (b[1] - a[1]) * t),
+        Math.round(a[2] + (b[2] - a[2]) * t),
+      ];
+    }
+    return TEMP_STOPS[last][1];
+  }
+
+  type FieldGrid = {
+    rows: number;
+    cols: number;
+    min_lat: number;
+    max_lat: number;
+    min_lon: number;
+    max_lon: number;
+    values: (number | null)[];
+  };
+
+  // Rasterize the dense GRIB grid to a cols×rows canvas colored by the ramp
+  // (masked cells transparent). MapLibre's raster layer bilinear-upscales the
+  // small texture on the GPU, giving the smooth field iOS renders with Metal —
+  // instead of flattening the grid back into IDW points server-side.
+  function rasterizeGrid(grid: FieldGrid): string {
+    const { rows, cols, values } = grid;
+    const canvas = document.createElement("canvas");
+    canvas.width = cols;
+    canvas.height = rows;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d canvas context");
+    const img = ctx.createImageData(cols, rows);
+    // values are row-major north-to-south (row 0 = max_lat), so index maps
+    // directly to canvas pixels with y=0 at the top (north).
+    for (let i = 0; i < values.length; i++) {
+      const v = values[i];
+      const o = i * 4;
+      if (v == null) {
+        img.data[o + 3] = 0;
+        continue;
+      }
+      const [r, g, b] = rampColor(v);
+      img.data[o] = r;
+      img.data[o + 1] = g;
+      img.data[o + 2] = b;
+      img.data[o + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    return canvas.toDataURL("image/png");
+  }
+
+  function gridCorners(grid: FieldGrid): Corners {
+    return [
+      [grid.min_lon, grid.max_lat],
+      [grid.max_lon, grid.max_lat],
+      [grid.max_lon, grid.min_lat],
+      [grid.min_lon, grid.min_lat],
+    ];
+  }
+
+  // The GRIB grid is whole-Finland and independent of the viewport, so a given
+  // frame instant always rasterizes to the same texture. Memoize by instant so
+  // panning and re-scrubbing to a visited frame skip both the fetch and the
+  // synchronous PNG encode. `null` records a known GRIB miss (station fallback).
+  const gridFrameCache = new Map<string, Frame | null>();
+
+  async function fetchGridFrame(at: string): Promise<Frame | null> {
+    const res = await fetch(
+      `/api/map/temperature-samples?at=${encodeURIComponent(at)}`,
+    );
+    if (!res.ok) throw new Error(`grid fetch failed: ${res.status}`);
+    const data = (await res.json()) as { grid?: FieldGrid | null };
+    if (!data.grid || data.grid.values.length === 0) return null;
+    return { url: rasterizeGrid(data.grid), corners: gridCorners(data.grid) };
+  }
+
+  // Temperature: fetch the GRIB grid JSON and render it client-side — for every
+  // frame including "now" (the server serves GRIB from the current hour onward),
+  // so the whole temperature layer is gridded. Uses the frame's real instant
+  // (not timeParam, which omits the time for "now"). Returns null on a GRIB miss
+  // so the caller can fall back to the server-rendered station PNG.
+  async function temperatureGridFrame(): Promise<Frame | null> {
+    const at = manifest.temperature.times[frameIndex];
+    if (!at) return null;
+    const cached = gridFrameCache.get(at);
+    if (cached !== undefined) return cached;
+    const frame = await fetchGridFrame(at);
+    gridFrameCache.set(at, frame);
+    return frame;
+  }
+
+  // Holds refs to decoded precipitation preloads so the browser keeps the HTTP
+  // responses cached; keyed by overlay URL. URLs are viewport-independent now
+  // (fixed extent), so they never go stale — the map holds at most one entry per
+  // frame. Temperature future frames use gridFrameCache instead.
+  const precipPreloads = new Map<string, HTMLImageElement>();
+
+  // Warm caches for every frame within `span` steps of `center` so scrubbing and
+  // animation land on already-fetched data instead of a fresh round-trip. The
+  // window wraps around the list (modulo length) so the loop-restart frame is
+  // warm before playback jumps back to it — otherwise the wrap stalls on a live
+  // fetch. Temperature frames warm gridFrameCache (GRIB grid); precipitation warms
+  // the browser HTTP cache via an <img> preload. Fire-and-forget; failures fall
+  // back to a live fetch on demand.
+  function prefetchAround(center: number, span: number) {
+    const frames = manifest[layer];
+    const len = frames.times.length;
+    for (let offset = -span; offset <= span; offset++) {
+      if (offset === 0) continue;
+      const idx = ((center + offset) % len + len) % len;
+      if (idx === center) continue;
+      if (layer === "temperature") {
+        const at = frames.times[idx];
+        if (gridFrameCache.has(at)) continue;
+        fetchGridFrame(at)
+          .then((frame) => gridFrameCache.set(at, frame))
+          .catch(() => {});
+        continue;
+      }
+      const { url } = fixedView(timeParamAt(idx));
+      if (precipPreloads.has(url)) continue;
+      const img = new Image();
+      img.src = url;
+      precipPreloads.set(url, img);
+    }
+  }
+
+  async function buildFrame(): Promise<Frame> {
+    // Temperature renders the dense GRIB grid directly (every frame, now included);
+    // precipitation — and a temperature GRIB miss — uses the server PNG.
+    if (layer === "temperature") {
+      const grid = await temperatureGridFrame();
+      if (grid) return grid;
+    }
+    return fixedView();
+  }
+
+  // Fixed full-Finland overlay extent (lng/lat), covering FMI's radar/forecast
+  // coverage. Hardcoding it — instead of tracking the viewport — makes every
+  // overlay URL depend only on (layer, time): identical across pans, users, and
+  // sessions, so browser and server caches actually hit and the whole frame
+  // window is prefetchable (sataako-fi's fixed-image model). The server renders
+  // Mercator-correct — temperature rows interpolate in Mercator-Y and the WMS
+  // request is EPSG:3857 — so these lng/lat corners align on the basemap, and
+  // data outside Finland masks to transparent. Panning/zoom needs no refetch;
+  // MapLibre reprojects the fixed raster on the GPU.
+  const FINLAND = { w: 10.2155, s: 56.7513, e: 37.3717, n: 71.2417 };
+  const FINLAND_CORNERS: Corners = [
+    [FINLAND.w, FINLAND.n],
+    [FINLAND.e, FINLAND.n],
+    [FINLAND.e, FINLAND.s],
+    [FINLAND.w, FINLAND.s],
+  ];
+  // Fixed render size, aspect-correct in Web Mercator and capped at the server's
+  // max overlay dimension (1600px), so the overlay isn't stretched.
+  const mercatorY = (lat: number) =>
+    Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+  const FINLAND_H = 1600;
+  const FINLAND_W = Math.round(
+    (FINLAND_H * ((FINLAND.e - FINLAND.w) * (Math.PI / 180))) /
+      (mercatorY(FINLAND.n) - mercatorY(FINLAND.s)),
+  );
+
+  function fixedView(t: string | null = timeParam()): Frame {
+    const q = new URLSearchParams({
+      bbox: `${FINLAND.w},${FINLAND.s},${FINLAND.e},${FINLAND.n}`,
+      width: String(FINLAND_W),
+      height: String(FINLAND_H),
+    });
+    if (t) q.set("time", t);
+    return { url: `/api/map/${layer}?${q.toString()}`, corners: FINLAND_CORNERS };
+  }
+
+  // A single persistent image source + raster layer, whose texture we swap per
+  // frame via updateImage — sataako-fi's model. The layer opacity is constant
+  // (never two translucent layers stacked), so there's no brightness pulse; and
+  // MapLibre keeps the current texture on screen until the next image decodes, so
+  // a swap never dips through to the basemap. updateImage repaints reliably on a
+  // URL change in maplibre-gl v5, and it also accepts new coordinates, which the
+  // temperature forecast grid needs (its extent differs from the fixed PNG one).
+  const OVERLAY_SRC = "overlay-src";
+  const OVERLAY_LAYER = "overlay-layer";
+  // 1×1 transparent PNG the source is seeded with until the first frame loads.
+  const TRANSPARENT_PNG =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+  // Finland clip mask: a fill covering the whole world with Finland punched out as
+  // holes, painted the basemap's background colour and stacked above the overlay
+  // (below borders/labels). It hides the overlay — and flattens the basemap — for
+  // everything outside Finland, so the weather shows only over the country while
+  // borders and place names still render on top. Coarse coastline (see
+  // finland-outline.ts); precise enough at country zoom.
+  const MASK_SRC = "finland-mask-src";
+  const MASK_LAYER = "finland-mask-layer";
+  const MASK_BG = { light: "rgb(242,243,240)", dark: "rgb(12,12,12)" };
+  const FINLAND_MASK: Feature<Polygon> = {
+    type: "Feature",
+    properties: {},
+    geometry: {
+      type: "Polygon",
+      // Outer ring = whole world; inner rings = Finland → holes the overlay shows
+      // through. MapLibre treats ring[0] as exterior and the rest as holes.
+      coordinates: [
+        [
+          [-180, -85],
+          [180, -85],
+          [180, 85],
+          [-180, 85],
+          [-180, -85],
+        ],
+        ...FINLAND_RINGS,
+      ],
+    },
+  };
+  const maskColor = () =>
+    document.documentElement.classList.contains("dark") ? MASK_BG.dark : MASK_BG.light;
+
+  // Where to slot the overlay in the basemap's layer stack, per weather layer.
+  //
+  // Temperature sits BELOW the (opaque) water fill: the sea and lakes then paint
+  // over it, masking the hard grid-rectangle edge and — crucially in dark mode,
+  // where water is near-black — the dark lake blobs a translucent overlay would
+  // otherwise reveal. Temperature is a land field, so hiding it over water reads
+  // correctly. Precipitation sits ABOVE the fills (below roads/borders/labels) so
+  // rain stays visible over the sea. Either way roads, municipality borders, and
+  // place names render on top and stay legible.
+  function overlayBeforeId(forLayer: Layer): string | undefined {
+    const layers = map.getStyle().layers ?? [];
+    if (forLayer === "temperature") {
+      const water = layers.find(
+        (l) =>
+          l.type === "fill" &&
+          ("source-layer" in l ? l["source-layer"] : undefined) === "water",
+      );
+      if (water) return water.id;
+    }
+    for (const l of layers) {
+      const src = "source-layer" in l ? l["source-layer"] : undefined;
+      if (l.type === "symbol" || src === "transportation" || src === "boundary") {
+        return l.id;
+      }
+    }
+    return undefined;
+  }
+
+  // Id of the first boundary/label layer — the clip mask goes just below it, so
+  // it sits above the overlay and basemap fills/roads but under borders and place
+  // names (which stay visible over the masked-out surroundings).
+  function firstBoundaryOrLabelId(): string | undefined {
+    for (const l of map.getStyle().layers ?? []) {
+      const src = "source-layer" in l ? l["source-layer"] : undefined;
+      if (l.type === "symbol" || src === "boundary") return l.id;
+    }
+    return undefined;
+  }
+
+  function ensureOverlayLayer() {
+    if (!map.getSource(OVERLAY_SRC)) {
+      map.addSource(OVERLAY_SRC, {
+        type: "image",
+        url: TRANSPARENT_PNG,
+        coordinates: FINLAND_CORNERS,
+      });
+      map.addLayer(
+        {
+          id: OVERLAY_LAYER,
+          type: "raster",
+          source: OVERLAY_SRC,
+          paint: { "raster-opacity": opacity, "raster-fade-duration": 0 },
+        },
+        overlayBeforeId(layer),
+      );
+    }
+    if (!map.getSource(MASK_SRC)) {
+      map.addSource(MASK_SRC, { type: "geojson", data: FINLAND_MASK });
+      map.addLayer(
+        {
+          id: MASK_LAYER,
+          type: "fill",
+          source: MASK_SRC,
+          paint: { "fill-color": maskColor(), "fill-antialias": false },
+        },
+        firstBoundaryOrLabelId(),
+      );
+    }
+  }
+
+  // True once the style spec is parsed (the `style.load` event) and layers can be
+  // safely added/mutated. NOT map.isStyleLoaded(), which stays false while base
+  // tiles or our overlay image are still loading — that gate never opens during
+  // initial load or animation, so refreshOverlay/autostart would bail forever.
+  let styleReady = false;
+
+  // Bumped on every refresh so an async frame build (grid fetch) that resolves
+  // after a newer scrub/pan is discarded instead of clobbering the latest frame.
+  let refreshSeq = 0;
+
+  async function refreshOverlay() {
+    if (!styleReady) return;
+    ensureOverlayLayer();
+    const seq = ++refreshSeq;
+
+    let view: Frame;
+    try {
+      view = await buildFrame();
+    } catch (err) {
+      console.error("overlay refresh failed", err);
+      return;
+    }
+    if (seq !== refreshSeq || !styleReady) return;
+
+    const src = map.getSource(OVERLAY_SRC) as maplibregl.ImageSource | undefined;
+    if (!src) return;
+    src.updateImage({ url: view.url, coordinates: view.corners });
+  }
+
+  const debounce = (fn: () => void, ms: number) => {
+    let timer: ReturnType<typeof setTimeout>;
+    return () => {
+      clearTimeout(timer);
+      timer = setTimeout(fn, ms);
+    };
+  };
+  const refreshDebounced = debounce(refreshOverlay, 250);
+
+  // Small basemap roads that just clutter a weather map — hidden in both themes.
+  // Railways (id starts with "railway") and building footprints (source-layer
+  // "building") are hidden too, via the predicate in tuneBasemap.
+  const HIDDEN_BASEMAP_LAYERS = [
+    "highway_path",
+    "highway_minor",
+    "highway_name_other",
+  ];
+
+  // Re-apply our basemap tweaks after each (re)load: hide the small roads, and in
+  // dark mode make place labels legible over the bright overlay — the stock dark
+  // style uses mid-grey text with a soft translucent halo that muddies against the
+  // temperature/precip colours, so brighten the text and give it a crisp opaque
+  // halo. Light mode reads fine and is left untouched. setStyle resets everything,
+  // so this must run on every style.load.
+  function tuneBasemap() {
+    const dark = document.documentElement.classList.contains("dark");
+    for (const l of map.getStyle().layers ?? []) {
+      const src = "source-layer" in l ? l["source-layer"] : undefined;
+      if (
+        HIDDEN_BASEMAP_LAYERS.includes(l.id) ||
+        l.id.startsWith("railway") ||
+        src === "building"
+      ) {
+        map.setLayoutProperty(l.id, "visibility", "none");
+        continue;
+      }
+      if (dark && l.type === "symbol" && src === "place") {
+        map.setPaintProperty(l.id, "text-color", "rgb(236,236,236)");
+        map.setPaintProperty(l.id, "text-halo-color", "rgb(0,0,0)");
+        map.setPaintProperty(l.id, "text-halo-width", 1.8);
+        map.setPaintProperty(l.id, "text-halo-blur", 0);
+      }
+    }
+  }
+
+  // The style is (re)loaded on init and whenever we switch light/dark, which
+  // drops custom sources; refreshOverlay recreates the overlay layer and repaints
+  // the current frame.
+  map.on("style.load", () => {
+    styleReady = true;
+    tuneBasemap();
+    refreshOverlay();
+    maybeAutostart();
+  });
+
+  // Layer toggle
+  const toggle = document.getElementById("layer-toggle");
+  const legendTemp = document.getElementById("legend-temperature") as HTMLElement;
+  const legendPrecip = document.getElementById("legend-precipitation") as HTMLElement;
+  toggle?.querySelectorAll<HTMLButtonElement>("button[data-layer]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.layer as Layer;
+      if (next === layer) return;
+      userInteracted = true;
+      layer = next;
+      for (const b of toggle.querySelectorAll<HTMLButtonElement>("button[data-layer]")) {
+        b.setAttribute("aria-current", String(b.dataset.layer === layer));
+      }
+      legendTemp.hidden = layer !== "temperature";
+      legendPrecip.hidden = layer !== "precipitation";
+      // Temperature and precipitation slot at different depths (below vs above
+      // the water fill), so restack the existing overlay for the new layer.
+      if (map.getLayer(OVERLAY_LAYER)) {
+        map.moveLayer(OVERLAY_LAYER, overlayBeforeId(layer));
+      }
+      stopPlaying();
+      applyTimeRange();
+      prefetchAround(frameIndex, 2);
+      refreshOverlay();
+    });
+  });
+
+  // Opacity
+  document.getElementById("opacity")?.addEventListener("input", (event) => {
+    opacity = Number((event.target as HTMLInputElement).value) / 100;
+    if (map.getLayer(OVERLAY_LAYER)) {
+      map.setPaintProperty(OVERLAY_LAYER, "raster-opacity", opacity);
+    }
+  });
+
+  // Time scrubber. The slider indexes into the active layer's frame list, with
+  // its value pinned at the "now" frame; the label shows the offset from now plus
+  // the frame's real clock time.
+  const timeInput = document.getElementById("time") as HTMLInputElement;
+  const timeLabel = document.getElementById("time-label") as HTMLElement;
+
+  function formatOffset(): string {
+    const frames = manifest[layer];
+    const steps = frameIndex - frames.nowIndex;
+    if (steps === 0) return "Now";
+    const min = (steps * frames.stepSeconds) / 60;
+    const sign = min > 0 ? "+" : "−";
+    const abs = Math.abs(min);
+    return abs % 60 === 0 ? `${sign}${abs / 60}h` : `${sign}${abs}m`;
+  }
+
+  // Local clock time of the active frame — HH:mm, prefixed with a short weekday
+  // when it falls on a different day than now (temperature reaches +12h).
+  function formatClock(): string {
+    const iso = manifest[layer].times[frameIndex];
+    if (!iso) return "";
+    const d = new Date(iso);
+    const tz = "Europe/Helsinki";
+    const time = d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: tz,
+    });
+    // Compare calendar days in Helsinki time so the weekday prefix flips at
+    // Finnish midnight regardless of the viewer's own timezone.
+    const dayKey = (t: Date) =>
+      t.toLocaleDateString("en-CA", { timeZone: tz });
+    return dayKey(d) === dayKey(new Date())
+      ? time
+      : `${d.toLocaleDateString([], { weekday: "short", timeZone: tz })} ${time}`;
+  }
+
+  function updateTimeLabel() {
+    const clock = formatClock();
+    timeLabel.textContent = clock ? `${formatOffset()} · ${clock}` : formatOffset();
+  }
+
+  // Re-point the slider at the active layer's frame list and reset to "now".
+  function applyTimeRange() {
+    const frames = manifest[layer];
+    timeInput.min = "0";
+    timeInput.max = String(frames.times.length - 1);
+    timeInput.step = "1";
+    frameIndex = frames.nowIndex;
+    timeInput.value = String(frameIndex);
+    updateTimeLabel();
+  }
+
+  timeInput.addEventListener("input", () => {
+    userInteracted = true;
+    stopPlaying();
+    frameIndex = Number(timeInput.value);
+    updateTimeLabel();
+    prefetchAround(frameIndex, 2);
+    refreshDebounced();
+  });
+
+  // Radar-loop playback: auto-advance through the frame window at a uniform
+  // cadence, wrapping at the end. Frames are prefetched a few steps ahead (the
+  // window wraps too), so playback stays smooth across the loop restart.
+  const FRAME_MS = 600;
+  const playButton = document.getElementById("play") as HTMLButtonElement;
+  let playing = false;
+  let playTimer: ReturnType<typeof setTimeout> | undefined;
+  // Autostart the loop once on load — but only after both the map style and the
+  // manifest are ready (whichever lands last triggers it), and never if the user
+  // has already driven the controls (play/pause, scrub, layer switch).
+  let autostarted = false;
+  let userInteracted = false;
+
+  function maybeAutostart() {
+    if (autostarted || userInteracted || !styleReady) return;
+    autostarted = true;
+    startPlaying();
+  }
+
+  function setFrameIndex(idx: number) {
+    frameIndex = idx;
+    timeInput.value = String(idx);
+    updateTimeLabel();
+  }
+
+  function animateTick() {
+    const frames = manifest[layer];
+    const next = frameIndex + 1 >= frames.times.length ? 0 : frameIndex + 1;
+    setFrameIndex(next);
+    prefetchAround(next, 3);
+    refreshOverlay();
+    playTimer = setTimeout(animateTick, FRAME_MS);
+  }
+
+  function startPlaying() {
+    if (playing) return;
+    playing = true;
+    playButton.setAttribute("aria-pressed", "true");
+    playButton.textContent = "⏸";
+    prefetchAround(frameIndex, 3);
+    playTimer = setTimeout(animateTick, FRAME_MS);
+  }
+
+  function stopPlaying() {
+    if (!playing) return;
+    playing = false;
+    clearTimeout(playTimer);
+    playButton.setAttribute("aria-pressed", "false");
+    playButton.textContent = "▶";
+  }
+
+  playButton.addEventListener("click", () => {
+    userInteracted = true;
+    if (playing) stopPlaying();
+    else startPlaying();
+  });
+
+  // Fetch the frame manifest, then re-anchor the scrubber to real frame times.
+  loadManifest().then(() => {
+    applyTimeRange();
+    prefetchAround(frameIndex, 2);
+    maybeAutostart();
+  });
+  applyTimeRange();
+
+  // Follow the app-wide light/dark theme toggle.
+  new MutationObserver((records) => {
+    for (const r of records) {
+      if (r.attributeName === "class") {
+        // setStyle drops custom layers until style.load refires; block overlay
+        // mutation until then.
+        styleReady = false;
+        map.setStyle(styleFor());
+        return;
+      }
+    }
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+</script>
