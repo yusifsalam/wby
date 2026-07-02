@@ -1,5 +1,5 @@
-import type { City } from "./cities";
 import { createSignedHeaders } from "./apiSignature";
+import type { City } from "./cities";
 
 export type WebConfig = {
   apiBaseUrl: string;
@@ -82,7 +82,14 @@ export type LeaderboardResponse = {
   leaderboard: LeaderboardEntry[];
 };
 
-type SignedGetInput = {
+export const MAP_LAYERS = ["temperature", "precipitation"] as const;
+export type MapLayer = (typeof MAP_LAYERS)[number];
+
+export function isMapLayer(value: string): value is MapLayer {
+  return (MAP_LAYERS as readonly string[]).includes(value);
+}
+
+type SignedFetchInput = {
   config: WebConfig;
   path: string;
   params: Record<string, string>;
@@ -90,13 +97,16 @@ type SignedGetInput = {
   fetchImpl: typeof fetch;
 };
 
-async function signedGet<T>({
+// Performs an HMAC-signed GET against the Go API and returns the raw Response.
+// Used for non-JSON payloads (e.g. map overlay PNGs). JSON callers should use
+// signedGet, which parses and checks the status on top of this.
+export async function signedFetch({
   config,
   path,
   params,
   timestamp,
   fetchImpl,
-}: SignedGetInput): Promise<T> {
+}: SignedFetchInput): Promise<Response> {
   const url = new URL(path, config.apiBaseUrl);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
@@ -111,7 +121,39 @@ async function signedGet<T>({
     timestamp,
   });
 
-  const response = await fetchImpl(url, { method: "GET", headers });
+  // Retry once on a connection-level failure. Node's fetch pools keep-alive
+  // sockets, so an occasional reused-but-closed socket throws ("other side
+  // closed"); these GETs are idempotent, so a fresh-connection retry is safe.
+  // Don't retry deliberate aborts, and rethrow the *original* error if the retry
+  // also fails — it's the more diagnostic one.
+  try {
+    return await fetchImpl(url, { method: "GET", headers });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") throw err;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    try {
+      return await fetchImpl(url, { method: "GET", headers });
+    } catch {
+      throw err;
+    }
+  }
+}
+
+// Builds a JSON error Response for the map proxy routes. Shared so every failure
+// path (bad request, upstream error, and an upstream connection failure) returns
+// the same shape instead of letting a thrown fetch escape as an opaque 500.
+export function jsonError(message: string, status: number): Response {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+async function signedGet<T>(input: SignedFetchInput): Promise<T> {
+  const response = await signedFetch(input);
   if (!response.ok) {
     throw new Error(
       `Weather API failed with ${response.status}: ${await errorMessage(response)}`,
