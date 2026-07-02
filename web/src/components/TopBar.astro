@@ -7,6 +7,8 @@ type Props = {
 
 const { activeSlug } = Astro.props;
 const statsActive = activeSlug === "stats";
+const mapActive = activeSlug === "map";
+const weatherActive = !statsActive && !mapActive;
 
 const navLink =
   "flex-none rounded-lg border border-transparent px-2.5 py-2 text-[0.9rem] font-[650] text-muted hover:border-line hover:bg-surface hover:text-ink aria-[current=page]:border-line aria-[current=page]:bg-surface aria-[current=page]:text-ink";
@@ -25,7 +27,8 @@ const navLink =
     class="flex justify-end gap-1.5 py-1 max-[820px]:col-span-2 max-[820px]:row-start-2 max-[820px]:justify-start"
     aria-label="Sections"
   >
-    <a class={navLink} href="/weather/helsinki" aria-current={statsActive ? undefined : "page"}>Weather</a>
+    <a class={navLink} href="/weather/helsinki" aria-current={weatherActive ? "page" : undefined}>Weather</a>
+    <a class={navLink} href="/map" aria-current={mapActive ? "page" : undefined}>Map</a>
     <a class={navLink} href="/stats" aria-current={statsActive ? "page" : undefined}>Stats</a>
   </nav>
   <div class="max-[820px]:col-start-2 max-[820px]:row-start-1 max-[820px]:justify-self-end">
