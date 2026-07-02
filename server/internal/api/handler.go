@@ -38,6 +38,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/map/temperature/samples", h.getTemperatureSamples)
 	mux.HandleFunc("GET /v1/map/precipitation", h.getPrecipitationOverlay)
 	mux.HandleFunc("GET /v1/map/precipitation/forecast", h.getPrecipitationForecastGrid)
+	mux.HandleFunc("GET /v1/map/frames", h.getMapFrames)
 	mux.HandleFunc("GET /v1/climate-normals", h.getClimateNormals)
 	mux.HandleFunc("GET /v1/leaderboard", h.getLeaderboard)
 	mux.HandleFunc("GET /health", h.health)
