@@ -66,10 +66,19 @@ func main() {
 	signedMux := api.NewRequestSignatureMiddleware(cfg.ClientSecrets, cfg.RequestSignatureMaxAge)(mux)
 
 	srv := &http.Server{
-		Addr:         ":" + cfg.Port,
-		Handler:      signedMux,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Addr:    ":" + cfg.Port,
+		Handler: signedMux,
+		// ReadHeaderTimeout guards against slow-loris; the body read is bounded
+		// separately so it doesn't also cap idle keep-alive connections.
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		// IdleTimeout must be set explicitly: when zero it defaults to
+		// ReadTimeout, which would slam idle keep-alive connections shut after a
+		// few seconds. Node's fetch (undici) pools and reuses sockets, so an
+		// aggressive server-side close races client reuse and surfaces as
+		// intermittent "other side closed" errors. Keep it comfortably longer
+		// than any client keep-alive so the client always recycles first.
+		IdleTimeout: 120 * time.Second,
 	}
 
 	go func() {
