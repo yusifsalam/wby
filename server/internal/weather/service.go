@@ -218,10 +218,12 @@ func (s *Service) GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*T
 	maxLon := finlandMaxLon + margin
 	maxLat := finlandMaxLat + margin
 
-	// GRIB is a forecast field, so it's used only for future instants. It carries
-	// grid topology, letting the client interpolate with hardware bilinear rather
-	// than point IDW. "now" and past instants come from station observations.
-	if at.After(time.Now()) {
+	// GRIB is a forecast field covering the current hour onward. Use it for any
+	// instant from the start of the current hour forward: it carries grid topology,
+	// letting the client interpolate with hardware bilinear rather than point IDW,
+	// so the "now" overlay is gridded like the forecast frames. Earlier (past)
+	// instants, and a GRIB miss, fall through to station observations below.
+	if !at.Before(time.Now().UTC().Truncate(time.Hour)) {
 		if grid := s.gribTemperatureGrid(ctx, minLon, minLat, maxLon, maxLat, at); grid != nil {
 			return temperatureGridResponse(grid), nil
 		}
