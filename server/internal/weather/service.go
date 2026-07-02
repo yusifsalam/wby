@@ -297,9 +297,14 @@ func (s *Service) GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*T
 const ForecastBackfillThreshold = 30
 
 // ForecastBackfillHorizon is the maximum number of hours into the future for
-// which the backfill prefetches hourly forecasts. Requests for `at` beyond this
-// horizon cannot be satisfied by the backfill, so the API layer rejects them.
+// which the (legacy station) backfill prefetches hourly forecasts.
 const ForecastBackfillHorizon = 24
+
+// MapForecastHorizon is the furthest-future hour the map forecast exposes and
+// accepts. Backed by the GRIB temperature field (Harmonie surface run covers
+// ~60h ahead); comfortably beyond the 24h station-backfill horizon. Both the
+// frame manifest window and the samples handler's `at` cap derive from it.
+const MapForecastHorizon = 48
 
 const (
 	forecastBackfillCooldown = 5 * time.Minute

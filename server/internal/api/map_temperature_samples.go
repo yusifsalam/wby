@@ -58,10 +58,10 @@ func (h *Handler) getTemperatureSamples(w http.ResponseWriter, r *http.Request) 
 		at = parsed.UTC()
 		atProvided = true
 
-		// Cap future requests at the backfill horizon. Beyond it, no amount
-		// of fan-out can produce data, so reject up-front instead of spinning
-		// useless backfills on every retry.
-		horizon := time.Duration(weather.ForecastBackfillHorizon) * time.Hour
+		// Cap future requests at the map forecast horizon (backed by the GRIB
+		// field). Beyond it there's no data, so reject up-front instead of
+		// spinning useless backfills on every retry.
+		horizon := time.Duration(weather.MapForecastHorizon) * time.Hour
 		if at.After(time.Now().Add(horizon)) {
 			writeJSONError(w, "at exceeds forecast horizon", http.StatusBadRequest)
 			return
