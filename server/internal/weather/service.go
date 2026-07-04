@@ -122,7 +122,7 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 		uvCache:          NewCache[[]UVDataPoint](forecastCacheTTL),
 		precipCache:      NewCache[*PrecipitationOverlay](30 * time.Minute),
 		leaderboardCache: NewCache[[]LeaderboardEntry](5 * time.Minute),
-		gribGridCache:    NewCache[*FieldGrid](10 * time.Minute),
+		gribGridCache:    NewCache[*FieldGrid](gribGridCacheTTL),
 		gribPrecipCache:  NewCache[*PrecipitationForecastGrid](10 * time.Minute),
 	}
 }
@@ -307,6 +307,13 @@ const ForecastBackfillHorizon = 24
 // ~60h ahead); comfortably beyond the 24h station-backfill horizon. Both the
 // frame manifest window and the samples handler's `at` cap derive from it.
 const MapForecastHorizon = 48
+
+// gribGridCacheTTL bounds how long a decoded GRIB temperature grid is served
+// from memory. It must exceed the GRIB refresh interval (default 60m) so that
+// grids warmed right after a refresh (WarmTemperatureGrids) stay hot until the
+// next cycle re-warms them, rather than expiring mid-cycle and forcing the next
+// client to eat a cold gribsvc extract.
+const gribGridCacheTTL = 75 * time.Minute
 
 const (
 	forecastBackfillCooldown = 5 * time.Minute
@@ -581,6 +588,44 @@ func (s *Service) gribTemperatureGrid(ctx context.Context, minLon, minLat, maxLo
 
 	s.gribGridCache.Set(cacheKey, grid)
 	return grid
+}
+
+// WarmTemperatureGrids pre-populates the GRIB temperature grid cache for every
+// hourly map frame (the current hour through MapForecastHorizon), over the same
+// fixed Finland extent GetTemperatureSamplesAt uses. Intended to run once per
+// GRIB refresh cycle so the first client request for each scrubber frame is a
+// cache hit rather than a ~10s cold gribsvc extract. The cache key is hour-only,
+// so warming here satisfies every client bbox. Best-effort and idempotent:
+// gribTemperatureGrid skips hours already cached, and per-frame misses (field
+// not published yet) are simply left for a client to fill lazily.
+func (s *Service) WarmTemperatureGrids(ctx context.Context) {
+	if s.gribTemp == nil {
+		return
+	}
+
+	const margin = 0.2
+	minLon := finlandMinLon - margin
+	minLat := finlandMinLat - margin
+	maxLon := finlandMaxLon + margin
+	maxLat := finlandMaxLat + margin
+
+	start := time.Now()
+	base := time.Now().UTC().Truncate(time.Hour)
+	warmed := 0
+	for i := 0; i <= MapForecastHorizon; i++ {
+		if ctx.Err() != nil {
+			return
+		}
+		at := base.Add(time.Duration(i) * time.Hour)
+		if grid := s.gribTemperatureGrid(ctx, minLon, minLat, maxLon, maxLat, at); grid != nil {
+			warmed++
+		}
+	}
+	slog.Info("warmed grib temperature grids",
+		"frames", warmed,
+		"horizon_hours", MapForecastHorizon,
+		"duration", time.Since(start),
+	)
 }
 
 // temperatureGridResponse builds a samples response carrying the dense GRIB

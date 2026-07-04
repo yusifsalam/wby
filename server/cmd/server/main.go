@@ -53,7 +53,7 @@ func main() {
 			Producer: cfg.GribProducer,
 			Params:   cfg.GribParams,
 			BBox:     cfg.GribBBox,
-		}, cfg.GribInterval)
+		}, cfg.GribInterval, svc.WarmTemperatureGrids)
 	}
 	// Disabled: bursts ~200 FMI WFS requests every 30min and on every restart,
 	// which gets the server's IP rate-limited and starves the observation fetcher.

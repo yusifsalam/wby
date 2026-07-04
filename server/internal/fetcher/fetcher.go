@@ -80,11 +80,13 @@ type GribJob struct {
 
 // RunGribLoop periodically downloads a GRIB2 grid from FMI into the shared data
 // directory that gribsvc reads. It mirrors RunObservationLoop: fetch once
-// immediately, then on each tick until ctx is cancelled.
-func (f *Fetcher) RunGribLoop(ctx context.Context, job GribJob, interval time.Duration) {
+// immediately, then on each tick until ctx is cancelled. After each successful
+// download onRefresh (if non-nil) is invoked so the caller can warm any caches
+// derived from the new file (e.g. the GRIB grid cache) before clients ask.
+func (f *Fetcher) RunGribLoop(ctx context.Context, job GribJob, interval time.Duration, onRefresh func(context.Context)) {
 	slog.Info("grib fetcher starting", "interval", interval, "dir", job.DataDir, "file", job.Filename)
 
-	f.fetchGrib(ctx, job)
+	f.fetchGrib(ctx, job, onRefresh)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -95,18 +97,22 @@ func (f *Fetcher) RunGribLoop(ctx context.Context, job GribJob, interval time.Du
 			slog.Info("grib fetcher stopped")
 			return
 		case <-ticker.C:
-			f.fetchGrib(ctx, job)
+			f.fetchGrib(ctx, job, onRefresh)
 		}
 	}
 }
 
-func (f *Fetcher) fetchGrib(ctx context.Context, job GribJob) {
+func (f *Fetcher) fetchGrib(ctx context.Context, job GribJob, onRefresh func(context.Context)) {
 	start := time.Now()
 	if err := f.downloadGrib(ctx, job); err != nil {
 		slog.Error("failed to fetch grib from FMI", "err", err, "producer", job.Producer)
 		return
 	}
 	slog.Info("grib fetched", "producer", job.Producer, "file", job.Filename, "duration", time.Since(start))
+
+	if onRefresh != nil {
+		onRefresh(ctx)
+	}
 }
 
 // downloadGrib streams the GRIB2 file into a hidden temp file, then atomically
