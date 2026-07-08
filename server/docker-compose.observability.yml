@@ -1,0 +1,72 @@
+# Observability stack — Loki (log store) + Alloy (shipper) + Grafana (UI).
+#
+# Opt-in: every service is gated behind the "logging" profile, so it never
+# starts with the core deploy. Bring it up alongside the main stack with:
+#
+#   docker compose -p wby \
+#     -f docker-compose.yml -f docker-compose.observability.yml \
+#     --profile logging up -d
+#
+# Grafana is served at https://logs.yourweatherapp.fi (see conf/Caddyfile).
+# Requires GRAFANA_ADMIN_PASSWORD in the environment / .env.
+
+services:
+  loki:
+    image: grafana/loki:3.7.3
+    profiles: ["logging"]
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./conf/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki_data:/loki
+
+  alloy:
+    image: grafana/alloy:v1.17.1
+    profiles: ["logging"]
+    restart: unless-stopped
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+    # root so Alloy can read the Docker socket; the socket is mounted read-only.
+    user: root
+    volumes:
+      - ./conf/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:13.1.0
+    profiles: ["logging"]
+    restart: unless-stopped
+    ports:
+      # Direct host access, so the stack is usable with Caddy off. Bound to
+      # localhost by default so it isn't publicly exposed on the VPS — Caddy
+      # reaches Grafana over the Docker network, not via this port. Set
+      # GRAFANA_BIND=0.0.0.0 to expose it on all interfaces.
+      - "${GRAFANA_BIND:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}"
+      # Localhost for direct/dev access; set to https://logs.yourweatherapp.fi
+      # when running behind Caddy in production.
+      GF_SERVER_ROOT_URL: "${GRAFANA_ROOT_URL:-http://localhost:3000}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # Grafana logs every datasource query at info; the auto-refreshing
+      # dashboard makes that a flood (and Alloy ships it back into Loki).
+      GF_LOG_LEVEL: "${GRAFANA_LOG_LEVEL:-warn}"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./conf/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - loki
+
+volumes:
+  loki_data:
+  alloy_data:
+  grafana_data:

@@ -1,0 +1,56 @@
+// Grafana Alloy — discovers every Docker container on this host, reads its
+// stdout/stderr via the Docker API, and ships the lines to Loki.
+//
+// No per-container config: add or remove services in docker-compose and Alloy
+// picks them up on the next refresh.
+
+// Discover all running containers.
+discovery.docker "containers" {
+	host             = "unix:///var/run/docker.sock"
+	refresh_interval = "15s"
+}
+
+// Turn Docker metadata into friendly Loki labels (kept low-cardinality).
+discovery.relabel "containers" {
+	targets = discovery.docker.containers.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		target_label  = "service"
+	}
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		target_label  = "compose_project"
+	}
+}
+
+// Read container logs and forward into the processing pipeline.
+loki.source.docker "containers" {
+	host       = "unix:///var/run/docker.sock"
+	targets    = discovery.relabel.containers.output
+	labels     = {"job" = "docker"}
+	forward_to = [loki.process.parse.receiver]
+}
+
+// Promote slog's JSON "level" field to a Loki label so error-filtering is
+// instant. Non-JSON lines (Postgres, Caddy) pass through untouched.
+loki.process "parse" {
+	stage.json {
+		expressions = {"level" = "level"}
+	}
+	stage.labels {
+		values = {"level" = ""}
+	}
+	forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}
