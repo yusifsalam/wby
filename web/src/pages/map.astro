@@ -417,13 +417,22 @@ import "maplibre-gl/dist/maplibre-gl.css";
     });
   }
 
-  // Draw a Finland-clipped copy of an overlay image onto a Mercator-correct canvas
-  // spanning `corners`, returning a data URL. lng→x is linear, lat→y is Mercator —
-  // matching how MapLibre lays the image across the coordinate quad — so the clip
-  // edge lines up with the basemap coastline.
-  function clipImageToFinland(
+  // Redraw an overlay image onto a Mercator-correct canvas spanning `corners`,
+  // returning a data URL. lng→x is linear, lat→y is Mercator — matching how
+  // MapLibre lays the image across the coordinate quad. When `clip` is set, the
+  // Finland outline (FINLAND_RINGS) is applied as a clip path first, so the edge
+  // lines up with the basemap coastline (temperature only). Precipitation passes
+  // clip=false and is copied whole.
+  //
+  // Both layers must flow through this bake even when unclipped: MapLibre's
+  // ImageSource.updateImage repaints on its own only for an already-decoded data
+  // URL. Handing it a remote URL (the raw /api/map/precipitation PNG) sets the
+  // texture but doesn't trigger a render until something else forces one — so a
+  // plain layer switch wouldn't show until you scrubbed or hit play.
+  function bakeOverlayImage(
     source: HTMLImageElement | HTMLCanvasElement,
     corners: Corners,
+    clip: boolean,
   ): string {
     const [west, north] = corners[0];
     const [east, south] = corners[2];
@@ -439,34 +448,42 @@ import "maplibre-gl/dist/maplibre-gl.css";
     canvas.height = h;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("no 2d canvas context");
-    const toX = (lng: number) => ((lng - west) / (east - west)) * w;
-    const toY = (lat: number) => ((myN - mercatorY(lat)) / (myN - myS)) * h;
-    ctx.beginPath();
-    for (const ring of FINLAND_RINGS) {
-      ring.forEach(([lng, lat], i) => {
-        const x = toX(lng);
-        const y = toY(lat);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.closePath();
+    if (clip) {
+      const toX = (lng: number) => ((lng - west) / (east - west)) * w;
+      const toY = (lat: number) => ((myN - mercatorY(lat)) / (myN - myS)) * h;
+      ctx.beginPath();
+      for (const ring of FINLAND_RINGS) {
+        ring.forEach(([lng, lat], i) => {
+          const x = toX(lng);
+          const y = toY(lat);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+      }
+      ctx.clip();
     }
-    ctx.clip();
     ctx.drawImage(source, 0, 0, w, h);
     return canvas.toDataURL("image/png");
   }
 
-  // Finland-clipped overlay data URLs, memoised by the source frame url so
-  // scrubbing/animation re-display each unique frame's clip once. Both temperature
-  // (a grid-canvas data URL) and precipitation (a server PNG url) flow through it.
-  const clippedFrameCache = new Map<string, string>();
+  // Baked (decoded, Mercator-canvas) overlay data URLs, memoised by the source
+  // frame url so scrubbing/animation re-render each unique frame once. Both
+  // temperature (a grid-canvas data URL, clipped) and precipitation (a server PNG
+  // url, unclipped) flow through it. Each source url belongs to one layer, so the
+  // clip flag is stable per key.
+  const bakedFrameCache = new Map<string, string>();
 
-  async function clippedFrameUrl(url: string, corners: Corners): Promise<string> {
-    const cached = clippedFrameCache.get(url);
+  async function bakedFrameUrl(
+    url: string,
+    corners: Corners,
+    clip: boolean,
+  ): Promise<string> {
+    const cached = bakedFrameCache.get(url);
     if (cached !== undefined) return cached;
-    const clipped = clipImageToFinland(await loadImage(url), corners);
-    clippedFrameCache.set(url, clipped);
-    return clipped;
+    const baked = bakeOverlayImage(await loadImage(url), corners, clip);
+    bakedFrameCache.set(url, baked);
+    return baked;
   }
 
   // Where to slot the overlay in the basemap's layer stack, per weather layer.
@@ -536,11 +553,12 @@ import "maplibre-gl/dist/maplibre-gl.css";
     try {
       view = await buildFrame();
       // Temperature is a land field, so clip it to the Finland outline; rain is
-      // real over the sea, so precipitation renders unclipped over its full extent.
-      imageUrl =
-        layer === "temperature"
-          ? await clippedFrameUrl(view.url, view.corners)
-          : view.url;
+      // real over the sea, so precipitation bakes unclipped over its full extent.
+      imageUrl = await bakedFrameUrl(
+        view.url,
+        view.corners,
+        layer === "temperature",
+      );
     } catch (err) {
       console.error("overlay refresh failed", err);
       return;
