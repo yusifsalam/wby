@@ -19,21 +19,21 @@ import "maplibre-gl/dist/maplibre-gl.css";
         <button
           type="button"
           data-layer="temperature"
-          class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-[current=true]:bg-page aria-[current=true]:text-ink aria-[current=true]:shadow-panel"
+          class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-[current=true]:bg-page aria-[current=true]:text-ink aria-[current=true]:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
           aria-current="true"
         >Temperature</button>
         <button
           type="button"
           data-layer="precipitation"
-          class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-[current=true]:bg-page aria-[current=true]:text-ink aria-[current=true]:shadow-panel"
+          class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-[current=true]:bg-page aria-[current=true]:text-ink aria-[current=true]:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
           aria-current="false"
         >Precipitation</button>
       </div>
 
       <!-- Opacity -->
-      <div class="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-line bg-surface/90 px-3 py-2 text-[0.8rem] font-[650] text-muted shadow-panel backdrop-blur">
-        <span>Opacity</span>
-        <input id="opacity" type="range" min="0" max="100" value="80" class="w-24 accent-teal" aria-label="Overlay opacity" />
+      <div class="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-line bg-surface/90 px-3 py-2 text-[0.8rem] font-[650] text-muted shadow-panel backdrop-blur max-[560px]:px-2 max-[560px]:py-1.5">
+        <span class="max-[560px]:hidden">Opacity</span>
+        <input id="opacity" type="range" min="0" max="100" value="80" class="w-24 accent-teal max-[560px]:w-16" aria-label="Overlay opacity" />
       </div>
 
       <!-- Legend -->
@@ -63,9 +63,9 @@ import "maplibre-gl/dist/maplibre-gl.css";
           aria-label="Play forecast animation"
           class="flex-none rounded-md px-2 py-0.5 text-[1rem] leading-none text-ink hover:text-teal"
         >▶</button>
-        <span class="flex-none text-[0.8rem] font-[650] text-muted">Time</span>
-        <input id="time" type="range" value="0" class="flex-1 accent-teal" aria-label="Forecast time" />
-        <span id="time-label" class="w-36 flex-none text-right text-[0.85rem] font-[650] text-ink tabular-nums">Now</span>
+        <span class="flex-none text-[0.8rem] font-[650] text-muted max-[560px]:hidden">Time</span>
+        <input id="time" type="range" value="0" class="min-w-0 flex-1 accent-teal" aria-label="Forecast time" />
+        <span id="time-label" class="w-36 flex-none whitespace-nowrap text-right text-[0.85rem] font-[650] text-ink tabular-nums max-[560px]:w-20 max-[560px]:text-[0.7rem]">Now</span>
       </div>
     </section>
   </main>
@@ -723,7 +723,12 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
   function updateTimeLabel() {
     const clock = formatClock();
-    timeLabel.textContent = clock ? `${formatOffset()} · ${clock}` : formatOffset();
+    // Offset ("+22h · ") is hidden on mobile, where it also made the label —
+    // and thus the flex slider — resize on every scrub. Values come from
+    // controlled formatters, so innerHTML is safe here.
+    timeLabel.innerHTML = clock
+      ? `<span class="max-[560px]:hidden">${formatOffset()} · </span>${clock}`
+      : formatOffset();
   }
 
   // Re-point the slider at the active layer's frame list and reset to "now".
