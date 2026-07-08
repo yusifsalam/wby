@@ -64,10 +64,13 @@ func (s *Service) GetPrecipitationOverlay(ctx context.Context, req Precipitation
 		"height", req.Height,
 	)
 
-	// FMI's radar/forecast tiles for the most recent 5-min mark may not be
-	// published yet at the boundary. If the upstream errors, retry up to
-	// `precipFallbackSteps` earlier steps so we still return *something*.
-	const precipFallbackSteps = 3
+	// FMI's radar observation composite lags real time: the current 5-min mark
+	// (and often several before it) isn't published yet, so a request for it
+	// returns "InvalidDimensionValue: Invalid time requested!". The lag is
+	// variable and has been observed above 15 min, so when the upstream errors
+	// we retry earlier 5-min steps until we hit the latest published frame.
+	// Cover ~30 min of leading-edge lag; each miss is a cheap upstream round-trip.
+	const precipFallbackSteps = 7
 	var lastErr error
 	attemptTarget := target
 	for attempt := 0; attempt < precipFallbackSteps; attempt++ {
