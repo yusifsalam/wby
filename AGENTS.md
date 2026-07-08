@@ -13,6 +13,7 @@ This repo has three main apps:
   - `internal/weather/`: domain models, service logic, caching.
   - `migrations/`: SQL schema migrations.
   - `scripts/local-dev.sh`: local DB/server bootstrap for macOS.
+  - `docker-compose.observability.yml` + `conf/{loki,alloy,grafana}/`: optional Loki + Alloy + Grafana log stack (`logging` compose profile).
 - `ios/wby/wby/`: SwiftUI iOS app (`Background/`, `Components/`, `Models/`, `Services/`, `Views/`, `ContentView.swift`).
 - `ios/wby/config/`: environment-specific `Keys.*.plist` files for API base URL and request signing credentials.
 - `gribsvc/`: standalone Python GRIB2 service (FastAPI + pygrib) that serves numeric extraction + PNG tiles; not yet wired into the server.
@@ -32,6 +33,7 @@ This repo has three main apps:
 - `cd server && go test ./internal/store -v`: run store tests (requires running Postgres/PostGIS).
 - `go run ./server/cmd/server`: direct server run (requires env vars like `DATABASE_URL`).
 - `cd server && docker compose up --build`: run DB + server + Caddy via Docker Compose.
+- `cd server && docker compose -p wby -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.observability.yml --profile logging up -d`: run the full stack plus the Loki/Alloy/Grafana log stack (Grafana at `localhost:3000`; needs `GRAFANA_ADMIN_PASSWORD`). Explicit `-f` disables auto-merge of the override, so list it explicitly.
 - Xcode MCP `BuildProject` (project `ios/wby/wby.xcodeproj`, scheme `wby`): preferred iOS build check.
 - `cd gribsvc && pip install -r requirements-dev.txt && pytest`: run GRIB2 service tests (GRIB-fixture tests skip when `testdata/` is empty).
 - `cd gribsvc && GRIB_DATA_DIR=./testdata uvicorn app.main:app --port 9090`: run the GRIB2 service locally.
@@ -63,4 +65,5 @@ This repo has three main apps:
 - Start from `server/.env.example`; do not commit secrets.
 - Local development expects Postgres + PostGIS.
 - Key backend env vars: `DATABASE_URL`, `PORT`, `FMI_BASE_URL`, `FMI_API_KEY`, `FMI_TIMESERIES_URL`, `CLIENT_SECRETS`, `REQUEST_SIGNATURE_MAX_AGE_SECONDS`.
+- Observability env vars (log stack): `GRAFANA_ADMIN_PASSWORD` (required), `GRAFANA_BIND`, `GRAFANA_PORT`, `GRAFANA_ROOT_URL`.
 - iOS request signing/base URL live in `ios/wby/config/Keys.Debug.plist` and `ios/wby/config/Keys.Release.plist` (see `*.example.plist` templates). Keep secrets out of git history.

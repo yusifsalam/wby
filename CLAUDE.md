@@ -24,6 +24,12 @@ cd server && /usr/local/go/bin/go test -run TestParseFoo ./internal/fmi  # singl
 # Local dev (starts Postgres via Homebrew, applies migrations, runs server on :8080)
 cd server && ./scripts/local-dev.sh up
 
+# Observability log stack (Loki + Alloy + Grafana), gated behind the "logging" profile.
+# Grafana at http://localhost:3000; needs GRAFANA_ADMIN_PASSWORD set.
+cd server && docker compose -p wby \
+  -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.observability.yml \
+  --profile logging up -d
+
 # iOS (use Xcode MCP tools, NOT xcodebuild CLI)
 # Build:  mcp__xcode__BuildProject (scheme: "wby")
 # Tests:  mcp__xcode__RunAllTests / mcp__xcode__RunSomeTests
@@ -51,6 +57,24 @@ into JSON values + PNG tiles — not yet wired into the server. See
    - Combines current conditions + hourly forecast (12h) + daily forecast (7-10d)
 4. **FMI client** (`internal/fmi/client.go`) fetches WFS XML; **parser** (`internal/fmi/parser.go`) converts XML to domain models.
 5. **Store** (`internal/store/store.go`) handles all Postgres/PostGIS persistence with `pgx/v5` batch operations.
+
+### Observability
+
+Optional log stack in `server/docker-compose.observability.yml`, gated behind the
+`logging` compose profile so it never starts with the core stack:
+
+- **Alloy** (`conf/alloy/config.alloy`) discovers every container via the Docker
+  socket and ships logs to Loki, promoting the slog `level` field to a label.
+- **Loki** (`conf/loki/loki-config.yaml`) — single-binary, filesystem storage,
+  90-day retention.
+- **Grafana** (`conf/grafana/provisioning/`) — auto-provisions the Loki
+  datasource + a starter dashboard; served at `logs.yourweatherapp.fi` behind
+  Caddy (`GRAFANA_ROOT_URL`), or `localhost:3000` directly.
+- Caddy emits JSON access logs to stdout (skipping `/health`), captured by Alloy.
+
+Gotcha: passing explicit `-f` files disables Compose's auto-merge of
+`docker-compose.override.yml` (which supplies the arm64 DB image locally), so
+list it explicitly when running the full stack.
 
 ### iOS Architecture
 

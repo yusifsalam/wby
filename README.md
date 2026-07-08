@@ -109,6 +109,22 @@ docker compose up --build
 
 Set `CLIENT_SECRETS` and `WBY_API_CLIENT_SECRET` to matching values, for example `CLIENT_SECRETS=web:dev-secret` and `WBY_API_CLIENT_SECRET=dev-secret`.
 
+## Observability (Logging)
+
+An optional log stack lives in `server/docker-compose.observability.yml`: **Alloy** discovers every container and ships its logs to **Loki**, which **Grafana** visualizes (starter dashboard + Loki datasource auto-provisioned). It is gated behind the `logging` compose profile, so it never starts with the core stack. Requires `GRAFANA_ADMIN_PASSWORD` (see `.env.example`).
+
+```bash
+cd server
+# Full stack + logging, locally (no Caddy; the override provides an arm64 DB image):
+docker compose -p wby \
+  -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.observability.yml \
+  --profile logging up -d
+```
+
+Grafana is at http://localhost:3000 locally, and behind Caddy at `https://logs.yourweatherapp.fi` in production (set `GRAFANA_ROOT_URL` accordingly). Explore logs with LogQL, e.g. `{compose_project="wby"} | json` or `{service="server", level="ERROR"}`. Caddy also emits JSON access logs (`{service="caddy"} | json`), skipping the `/health` probe.
+
+> Note: passing explicit `-f` files disables Compose's automatic merge of `docker-compose.override.yml`, so list it explicitly (as above) when you need the local overrides.
+
 ## iOS App
 
 - Open `ios/wby/wby.xcodeproj`
