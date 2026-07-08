@@ -398,11 +398,13 @@ import "maplibre-gl/dist/maplibre-gl.css";
   const TRANSPARENT_PNG =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
-  // Finland clip: rather than painting an opaque fill over the basemap outside
-  // Finland (which also hid the sea), we bake the Finland shape into the overlay
-  // image itself — pixels outside the coastline become transparent. The basemap
-  // (land AND water) then renders normally everywhere, and the weather shows only
-  // over the country. The clip path is vector (FINLAND_RINGS), so the coastline
+  // Finland clip (temperature only): rather than painting an opaque fill over the
+  // basemap outside Finland (which also hid the sea), we bake the Finland shape
+  // into the overlay image itself — pixels outside the coastline become
+  // transparent. The basemap (land AND water) then renders normally everywhere,
+  // and the temperature field shows only over the country (precipitation renders
+  // unclipped, since rain over the sea is real). The clip path is vector
+  // (FINLAND_RINGS), so the coastline
   // edge stays crisp even though the source texture is low-res and GPU-upscaled;
   // the interior is smoothed on upscale. Coarse coastline (finland-outline.ts),
   // precise enough at country zoom.
@@ -530,10 +532,15 @@ import "maplibre-gl/dist/maplibre-gl.css";
     const seq = ++refreshSeq;
 
     let view: Frame;
-    let clippedUrl: string;
+    let imageUrl: string;
     try {
       view = await buildFrame();
-      clippedUrl = await clippedFrameUrl(view.url, view.corners);
+      // Temperature is a land field, so clip it to the Finland outline; rain is
+      // real over the sea, so precipitation renders unclipped over its full extent.
+      imageUrl =
+        layer === "temperature"
+          ? await clippedFrameUrl(view.url, view.corners)
+          : view.url;
     } catch (err) {
       console.error("overlay refresh failed", err);
       return;
@@ -542,7 +549,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
     const src = map.getSource(OVERLAY_SRC) as maplibregl.ImageSource | undefined;
     if (!src) return;
-    src.updateImage({ url: clippedUrl, coordinates: view.corners });
+    src.updateImage({ url: imageUrl, coordinates: view.corners });
   }
 
   const debounce = (fn: () => void, ms: number) => {
