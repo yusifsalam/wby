@@ -158,7 +158,21 @@ import "maplibre-gl/dist/maplibre-gl.css";
     }
   }
 
-  let layer: Layer = "temperature";
+  // The active layer is mirrored to the ?layer= query param so a shared URL
+  // reopens on the same map.
+  function layerFromURL(): Layer {
+    return new URLSearchParams(window.location.search).get("layer") === "precipitation"
+      ? "precipitation"
+      : "temperature";
+  }
+  function writeLayerToURL(next: Layer) {
+    const url = new URL(window.location.href);
+    if (next === "temperature") url.searchParams.delete("layer");
+    else url.searchParams.set("layer", next);
+    history.replaceState(null, "", url);
+  }
+
+  let layer: Layer = layerFromURL();
   let opacity = 0.8;
   // Index into the active layer's frame list. nowIndex means the live frame.
   let frameIndex = manifest[layer].nowIndex;
@@ -652,17 +666,25 @@ import "maplibre-gl/dist/maplibre-gl.css";
   const toggle = document.getElementById("layer-toggle");
   const legendTemp = document.getElementById("legend-temperature") as HTMLElement;
   const legendPrecip = document.getElementById("legend-precipitation") as HTMLElement;
+  // Mirror the active layer to the toggle buttons and legends. Called on load too,
+  // so a ?layer= URL that opens on precipitation flips the statically-rendered
+  // temperature defaults.
+  function syncLayerUI() {
+    for (const b of toggle?.querySelectorAll<HTMLButtonElement>("button[data-layer]") ?? []) {
+      b.setAttribute("aria-current", String(b.dataset.layer === layer));
+    }
+    legendTemp.hidden = layer !== "temperature";
+    legendPrecip.hidden = layer !== "precipitation";
+  }
+  syncLayerUI();
   toggle?.querySelectorAll<HTMLButtonElement>("button[data-layer]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const next = btn.dataset.layer as Layer;
       if (next === layer) return;
       userInteracted = true;
       layer = next;
-      for (const b of toggle.querySelectorAll<HTMLButtonElement>("button[data-layer]")) {
-        b.setAttribute("aria-current", String(b.dataset.layer === layer));
-      }
-      legendTemp.hidden = layer !== "temperature";
-      legendPrecip.hidden = layer !== "precipitation";
+      writeLayerToURL(layer);
+      syncLayerUI();
       // Temperature and precipitation slot at different depths (below vs above
       // the water fill), so restack the existing overlay for the new layer.
       if (map.getLayer(OVERLAY_LAYER)) {
