@@ -24,11 +24,13 @@ cd server && /usr/local/go/bin/go test -run TestParseFoo ./internal/fmi  # singl
 # Local dev (starts Postgres via Homebrew, applies migrations, runs server on :8080)
 cd server && ./scripts/local-dev.sh up
 
-# Observability log stack (Loki + Alloy + Grafana), gated behind the "logging" profile.
-# Grafana at http://localhost:3000; needs GRAFANA_ADMIN_PASSWORD set.
-cd server && docker compose -p wby \
-  -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.observability.yml \
-  --profile logging up -d
+# Production deploy: services join the shared `edge` network, no host ports.
+cd server && docker compose -p wby -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+# Shared infra stack (Caddy ingress + Loki/Alloy/Grafana, "logging" profile).
+# Grafana at http://localhost:3000; needs GRAFANA_ADMIN_PASSWORD in infra/.env.
+docker network create edge   # one-time
+cd infra && docker compose -p infra --profile logging up -d
 
 # iOS (use Xcode MCP tools, NOT xcodebuild CLI)
 # Build:  mcp__xcode__BuildProject (scheme: "wby")
@@ -58,23 +60,33 @@ into JSON values + PNG tiles — not yet wired into the server. See
 4. **FMI client** (`internal/fmi/client.go`) fetches WFS XML; **parser** (`internal/fmi/parser.go`) converts XML to domain models.
 5. **Store** (`internal/store/store.go`) handles all Postgres/PostGIS persistence with `pgx/v5` batch operations.
 
-### Observability
+### Shared infrastructure (`infra/`)
 
-Optional log stack in `server/docker-compose.observability.yml`, gated behind the
-`logging` compose profile so it never starts with the core stack:
+Host-wide Caddy ingress + observability live in the top-level `infra/` stack
+(Compose project `infra`), separate from the Weather app so the VPS can host
+multiple apps behind one ingress. Apps and Caddy meet on an external Docker
+network, `edge` (created once with `docker network create edge`); databases stay
+private per app.
 
-- **Alloy** (`conf/alloy/config.alloy`) discovers every container via the Docker
-  socket and ships logs to Loki, promoting the slog `level` field to a label.
-- **Loki** (`conf/loki/loki-config.yaml`) — single-binary, filesystem storage,
-  90-day retention.
-- **Grafana** (`conf/grafana/provisioning/`) — auto-provisions the Loki
-  datasource + a starter dashboard; served at `logs.yourweatherapp.fi` behind
-  Caddy (`GRAFANA_ROOT_URL`), or `localhost:3000` directly.
-- Caddy emits JSON access logs to stdout (skipping `/health`), captured by Alloy.
+- **Caddy** (`infra/conf/caddy/`) — the only stack that publishes ports 80/443.
+  A base `Caddyfile` imports per-app fragments from `sites/`; `weather.caddy`
+  routes `yourweatherapp.fi`→`weather-web:4321`, `api.…/v1/*`+`/health`→
+  `weather-api:8080` (other API paths 404), `logs.…`→`grafana:3000`. Upstreams
+  are the `edge` aliases set in `server/docker-compose.prod.yml`.
+- **Observability** (`logging` profile) — **Alloy** (`conf/alloy/config.alloy`)
+  discovers every container via the Docker socket and ships logs to **Loki**
+  (`conf/loki/`, filesystem, 90-day retention), promoting the slog `level` field
+  to a label. **Grafana** (`conf/grafana/provisioning/`) auto-provisions the Loki
+  datasource + a host-wide "Logs Overview" dashboard (a `$project` selector
+  filters by `compose_project`); served at `logs.yourweatherapp.fi` behind Caddy
+  (`GRAFANA_ROOT_URL`), or `localhost:3000` directly.
 
-Gotcha: passing explicit `-f` files disables Compose's auto-merge of
-`docker-compose.override.yml` (which supplies the arm64 DB image locally), so
-list it explicitly when running the full stack.
+Weather's own stack (`server/docker-compose.yml`) is db + gribsvc + server + web
+only. The base publishes no host ports: local overlays
+(`docker-compose.override.yml` / `.dev.yml`) publish them on loopback and supply
+the arm64 DB image; the production overlay (`docker-compose.prod.yml`) joins
+`edge` with no host ports. Explicit `-f` files disable Compose's auto-merge of
+the override, so `.dev.yml` is self-contained.
 
 ### iOS Architecture
 

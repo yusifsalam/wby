@@ -1,0 +1,27 @@
+# Production overlay: attach the public-facing services to the shared `edge`
+# network so the host-wide Caddy (in ../infra) can reach them. Publishes no host
+# ports — Caddy is the only ingress.
+#
+#   docker compose -p wby -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# `edge` is created out of band: `docker network create edge`.
+services:
+  server:
+    networks:
+      # Keep the default network (to reach db + gribsvc privately)...
+      default: {}
+      # ...and join edge under a globally unique alias for Caddy.
+      edge:
+        aliases:
+          - weather-api
+
+  web:
+    networks:
+      default: {}
+      edge:
+        aliases:
+          - weather-web
+
+networks:
+  edge:
+    external: true

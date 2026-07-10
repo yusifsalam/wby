@@ -5,8 +5,6 @@ services:
       POSTGRES_USER: "${POSTGRES_USER:-weather}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-weather}"
       POSTGRES_DB: "${POSTGRES_DB:-weather}"
-    ports:
-      - "${DB_PORT_HOST:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql
       - ./migrations:/docker-entrypoint-initdb.d
@@ -41,8 +39,6 @@ services:
 
   server:
     build: .
-    ports:
-      - "${PORT:-8080}:${PORT:-8080}"
     environment:
       PORT: "${PORT:-8080}"
       DATABASE_URL: "postgres://${POSTGRES_USER:-weather}:${POSTGRES_PASSWORD:-weather}@db:5432/${POSTGRES_DB:-weather}?sslmode=disable"
@@ -76,26 +72,6 @@ services:
     depends_on:
       - server
 
-  caddy:
-    image: caddy:2.11
-    restart: unless-stopped
-    environment:
-      PORT: "${PORT:-8080}"
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./conf:/etc/caddy
-      - ./site:/srv
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - server
-      - web
-
 volumes:
   pgdata:
   gribdata:
-  caddy_data:
-  caddy_config:

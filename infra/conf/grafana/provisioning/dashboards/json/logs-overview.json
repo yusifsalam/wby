@@ -49,7 +49,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum(count_over_time({compose_project=\"wby\", service=~\"$service\", level=\"ERROR\"}[$__range]))",
+          "expr": "sum(count_over_time({compose_project=~\"$project\", service=~\"$service\", level=\"ERROR\"}[$__range]))",
           "queryType": "instant",
           "refId": "A"
         }
@@ -88,7 +88,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum(count_over_time({compose_project=\"wby\", service=~\"$service\", level=\"WARN\"}[$__range]))",
+          "expr": "sum(count_over_time({compose_project=~\"$project\", service=~\"$service\", level=\"WARN\"}[$__range]))",
           "queryType": "instant",
           "refId": "A"
         }
@@ -124,7 +124,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum(count_over_time({compose_project=\"wby\", service=~\"$service\"}[$__range]))",
+          "expr": "sum(count_over_time({compose_project=~\"$project\", service=~\"$service\"}[$__range]))",
           "queryType": "instant",
           "refId": "A"
         }
@@ -160,7 +160,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "count(sum by (service) (count_over_time({compose_project=\"wby\", service=~\"$service\"}[$__range])))",
+          "expr": "count(sum by (service) (count_over_time({compose_project=~\"$project\", service=~\"$service\"}[$__range])))",
           "queryType": "instant",
           "refId": "A"
         }
@@ -207,7 +207,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum by (service) (count_over_time({compose_project=\"wby\", service=~\"$service\"}[$__auto]))",
+          "expr": "sum by (service) (count_over_time({compose_project=~\"$project\", service=~\"$service\"}[$__auto]))",
           "legendFormat": "{{service}}",
           "queryType": "range",
           "refId": "A"
@@ -255,7 +255,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum by (service) (count_over_time({compose_project=\"wby\", service=~\"$service\", level=\"ERROR\"}[$__auto]))",
+          "expr": "sum by (service) (count_over_time({compose_project=~\"$project\", service=~\"$service\", level=\"ERROR\"}[$__auto]))",
           "legendFormat": "{{service}}",
           "queryType": "range",
           "refId": "A"
@@ -283,7 +283,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "{compose_project=\"wby\", service=~\"$service\"} |~ \"$search\"",
+          "expr": "{compose_project=~\"$project\", service=~\"$service\"} |~ \"$search\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -294,13 +294,32 @@
   ],
   "refresh": "30s",
   "schemaVersion": 39,
-  "tags": ["wby", "logs"],
+  "tags": ["logs"],
   "templating": {
     "list": [
       {
         "current": {},
         "datasource": { "type": "loki", "uid": "loki" },
-        "definition": "label_values({compose_project=\"wby\"}, service)",
+        "definition": "label_values(compose_project)",
+        "includeAll": true,
+        "label": "Project",
+        "multi": true,
+        "name": "project",
+        "options": [],
+        "query": {
+          "label": "compose_project",
+          "stream": "",
+          "type": 1
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "loki", "uid": "loki" },
+        "definition": "label_values({compose_project=~\"$project\"}, service)",
         "includeAll": true,
         "label": "Service",
         "multi": true,
@@ -331,8 +350,8 @@
   "time": { "from": "now-6h", "to": "now" },
   "timepicker": {},
   "timezone": "",
-  "title": "wby — Logs Overview",
-  "uid": "wby-logs",
+  "title": "Logs Overview",
+  "uid": "logs-overview",
   "version": 1,
   "weekStart": ""
 }

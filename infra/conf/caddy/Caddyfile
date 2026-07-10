@@ -1,0 +1,12 @@
+# Host-wide Caddy ingress. This base file owns global bits shared by every app;
+# each app contributes a routing fragment under sites/, imported below.
+
+# JSON access logs to stdout, where the Alloy shipper picks them up into Loki.
+(accesslog) {
+	log {
+		output stdout
+		format json
+	}
+}
+
+import sites/*.caddy

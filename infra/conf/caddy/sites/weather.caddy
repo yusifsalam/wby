@@ -1,0 +1,35 @@
+# Weather app routing. Upstreams are reached over the shared `edge` network by
+# their stable aliases (weather-web / weather-api), set in
+# server/docker-compose.prod.yml. Container-facing ports are fixed (web 4321,
+# api 8080).
+
+yourweatherapp.fi {
+	import accesslog
+	encode gzip zstd
+	reverse_proxy weather-web:4321
+}
+
+logs.yourweatherapp.fi {
+	import accesslog
+	encode gzip zstd
+	reverse_proxy grafana:3000
+}
+
+api.yourweatherapp.fi {
+	import accesslog
+	encode gzip zstd
+
+	# Don't log the uptime/health probe.
+	@health path /health
+	log_skip @health
+
+	@api path /v1/* /health
+	handle @api {
+		reverse_proxy weather-api:8080
+	}
+
+	# No landing page — the API host serves only /v1/* and /health.
+	handle {
+		respond 404
+	}
+}
