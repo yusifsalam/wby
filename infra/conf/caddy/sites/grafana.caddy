@@ -1,0 +1,9 @@
+# Grafana routing. The upstream is reached over the shared `edge` network by
+# its stable alias (grafana), set in docker-compose.yml. Container-facing port
+# is fixed (3000).
+
+grafana.example.com {
+	import accesslog
+	encode gzip zstd
+	reverse_proxy grafana:3000
+}

@@ -9,12 +9,6 @@ yourweatherapp.fi {
 	reverse_proxy weather-web:4321
 }
 
-logs.yourweatherapp.fi {
-	import accesslog
-	encode gzip zstd
-	reverse_proxy grafana:3000
-}
-
 api.yourweatherapp.fi {
 	import accesslog
 	encode gzip zstd
