@@ -383,6 +383,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
   // max overlay dimension (1600px), so the overlay isn't stretched.
   const mercatorY = (lat: number) =>
     Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+  const inverseMercatorLat = (y: number) =>
+    (Math.atan(Math.sinh(y)) * 180) / Math.PI;
   const FINLAND_H = 1600;
   const FINLAND_W = Math.round(
     (FINLAND_H * ((FINLAND.e - FINLAND.w) * (Math.PI / 180))) /
@@ -435,8 +437,14 @@ import "maplibre-gl/dist/maplibre-gl.css";
   // returning a data URL. lng→x is linear, lat→y is Mercator — matching how
   // MapLibre lays the image across the coordinate quad. When `clip` is set, the
   // Finland outline (FINLAND_RINGS) is applied as a clip path first, so the edge
-  // lines up with the basemap coastline (temperature only). Precipitation passes
-  // clip=false and is copied whole.
+  // lines up with the basemap coastline (temperature only), and the source raster
+  // — whose rows are LINEAR in latitude (rasterizeGrid) — is resampled row-band by
+  // row-band into Mercator space. A plain stretch would misregister the field by
+  // ~0.2–0.7° of latitude (tens of km south at these latitudes), dragging cool
+  // offshore cells over coastal cities; the warp lands isotherms on the right
+  // pixels, matching the iOS Metal shader (inverseMercatorLat per fragment).
+  // Precipitation passes clip=false: its source is the server PNG, already
+  // rendered in Mercator, so it's copied whole.
   //
   // Both layers must flow through this bake even when unclipped: MapLibre's
   // ImageSource.updateImage repaints on its own only for an already-decoded data
@@ -477,7 +485,41 @@ import "maplibre-gl/dist/maplibre-gl.css";
       }
       ctx.clip();
     }
-    ctx.drawImage(source, 0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    if (clip) {
+      // Linear-lat source → Mercator dest, in two seamless passes. Warping the
+      // small source directly in strips leaves dark seams: fractional-y strip
+      // edges anti-alias against the transparent canvas. Instead:
+      //   1. upscale the source once to a full-size linear-lat buffer (smooth,
+      //      no internal seams), then
+      //   2. remap it row by row — each integer dest row samples the source
+      //      latitude for its Mercator y (inverseMercatorLat). Integer, fully
+      //      contiguous 1px rows can't leave anti-aliased gaps.
+      // The warped buffer is then composited once through the coastline clip.
+      const lin = document.createElement("canvas");
+      lin.width = w;
+      lin.height = h;
+      const lctx = lin.getContext("2d");
+      const warp = document.createElement("canvas");
+      warp.width = w;
+      warp.height = h;
+      const wctx = warp.getContext("2d");
+      if (!lctx || !wctx) throw new Error("no 2d canvas context");
+      lctx.imageSmoothingEnabled = true;
+      lctx.imageSmoothingQuality = "high";
+      lctx.drawImage(source, 0, 0, w, h);
+      wctx.imageSmoothingEnabled = true;
+      wctx.imageSmoothingQuality = "high";
+      for (let y = 0; y < h; y++) {
+        const lat = inverseMercatorLat(myN - ((y + 0.5) / h) * (myN - myS));
+        const srcY = ((north - lat) / (north - south)) * h;
+        wctx.drawImage(lin, 0, srcY, w, 1, 0, y, w, 1);
+      }
+      ctx.drawImage(warp, 0, 0);
+    } else {
+      ctx.drawImage(source, 0, 0, w, h);
+    }
     return canvas.toDataURL("image/png");
   }
 
