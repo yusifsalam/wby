@@ -5,69 +5,73 @@ import "maplibre-gl/dist/maplibre-gl.css";
 ---
 
 <BaseLayout title="WBY · Map" description="Temperature and precipitation maps for Finland.">
-  <main class="mx-auto flex min-h-screen w-[min(1180px,100%)] flex-col p-6 max-[820px]:p-4">
-    <TopBar activeSlug="map" />
+  <main class="relative h-[100dvh] w-full overflow-hidden">
+    <div id="map" class="h-full w-full bg-surface"></div>
 
-    <section class="relative overflow-hidden rounded-lg border border-line shadow-hero">
-      <div id="map" class="h-[calc(100vh-180px)] min-h-[440px] w-full bg-surface"></div>
-
-      <!-- Layer toggle -->
-      <div
-        id="layer-toggle"
-        class="absolute left-3 top-3 z-10 inline-flex gap-1 rounded-lg border border-line bg-surface/90 p-1 shadow-panel backdrop-blur"
-      >
-        <button
-          type="button"
-          data-layer="temperature"
-          class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-[current=true]:bg-page aria-[current=true]:text-ink aria-[current=true]:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
-          aria-current="true"
-        >Temperature</button>
-        <button
-          type="button"
-          data-layer="precipitation"
-          class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-[current=true]:bg-page aria-[current=true]:text-ink aria-[current=true]:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
-          aria-current="false"
-        >Precipitation</button>
+    <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col">
+      <div class="mx-auto w-[min(1180px,100%)] px-6 pt-6 [&>header]:pointer-events-auto max-[820px]:px-4 max-[820px]:pt-4">
+        <TopBar activeSlug="map" />
       </div>
 
-      <!-- Opacity -->
-      <div class="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-line bg-surface/90 px-3 py-2 text-[0.8rem] font-[650] text-muted shadow-panel backdrop-blur max-[560px]:px-2 max-[560px]:py-1.5">
-        <span class="max-[560px]:hidden">Opacity</span>
-        <input id="opacity" type="range" min="0" max="100" value="80" class="w-24 accent-teal max-[560px]:w-16" aria-label="Overlay opacity" />
-      </div>
-
-      <!-- Legend -->
-      <div class="pointer-events-none absolute bottom-14 left-3 z-10 rounded-lg border border-line bg-surface/90 px-3 py-2 shadow-panel backdrop-blur">
-        <div id="legend-temperature">
-          <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Temperature °C</p>
-          <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#3a0a54,#00e5ff,#a8e05f,#ffb300,#8b0000)"></div>
-          <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
-            <span>-40</span><span>0</span><span>20</span><span>40</span>
-          </div>
+      <div class="mx-auto flex w-[min(1180px,100%)] items-start justify-between gap-3 px-6 max-[820px]:px-4">
+        <!-- Layer toggle -->
+        <div
+          id="layer-toggle"
+          class="pointer-events-auto inline-flex gap-1 rounded-lg border border-line bg-surface/90 p-1 shadow-panel backdrop-blur"
+        >
+          <button
+            type="button"
+            data-layer="temperature"
+            class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-[current=true]:bg-page aria-[current=true]:text-ink aria-[current=true]:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
+            aria-current="true"
+          >Temperature</button>
+          <button
+            type="button"
+            data-layer="precipitation"
+            class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-[current=true]:bg-page aria-[current=true]:text-ink aria-[current=true]:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
+            aria-current="false"
+          >Precipitation</button>
         </div>
-        <div id="legend-precipitation" hidden>
-          <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain mm/h</p>
-          <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#a8e0ff,#3fa0ff,#1436ff,#8b00ff,#ff00aa)"></div>
-          <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
-            <span>0.1</span><span>1</span><span>5</span><span>20+</span>
-          </div>
+
+        <!-- Opacity -->
+        <div class="pointer-events-auto flex items-center gap-2 rounded-lg border border-line bg-surface/90 px-3 py-2 text-[0.8rem] font-[650] text-muted shadow-panel backdrop-blur max-[560px]:px-2 max-[560px]:py-1.5">
+          <span class="max-[560px]:hidden">Opacity</span>
+          <input id="opacity" type="range" min="0" max="100" value="80" class="w-24 accent-teal max-[560px]:w-16" aria-label="Overlay opacity" />
         </div>
       </div>
+    </div>
 
-      <!-- Time scrubber -->
-      <div class="absolute bottom-3 left-3 right-3 z-10 flex items-center gap-3 rounded-lg border border-line bg-surface/90 px-3 py-2 shadow-panel backdrop-blur">
-        <button
-          id="play"
-          type="button"
-          aria-pressed="false"
-          aria-label="Play forecast animation"
-          class="flex-none rounded-md px-2 py-0.5 text-[1rem] leading-none text-ink hover:text-teal"
-        >▶</button>
-        <span class="flex-none text-[0.8rem] font-[650] text-muted max-[560px]:hidden">Time</span>
-        <input id="time" type="range" value="0" class="min-w-0 flex-1 accent-teal" aria-label="Forecast time" />
-        <span id="time-label" class="w-36 flex-none whitespace-nowrap text-right text-[0.85rem] font-[650] text-ink tabular-nums max-[560px]:w-20 max-[560px]:text-[0.7rem]">Now</span>
+    <!-- Legend -->
+    <div class="pointer-events-none absolute bottom-16 left-3 z-10 rounded-lg border border-line bg-surface/90 px-3 py-2 shadow-panel backdrop-blur">
+      <div id="legend-temperature">
+        <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Temperature °C</p>
+        <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#3a0a54,#00e5ff,#a8e05f,#ffb300,#8b0000)"></div>
+        <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
+          <span>-40</span><span>0</span><span>20</span><span>40</span>
+        </div>
       </div>
-    </section>
+      <div id="legend-precipitation" hidden>
+        <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain mm/h</p>
+        <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#a8e0ff,#3fa0ff,#1436ff,#8b00ff,#ff00aa)"></div>
+        <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
+          <span>0.1</span><span>1</span><span>5</span><span>20+</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Time scrubber -->
+    <div class="absolute bottom-3 left-3 right-3 z-10 flex items-center gap-3 rounded-lg border border-line bg-surface/90 px-3 py-2 shadow-panel backdrop-blur">
+      <button
+        id="play"
+        type="button"
+        aria-pressed="false"
+        aria-label="Play forecast animation"
+        class="flex-none rounded-md px-2 py-0.5 text-[1rem] leading-none text-ink hover:text-teal"
+      >▶</button>
+      <span class="flex-none text-[0.8rem] font-[650] text-muted max-[560px]:hidden">Time</span>
+      <input id="time" type="range" value="0" class="min-w-0 flex-1 accent-teal" aria-label="Forecast time" />
+      <span id="time-label" class="w-36 flex-none whitespace-nowrap text-right text-[0.85rem] font-[650] text-ink tabular-nums max-[560px]:w-20 max-[560px]:text-[0.7rem]">Now</span>
+    </div>
   </main>
 </BaseLayout>
 
