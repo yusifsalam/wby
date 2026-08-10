@@ -14,6 +14,10 @@ npm run build
 
 ## Environment
 
+Copy `.env.example` to `.env` for local dev — `astro.config.mjs` loads it into
+`process.env`. Real environment variables take precedence over the file, so
+Docker and production are unaffected.
+
 Required:
 
 - `WBY_API_CLIENT_ID`
