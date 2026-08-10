@@ -42,7 +42,7 @@ function metaFor(entry: LeaderboardEntry): { title: string; accent: string } {
 <main class="mx-auto flex min-h-screen w-[min(1180px,100%)] flex-col p-6 max-[820px]:p-4">
   <TopBar activeSlug="stats" />
 
-  <section class="hero-gradient mb-[18px] rounded-lg border border-line p-[clamp(22px,5vw,48px)] shadow-hero">
+  <section class="hero-gradient mb-4.5 rounded-lg border border-line p-[clamp(22px,5vw,48px)] shadow-hero">
     <h1 class="mb-4 text-[clamp(2.4rem,8vw,5rem)] font-bold leading-[0.95]">Stats</h1>
     <nav
       class="inline-flex flex-wrap gap-1 rounded-lg border border-line bg-surface/70 p-1"
@@ -61,15 +61,15 @@ function metaFor(entry: LeaderboardEntry): { title: string; accent: string } {
   </section>
 
   {entries.length > 0 ? (
-    <section class="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-[18px]">
+    <section class="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4.5">
       {entries.map((entry) => {
         const meta = metaFor(entry);
         return (
-          <article class="rounded-lg border border-line bg-surface/92 p-[22px] shadow-panel">
+          <article class="rounded-lg border border-line bg-surface/92 p-5.5 shadow-panel">
             <p class="mb-3 text-[0.78rem] font-extrabold uppercase tracking-[0.06em] text-muted">{meta.title}</p>
             <p class="text-[1.4rem] font-[750] leading-tight">{entry.station_name}</p>
             <p class="mt-3 flex items-baseline gap-1.5">
-              <span class={`text-[3rem] font-[300] leading-none ${meta.accent}`}>{entry.value.toFixed(1)}</span>
+              <span class={`text-[3rem] font-light leading-none ${meta.accent}`}>{entry.value.toFixed(1)}</span>
               <span class="text-[1.1rem] text-muted">{entry.unit}</span>
             </p>
             <p class="mt-3 text-[0.9rem] text-muted">
@@ -81,7 +81,7 @@ function metaFor(entry: LeaderboardEntry): { title: string; accent: string } {
       })}
     </section>
   ) : (
-    <section class="rounded-lg border border-line bg-surface/92 px-[18px] py-12 text-center shadow-panel">
+    <section class="rounded-lg border border-line bg-surface/92 px-4.5 py-12 text-center shadow-panel">
       <p class="text-muted">No leaderboard data for this timeframe.</p>
     </section>
   )}

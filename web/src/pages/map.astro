@@ -5,7 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 ---
 
 <BaseLayout title="WBY · Map" description="Temperature and precipitation maps for Finland.">
-  <main class="relative h-[100dvh] w-full overflow-hidden">
+  <main class="relative h-dvh w-full overflow-hidden">
     <div id="map" class="h-full w-full bg-surface"></div>
 
     <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col">
@@ -22,13 +22,13 @@ import "maplibre-gl/dist/maplibre-gl.css";
           <button
             type="button"
             data-layer="temperature"
-            class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-[current=true]:bg-page aria-[current=true]:text-ink aria-[current=true]:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
+            class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-current:bg-page aria-current:text-ink aria-current:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
             aria-current="true"
           >Temperature</button>
           <button
             type="button"
             data-layer="precipitation"
-            class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-[current=true]:bg-page aria-[current=true]:text-ink aria-[current=true]:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
+            class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-current:bg-page aria-current:text-ink aria-current:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
             aria-current="false"
           >Precipitation</button>
         </div>

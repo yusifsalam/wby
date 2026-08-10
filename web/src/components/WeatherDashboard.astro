@@ -62,7 +62,7 @@ function hourlyMeta(hour: HourlyForecast): string {
 <main class="mx-auto flex min-h-screen w-[min(1180px,100%)] flex-col p-6 max-[820px]:p-4">
   <TopBar activeSlug={city.slug} />
 
-  <section class="hero-gradient mb-[18px] grid min-h-[310px] grid-cols-[minmax(0,1fr)_minmax(120px,260px)] items-center gap-7 rounded-lg border border-line p-[clamp(22px,5vw,48px)] shadow-hero max-[820px]:min-h-fit max-[820px]:grid-cols-1">
+  <section class="hero-gradient mb-4.5 grid min-h-77.5 grid-cols-[minmax(0,1fr)_minmax(120px,260px)] items-center gap-7 rounded-lg border border-line p-[clamp(22px,5vw,48px)] shadow-hero max-[820px]:min-h-fit max-[820px]:grid-cols-1">
     <div>
       <p class="mb-3 text-[0.9rem] font-bold text-muted">{data.station.name} · {data.station.distance_km.toFixed(1)} km</p>
       <h1 class="mb-3 text-[clamp(3rem,10vw,7rem)] font-bold leading-[0.92]">{city.name}</h1>
@@ -76,19 +76,19 @@ function hourlyMeta(hour: HourlyForecast): string {
       </p>
     </div>
     <div class="grid place-items-center max-[820px]:hidden" aria-hidden="true">
-      <img class="w-[min(240px,100%)] [filter:drop-shadow(0_18px_24px_rgba(23,33,43,0.16))]" src="/wby-weather.svg" alt="" />
+      <img class="w-[min(240px,100%)] filter-[drop-shadow(0_18px_24px_rgba(23,33,43,0.16))]" src="/wby-weather.svg" alt="" />
     </div>
   </section>
 
   {hourly.length > 0 && (
     <section class="rounded-lg border border-line bg-surface/92 shadow-panel">
-      <div class="flex items-center justify-between gap-4 px-[18px] pt-4">
+      <div class="flex items-center justify-between gap-4 px-4.5 pt-4">
         <h2 class="text-base font-bold">Hourly</h2>
         <span class="text-muted">{timeZone}</span>
       </div>
-      <div class="grid auto-cols-[minmax(86px,1fr)] grid-flow-col gap-2 overflow-x-auto px-[18px] pt-3.5 pb-[18px]">
+      <div class="grid auto-cols-[minmax(86px,1fr)] grid-flow-col gap-2 overflow-x-auto px-4.5 pt-3.5 pb-4.5">
         {hourly.map((hour) => (
-          <article class="min-h-[116px] rounded-lg border border-line bg-surface-strong p-3">
+          <article class="min-h-29 rounded-lg border border-line bg-surface-strong p-3">
             <time class="block text-[0.85rem] font-extrabold text-teal" datetime={hour.time}>{hourLabel(hour.time, timeZone)}</time>
             <strong class="mt-3.5 mb-2 block text-[1.45rem]">{formatTemperature(hour.temperature)}</strong>
             <span class="block text-[0.82rem] leading-[1.35] text-muted">{hourlyMeta(hour) || "--"}</span>
@@ -98,14 +98,14 @@ function hourlyMeta(hour: HourlyForecast): string {
     </section>
   )}
 
-  <section class="mt-[18px] grid grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)] gap-[18px] max-[820px]:grid-cols-1">
+  <section class="mt-4.5 grid grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)] gap-4.5 max-[820px]:grid-cols-1">
     {daily.length > 0 && (
       <section class="rounded-lg border border-line bg-surface/92 shadow-panel">
-        <div class="flex items-center justify-between gap-4 px-[18px] pt-4">
+        <div class="flex items-center justify-between gap-4 px-4.5 pt-4">
           <h2 class="text-base font-bold">Forecast</h2>
           <span class="text-muted">{daily.length} days</span>
         </div>
-        <div class="px-[18px] pt-2.5 pb-[18px]">
+        <div class="px-4.5 pt-2.5 pb-4.5">
           {daily.map((day) => (
             <article class="grid min-h-12 grid-cols-[72px_44px_minmax(90px,1fr)_44px_64px] items-center gap-3 border-t border-line first:border-t-0 max-[560px]:grid-cols-[56px_36px_minmax(72px,1fr)_36px]">
               <time class="font-[750]" datetime={day.date}>{dayLabel(day.date, timeZone)}</time>
@@ -120,13 +120,13 @@ function hourlyMeta(hour: HourlyForecast): string {
     )}
 
     <section class="rounded-lg border border-line bg-surface/92 shadow-panel">
-      <div class="flex items-center justify-between gap-4 px-[18px] pt-4">
+      <div class="flex items-center justify-between gap-4 px-4.5 pt-4">
         <h2 class="text-base font-bold">Conditions</h2>
         <span class="text-muted">Latest</span>
       </div>
-      <dl class="m-0 grid grid-cols-2 gap-2 px-[18px] pt-3.5 pb-[18px] max-[560px]:grid-cols-1">
+      <dl class="m-0 grid grid-cols-2 gap-2 px-4.5 pt-3.5 pb-4.5 max-[560px]:grid-cols-1">
         {details.map(([label, value]) => (
-          <div class="min-h-[84px] rounded-lg border border-line bg-surface-strong p-3">
+          <div class="min-h-21 rounded-lg border border-line bg-surface-strong p-3">
             <dt class="mb-2 text-[0.78rem] font-extrabold text-muted">{label}</dt>
             <dd class="m-0 text-[1.2rem] font-[750]">{value}</dd>
           </div>
