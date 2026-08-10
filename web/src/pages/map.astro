@@ -72,8 +72,12 @@ import "maplibre-gl/dist/maplibre-gl.css";
 </BaseLayout>
 
 <script>
-  import maplibregl, { type LayerSpecification } from "maplibre-gl";
+  import * as maplibregl from "maplibre-gl";
+  import type { LayerSpecification } from "maplibre-gl";
+  import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
   import { FINLAND_RINGS } from "../lib/finland-outline";
+
+  maplibregl.setWorkerUrl(workerUrl);
 
   type Layer = "temperature" | "precipitation";
 
