@@ -39,6 +39,9 @@ export type HourlyForecast = {
   precipitation_1h?: number | null;
   symbol?: string | null;
   uv_cumulated?: number | null;
+  wind_gust?: number | null;
+  pressure?: number | null;
+  cloud_cover?: number | null;
 };
 
 export type DailyForecast = {

@@ -1,0 +1,85 @@
+---
+// Gear button + popover for choosing which metric rows the hourly cards show.
+// The selection lives in localStorage ("hourly-metrics") and is mirrored onto
+// <html data-hourly-metrics>; the rows themselves are toggled purely by CSS
+// (see .hourly-metric in global.css), so the server-rendered page needs no
+// re-render. The checkboxes render with the defaults and are synced to the
+// saved selection on load.
+import { DEFAULT_HOURLY_METRICS, HOURLY_METRICS } from "../lib/hourlyMetrics";
+---
+
+<details class="relative" data-hourly-settings>
+  <summary
+    class="flex cursor-pointer list-none rounded-lg border border-transparent p-2 text-muted hover:border-line hover:bg-surface hover:text-ink [&::-webkit-details-marker]:hidden"
+    aria-label="Hourly forecast settings"
+    title="Choose hourly details"
+  >
+    <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+    </svg>
+  </summary>
+  <div class="absolute top-full right-0 z-10 mt-2 w-48 rounded-lg border border-line bg-surface p-3 shadow-panel">
+    <p class="mb-2 text-[0.78rem] font-extrabold text-muted">Show per hour</p>
+    {HOURLY_METRICS.map((metric) => (
+      <label class="flex cursor-pointer items-center gap-2.5 py-1 text-[0.9rem]">
+        <input
+          type="checkbox"
+          class="h-4 w-4 accent-teal"
+          name="hourly-metric"
+          value={metric.key}
+          checked={DEFAULT_HOURLY_METRICS.includes(metric.key)}
+        />
+        {metric.label}
+      </label>
+    ))}
+  </div>
+</details>
+
+<script>
+  import {
+    HOURLY_METRICS_STORAGE_KEY,
+    type HourlyMetricKey,
+    parseHourlyMetrics,
+    serializeHourlyMetrics,
+  } from "../lib/hourlyMetrics";
+
+  const root = document.documentElement;
+  const settings = document.querySelector<HTMLDetailsElement>("[data-hourly-settings]");
+  const boxes = Array.from(
+    settings?.querySelectorAll<HTMLInputElement>('input[name="hourly-metric"]') ?? [],
+  );
+
+  function readStored(): string | null {
+    try {
+      return localStorage.getItem(HOURLY_METRICS_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  // Reflect the saved selection (defaults when nothing is saved).
+  const selected = new Set(parseHourlyMetrics(readStored()));
+  for (const box of boxes) {
+    box.checked = selected.has(box.value as HourlyMetricKey);
+  }
+
+  settings?.addEventListener("change", () => {
+    const keys = boxes.filter((box) => box.checked).map((box) => box.value as HourlyMetricKey);
+    const serialized = serializeHourlyMetrics(keys);
+    root.dataset.hourlyMetrics = serialized;
+    try {
+      localStorage.setItem(HOURLY_METRICS_STORAGE_KEY, serialized);
+    } catch {
+      // Storage unavailable (private mode, quota); the page still updates.
+    }
+  });
+
+  // Close on outside click or Escape, like a menu.
+  document.addEventListener("click", (event) => {
+    if (settings?.open && !settings.contains(event.target as Node)) settings.open = false;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && settings?.open) settings.open = false;
+  });
+</script>

@@ -84,6 +84,9 @@ type HourlyForecast struct {
 	Precip1h    *float64
 	Symbol      *string
 	UVCumulated *float64
+	WindGust    *float64 // HourlyMaximumGust, m/s
+	Pressure    *float64 // hPa
+	CloudCover  *float64 // TotalCloudCover, %
 }
 
 type UVDataPoint struct {

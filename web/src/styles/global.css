@@ -127,4 +127,30 @@
   [data-theme-setting="dark"] .theme-icon--dark {
     display: block;
   }
+
+  /* Hourly metric rows. Which rows show is driven by the space-separated token
+     list on <html data-hourly-metrics> (set pre-paint in BaseLayout from
+     localStorage, updated by HourlySettings). With no saved selection, or
+     without JS, the defaults (wind + precipitation) show. Keep the display
+     value here rather than as a Tailwind utility so these rules win. */
+  .hourly-metric {
+    display: none;
+  }
+
+  .hourly-metric[data-metric="wind"],
+  .hourly-metric[data-metric="precip"] {
+    display: flex;
+  }
+
+  [data-hourly-metrics] .hourly-metric {
+    display: none;
+  }
+
+  [data-hourly-metrics~="wind"] .hourly-metric[data-metric="wind"],
+  [data-hourly-metrics~="gust"] .hourly-metric[data-metric="gust"],
+  [data-hourly-metrics~="precip"] .hourly-metric[data-metric="precip"],
+  [data-hourly-metrics~="pressure"] .hourly-metric[data-metric="pressure"],
+  [data-hourly-metrics~="cloud"] .hourly-metric[data-metric="cloud"] {
+    display: flex;
+  }
 }

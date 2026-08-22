@@ -29,6 +29,13 @@ export function formatMillimeters(value: number | null | undefined): string {
   return `${value.toFixed(1)} mm`;
 }
 
+export function formatPressure(value: number | null | undefined): string {
+  if (value == null) {
+    return "--";
+  }
+  return `${Math.round(value)} hPa`;
+}
+
 export function formatVisibility(value: number | null | undefined): string {
   if (value == null) {
     return "--";

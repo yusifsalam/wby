@@ -201,6 +201,15 @@ func TestParseHourlyForecast(t *testing.T) {
 	if result[0].Symbol == nil || *result[0].Symbol != "7" {
 		t.Errorf("expected hourly SmartSymbol 7, got %v", result[0].Symbol)
 	}
+	if result[0].WindGust == nil {
+		t.Error("expected hourly wind_gust to be set")
+	}
+	if result[0].Pressure == nil {
+		t.Error("expected hourly pressure to be set")
+	}
+	if result[0].CloudCover == nil {
+		t.Error("expected hourly cloud_cover to be set")
+	}
 	for i := 1; i < len(result); i++ {
 		if result[i].Time.Before(result[i-1].Time) {
 			t.Fatalf("hourly forecast not sorted: %s before %s", result[i].Time, result[i-1].Time)

@@ -357,7 +357,8 @@ func ParseForecast(data []byte, gridLat, gridLon float64) (weather.ForecastData,
 	}, nil
 }
 
-// ParseHourlyForecast parses hourly time/value pairs for temperature and weather symbol.
+// ParseHourlyForecast parses hourly time/value pairs for temperature, wind,
+// humidity, precipitation, gust, pressure, cloud cover and weather symbol.
 func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, error) {
 	var fc featureCollection
 	if err := xml.Unmarshal(data, &fc); err != nil {
@@ -372,6 +373,9 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 		rh      *float64
 		precip  *float64
 		sym     *string
+		gust    *float64
+		press   *float64
+		cloud   *float64
 	}
 	byTime := make(map[time.Time]*hourlyPoint)
 
@@ -407,13 +411,20 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 			case "smartsymbol":
 				s := strconv.Itoa(int(math.Round(*val)))
 				p.sym = &s
+			case "hourlymaximumgust":
+				p.gust = val
+			case "pressure":
+				p.press = val
+			case "totalcloudcover":
+				p.cloud = val
 			}
 		}
 	}
 
 	var items []hourlyPoint
 	for _, p := range byTime {
-		if p.temp == nil && p.wind == nil && p.windDir == nil && p.rh == nil && p.precip == nil && p.sym == nil {
+		if p.temp == nil && p.wind == nil && p.windDir == nil && p.rh == nil && p.precip == nil && p.sym == nil &&
+			p.gust == nil && p.press == nil && p.cloud == nil {
 			continue
 		}
 		items = append(items, *p)
@@ -436,6 +447,9 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 			Humidity:    p.rh,
 			Precip1h:    p.precip,
 			Symbol:      p.sym,
+			WindGust:    p.gust,
+			Pressure:    p.press,
+			CloudCover:  p.cloud,
 		})
 	}
 	return result, nil

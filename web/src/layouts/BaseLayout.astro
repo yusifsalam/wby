@@ -32,6 +32,10 @@ const {
           const root = document.documentElement;
           root.dataset.themeSetting = setting;
           root.classList.toggle("dark", dark);
+          // Hourly metric selection: a space-separated token list matched by
+          // CSS ([data-hourly-metrics~="key"]) and managed by HourlySettings.
+          const metrics = localStorage.getItem("hourly-metrics");
+          if (metrics != null) root.dataset.hourlyMetrics = metrics;
         } catch {}
       })();
     </script>

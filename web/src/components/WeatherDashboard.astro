@@ -5,15 +5,18 @@ import {
   formatMillimeters,
   formatObservedTime,
   formatPercent,
+  formatPressure,
   formatSpeed,
   formatTemperature,
   formatVisibility,
   hourLabel,
 } from "../lib/formatters";
-import type { DailyForecast, HourlyForecast, WeatherResponse } from "../lib/weatherApi";
+import { HOURLY_METRICS, type HourlyMetricKey } from "../lib/hourlyMetrics";
+import type { DailyForecast, WeatherResponse } from "../lib/weatherApi";
 import type { CacheResult } from "../lib/weatherCache";
 import { symbolAssetFile, symbolDescription } from "../lib/weatherSymbols";
 import Footer from "./Footer.astro";
+import HourlySettings from "./HourlySettings.astro";
 import PrecipitationMap from "./PrecipitationMap.astro";
 import TopBar from "./TopBar.astro";
 import WeatherSymbol from "./WeatherSymbol.astro";
@@ -44,7 +47,7 @@ const details = [
   ["Gust", formatSpeed(current.wind_gust)],
   ["Humidity", formatPercent(current.humidity)],
   ["Dew point", formatTemperature(current.dew_point)],
-  ["Pressure", current.pressure == null ? "--" : `${Math.round(current.pressure)} hPa`],
+  ["Pressure", formatPressure(current.pressure)],
   ["Precip 1h", formatMillimeters(current.precipitation_1h)],
   ["Visibility", formatVisibility(current.visibility)],
   ["Cloud cover", formatPercent(current.cloud_cover)],
@@ -59,11 +62,16 @@ function tempRangeStyle(day: DailyForecast): string {
   return `--range-start:${start}%;--range-width:${width}%`;
 }
 
-function hourlyMeta(hour: HourlyForecast): string[] {
-  return [formatSpeed(hour.wind_speed), formatMillimeters(hour.precipitation_1h)].filter(
-    (value) => value !== "--",
-  );
-}
+// 24x24 stroke icons, one per hourly metric row (the row label is visually
+// hidden, so the icon carries the meaning at a glance).
+const metricIcons: Record<HourlyMetricKey, string> = {
+  wind: "M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2",
+  gust: "M3 6h10M3 12h14M3 18h8M17 8l4 4-4 4",
+  precip:
+    "M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z",
+  pressure: "m12 14 4-4M3.34 19a10 10 0 1 1 17.32 0",
+  cloud: "M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z",
+};
 ---
 
 <main class="mx-auto flex min-h-screen w-[min(1180px,100%)] flex-col p-6 max-[820px]:p-4">
@@ -93,7 +101,10 @@ function hourlyMeta(hour: HourlyForecast): string[] {
     <section class="rounded-lg border border-line bg-surface/92 shadow-panel">
       <div class="flex items-center justify-between gap-4 px-4.5 pt-4">
         <h2 class="text-base font-bold">Hourly</h2>
-        <span class="text-muted">{timeZone}</span>
+        <div class="flex items-center gap-2">
+          <span class="text-muted">{timeZone}</span>
+          <HourlySettings />
+        </div>
       </div>
       <div class="grid grid-cols-12 gap-1.5 px-4.5 pt-3.5 pb-4.5 max-[820px]:auto-cols-[minmax(78px,1fr)] max-[820px]:grid-flow-col max-[820px]:grid-cols-none max-[820px]:overflow-x-auto">
         {hourly.map((hour) => (
@@ -101,11 +112,17 @@ function hourlyMeta(hour: HourlyForecast): string[] {
             <time class="block text-[0.85rem] font-extrabold text-teal" datetime={hour.time}>{hourLabel(hour.time, timeZone)}</time>
             <WeatherSymbol code={hour.symbol} class="mt-2 h-9 w-9" />
             <strong class="mt-1.5 mb-1.5 block text-[1.35rem] whitespace-nowrap">{formatTemperature(hour.temperature)}</strong>
-            <span class="block text-[0.78rem] leading-[1.4] text-muted">
-              {hourlyMeta(hour).length > 0
-                ? hourlyMeta(hour).map((value) => <span class="block whitespace-nowrap">{value}</span>)
-                : "--"}
-            </span>
+            <div class="text-[0.78rem] leading-[1.4] text-muted">
+              {HOURLY_METRICS.map((metric) => (
+                <span class="hourly-metric items-center gap-1 whitespace-nowrap" data-metric={metric.key} title={metric.label}>
+                  <svg class="h-3 w-3 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d={metricIcons[metric.key]} />
+                  </svg>
+                  <span class="sr-only">{metric.label}: </span>
+                  {metric.format(hour)}
+                </span>
+              ))}
+            </div>
           </article>
         ))}
       </div>

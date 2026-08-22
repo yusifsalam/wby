@@ -4,6 +4,7 @@ import {
   formatMillimeters,
   formatObservedTime,
   formatPercent,
+  formatPressure,
   formatRelativeTime,
   formatSpeed,
   formatTemperature,
@@ -18,6 +19,8 @@ describe("weather value formatters", () => {
     expect(formatSpeed(3.2)).toBe("3 m/s");
     expect(formatPercent(81.6)).toBe("82%");
     expect(formatMillimeters(0.24)).toBe("0.2 mm");
+    expect(formatPressure(1013.4)).toBe("1013 hPa");
+    expect(formatPressure(null)).toBe("--");
     expect(formatMillimeters(2.01)).toBe("2 mm");
     expect(formatVisibility(15000)).toBe("15.0 km");
   });
