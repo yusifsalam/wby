@@ -58,10 +58,10 @@ function tempRangeStyle(day: DailyForecast): string {
   return `--range-start:${start}%;--range-width:${width}%`;
 }
 
-function hourlyMeta(hour: HourlyForecast): string {
-  return [formatSpeed(hour.wind_speed), formatMillimeters(hour.precipitation_1h)]
-    .filter((value) => value !== "--")
-    .join(" · ");
+function hourlyMeta(hour: HourlyForecast): string[] {
+  return [formatSpeed(hour.wind_speed), formatMillimeters(hour.precipitation_1h)].filter(
+    (value) => value !== "--",
+  );
 }
 ---
 
@@ -98,13 +98,17 @@ function hourlyMeta(hour: HourlyForecast): string {
         <h2 class="text-base font-bold">Hourly</h2>
         <span class="text-muted">{timeZone}</span>
       </div>
-      <div class="grid auto-cols-[minmax(86px,1fr)] grid-flow-col gap-2 overflow-x-auto px-4.5 pt-3.5 pb-4.5">
+      <div class="grid grid-cols-12 gap-1.5 px-4.5 pt-3.5 pb-4.5 max-[820px]:auto-cols-[minmax(78px,1fr)] max-[820px]:grid-flow-col max-[820px]:grid-cols-none max-[820px]:overflow-x-auto">
         {hourly.map((hour) => (
-          <article class="min-h-29 rounded-lg border border-line bg-surface-strong p-3">
+          <article class="min-w-0 rounded-lg border border-line bg-surface-strong px-2 py-2.5">
             <time class="block text-[0.85rem] font-extrabold text-teal" datetime={hour.time}>{hourLabel(hour.time, timeZone)}</time>
             <WeatherSymbol code={hour.symbol} class="mt-2 h-9 w-9" />
-            <strong class="mt-1.5 mb-2 block text-[1.45rem]">{formatTemperature(hour.temperature)}</strong>
-            <span class="block text-[0.82rem] leading-[1.35] text-muted">{hourlyMeta(hour) || "--"}</span>
+            <strong class="mt-1.5 mb-1.5 block text-[1.35rem] whitespace-nowrap">{formatTemperature(hour.temperature)}</strong>
+            <span class="block text-[0.78rem] leading-[1.4] text-muted">
+              {hourlyMeta(hour).length > 0
+                ? hourlyMeta(hour).map((value) => <span class="block whitespace-nowrap">{value}</span>)
+                : "--"}
+            </span>
           </article>
         ))}
       </div>
