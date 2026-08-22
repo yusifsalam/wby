@@ -108,6 +108,8 @@ const { city } = Astro.props;
     const OVERLAY_SRC = "precip-src";
     const OVERLAY_LAYER = "precip-layer";
     const FRAME_MS = 600;
+    // Full cycles to play before pausing on the "now" frame; ▶ restarts.
+    const MAX_LOOPS = 3;
     // How far ahead of the playhead to warm the browser cache.
     const PREFETCH_SPAN = 3;
 
@@ -211,17 +213,25 @@ const { city } = Astro.props;
     }
 
     // Loop playback: runs while the user wants it (on by default, off under
-    // prefers-reduced-motion, toggled by the play button, off after a scrub)
-    // and only while the widget is on screen and the tab is visible.
+    // prefers-reduced-motion, toggled by the play button, off after a scrub,
+    // off after MAX_LOOPS full cycles) and only while the widget is on screen
+    // and the tab is visible.
     let wantsPlay = !matchMedia("(prefers-reduced-motion: reduce)").matches;
     let visible = false;
     let playTimer: ReturnType<typeof setTimeout> | undefined;
+    let loopsDone = 0;
 
     function tick() {
       frameIndex = (frameIndex + 1) % frames.times.length;
       updateTimeLabel();
       prefetchAround(frameIndex, PREFETCH_SPAN);
       refreshOverlay();
+      // A cycle ends each time the playhead comes back around to "now".
+      if (frameIndex === frames.nowIndex && ++loopsDone >= MAX_LOOPS) {
+        wantsPlay = false;
+        syncPlayback();
+        return;
+      }
       playTimer = setTimeout(tick, FRAME_MS);
     }
 
@@ -240,6 +250,7 @@ const { city } = Astro.props;
 
     play.addEventListener("click", () => {
       wantsPlay = !wantsPlay;
+      if (wantsPlay) loopsDone = 0;
       syncPlayback();
     });
 

@@ -487,11 +487,14 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
   // Radar-loop playback: auto-advance through the frame window at a uniform
   // cadence, wrapping at the end. Frames are prefetched a few steps ahead (the
-  // window wraps too), so playback stays smooth across the loop restart.
+  // window wraps too), so playback stays smooth across the loop restart. After
+  // MAX_LOOPS full cycles playback pauses on the "now" frame; ▶ restarts.
   const FRAME_MS = 600;
+  const MAX_LOOPS = 3;
   const playButton = document.getElementById("play") as HTMLButtonElement;
   let playing = false;
   let playTimer: ReturnType<typeof setTimeout> | undefined;
+  let loopsDone = 0;
   // Autostart the loop once on load — but only after both the map style and the
   // manifest are ready (whichever lands last triggers it), and never if the user
   // has already driven the controls (play/pause, scrub, layer switch).
@@ -516,12 +519,18 @@ import "maplibre-gl/dist/maplibre-gl.css";
     setFrameIndex(next);
     prefetchAround(next, 3);
     refreshOverlay();
+    // A cycle ends each time the playhead comes back around to "now".
+    if (next === frames.nowIndex && ++loopsDone >= MAX_LOOPS) {
+      stopPlaying();
+      return;
+    }
     playTimer = setTimeout(animateTick, FRAME_MS);
   }
 
   function startPlaying() {
     if (playing) return;
     playing = true;
+    loopsDone = 0;
     playButton.setAttribute("aria-pressed", "true");
     playButton.textContent = "⏸";
     prefetchAround(frameIndex, 3);
