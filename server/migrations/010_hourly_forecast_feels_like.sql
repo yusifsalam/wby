@@ -1,1 +1,0 @@
-ALTER TABLE hourly_forecasts ADD COLUMN IF NOT EXISTS feels_like DOUBLE PRECISION;
