@@ -146,6 +146,7 @@
     display: none;
   }
 
+  [data-hourly-metrics~="feels"] .hourly-metric[data-metric="feels"],
   [data-hourly-metrics~="wind"] .hourly-metric[data-metric="wind"],
   [data-hourly-metrics~="gust"] .hourly-metric[data-metric="gust"],
   [data-hourly-metrics~="direction"] .hourly-metric[data-metric="direction"],

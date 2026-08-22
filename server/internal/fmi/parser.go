@@ -357,7 +357,8 @@ func ParseForecast(data []byte, gridLat, gridLon float64) (weather.ForecastData,
 	}, nil
 }
 
-// ParseHourlyForecast parses hourly time/value pairs for temperature, wind,
+// ParseHourlyForecast parses hourly time/value pairs for temperature, feels
+// like, wind,
 // humidity, precipitation (amount and probability), gust, pressure, cloud
 // cover and weather symbol.
 func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, error) {
@@ -369,6 +370,7 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 	type hourlyPoint struct {
 		t       time.Time
 		temp    *float64
+		feels   *float64
 		wind    *float64
 		windDir *float64
 		rh      *float64
@@ -402,6 +404,8 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 			switch param {
 			case "temperature":
 				p.temp = val
+			case "feelslike":
+				p.feels = val
 			case "windspeedms":
 				p.wind = val
 			case "winddirection":
@@ -427,8 +431,8 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 
 	var items []hourlyPoint
 	for _, p := range byTime {
-		if p.temp == nil && p.wind == nil && p.windDir == nil && p.rh == nil && p.precip == nil && p.sym == nil &&
-			p.gust == nil && p.press == nil && p.cloud == nil && p.pop == nil {
+		if p.temp == nil && p.feels == nil && p.wind == nil && p.windDir == nil && p.rh == nil && p.precip == nil &&
+			p.sym == nil && p.gust == nil && p.press == nil && p.cloud == nil && p.pop == nil {
 			continue
 		}
 		items = append(items, *p)
@@ -446,6 +450,7 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 		result = append(result, weather.HourlyForecast{
 			Time:        p.t,
 			Temperature: p.temp,
+			FeelsLike:   p.feels,
 			WindSpeed:   p.wind,
 			WindDir:     p.windDir,
 			Humidity:    p.rh,

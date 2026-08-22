@@ -43,6 +43,7 @@ describe("hourly metric settings", () => {
         metric.key,
         metric.format({
           time: "2026-08-22T12:00:00Z",
+          feels_like: -3.4,
           wind_speed: 4.4,
           wind_gust: 11.6,
           wind_direction: 135,
@@ -55,6 +56,7 @@ describe("hourly metric settings", () => {
       ]),
     );
     expect(formatted).toEqual({
+      feels: "-3°",
       wind: "4 m/s",
       gust: "12 m/s",
       direction: "SE",

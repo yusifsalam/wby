@@ -33,6 +33,7 @@ export type CurrentConditions = {
 export type HourlyForecast = {
   time: string;
   temperature?: number | null;
+  feels_like?: number | null;
   wind_speed?: number | null;
   wind_direction?: number | null;
   humidity?: number | null;

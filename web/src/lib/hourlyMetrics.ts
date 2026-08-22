@@ -3,11 +3,13 @@ import {
   formatPercent,
   formatPressure,
   formatSpeed,
+  formatTemperature,
   formatWindDirection,
 } from "./formatters";
 import type { HourlyForecast } from "./weatherApi";
 
 export const HOURLY_METRIC_KEYS = [
+  "feels",
   "wind",
   "gust",
   "direction",
@@ -28,6 +30,11 @@ export type HourlyMetric = {
 // Display order of the rows under each hour. Adding a metric here also needs a
 // matching visibility rule in global.css (.hourly-metric[data-metric=...]).
 export const HOURLY_METRICS: readonly HourlyMetric[] = [
+  {
+    key: "feels",
+    label: "Feels like",
+    format: (h) => formatTemperature(h.feels_like),
+  },
   { key: "wind", label: "Wind", format: (h) => formatSpeed(h.wind_speed) },
   { key: "gust", label: "Wind gusts", format: (h) => formatSpeed(h.wind_gust) },
   {

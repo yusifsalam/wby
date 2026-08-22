@@ -213,6 +213,9 @@ func TestParseHourlyForecast(t *testing.T) {
 	if result[0].PoP == nil {
 		t.Error("expected hourly pop to be set")
 	}
+	if result[0].FeelsLike == nil || result[0].Temperature == nil || *result[0].FeelsLike >= *result[0].Temperature {
+		t.Errorf("expected hourly feels_like below temperature, got %v / %v", result[0].FeelsLike, result[0].Temperature)
+	}
 	for i := 1; i < len(result); i++ {
 		if result[i].Time.Before(result[i-1].Time) {
 			t.Fatalf("hourly forecast not sorted: %s before %s", result[i].Time, result[i-1].Time)

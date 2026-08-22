@@ -119,6 +119,7 @@ type dailyForecastJSON struct {
 type hourlyForecastJSON struct {
 	Time        time.Time `json:"time"`
 	Temperature *float64  `json:"temperature"`
+	FeelsLike   *float64  `json:"feels_like"`
 	WindSpeed   *float64  `json:"wind_speed"`
 	WindDir     *float64  `json:"wind_direction"`
 	Humidity    *float64  `json:"humidity"`
@@ -228,6 +229,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 		resp.Hourly = append(resp.Hourly, hourlyForecastJSON{
 			Time:        hfc.Time,
 			Temperature: hfc.Temperature,
+			FeelsLike:   hfc.FeelsLike,
 			WindSpeed:   hfc.WindSpeed,
 			WindDir:     hfc.WindDir,
 			Humidity:    hfc.Humidity,

@@ -78,6 +78,7 @@ type HourlyForecast struct {
 	Time        time.Time
 	FetchedAt   time.Time
 	Temperature *float64
+	FeelsLike   *float64 // FMI FeelsLike (apparent temperature), °C
 	WindSpeed   *float64
 	WindDir     *float64
 	Humidity    *float64
