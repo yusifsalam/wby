@@ -113,16 +113,43 @@ func (s *Store) UpsertObservations(ctx context.Context, observations []weather.O
 	return nil
 }
 
+// latestObservationWindow bounds how far back LatestObservation looks for a
+// value of each parameter. FMI reports some parameters (precip_1h) only on
+// the hour and occasionally skips others (wind) for a 10-minute slot, so a
+// single row rarely carries every field. 70 minutes keeps an hourly value
+// alive until the next one arrives.
+const latestObservationWindow = "70 minutes"
+
+// LatestObservation composes current conditions for a station from the most
+// recent non-null value of each parameter within latestObservationWindow of
+// the station's newest row. ObservedAt is that newest row's timestamp.
 func (s *Store) LatestObservation(ctx context.Context, fmisid int) (weather.Observation, error) {
 	var o weather.Observation
 	var extraRaw []byte
 	err := s.pool.QueryRow(ctx,
-		`SELECT fmisid, observed_at, temperature, wind_speed, wind_gust, wind_dir, humidity, dew_point,
-		        pressure, precip_1h, precip_intensity, snow_depth, visibility, total_cloud_cover, weather_code, extra
-		 FROM observations
-		 WHERE fmisid = $1
-		 ORDER BY observed_at DESC
-		 LIMIT 1`,
+		`WITH latest AS (
+		   SELECT max(observed_at) AS at FROM observations WHERE fmisid = $1
+		 ), recent AS (
+		   SELECT * FROM observations, latest
+		   WHERE fmisid = $1 AND observed_at > latest.at - INTERVAL '`+latestObservationWindow+`'
+		 )
+		 SELECT $1::int, max(observed_at),
+		        (array_agg(temperature ORDER BY observed_at DESC) FILTER (WHERE temperature IS NOT NULL))[1],
+		        (array_agg(wind_speed ORDER BY observed_at DESC) FILTER (WHERE wind_speed IS NOT NULL))[1],
+		        (array_agg(wind_gust ORDER BY observed_at DESC) FILTER (WHERE wind_gust IS NOT NULL))[1],
+		        (array_agg(wind_dir ORDER BY observed_at DESC) FILTER (WHERE wind_dir IS NOT NULL))[1],
+		        (array_agg(humidity ORDER BY observed_at DESC) FILTER (WHERE humidity IS NOT NULL))[1],
+		        (array_agg(dew_point ORDER BY observed_at DESC) FILTER (WHERE dew_point IS NOT NULL))[1],
+		        (array_agg(pressure ORDER BY observed_at DESC) FILTER (WHERE pressure IS NOT NULL))[1],
+		        (array_agg(precip_1h ORDER BY observed_at DESC) FILTER (WHERE precip_1h IS NOT NULL))[1],
+		        (array_agg(precip_intensity ORDER BY observed_at DESC) FILTER (WHERE precip_intensity IS NOT NULL))[1],
+		        (array_agg(snow_depth ORDER BY observed_at DESC) FILTER (WHERE snow_depth IS NOT NULL))[1],
+		        (array_agg(visibility ORDER BY observed_at DESC) FILTER (WHERE visibility IS NOT NULL))[1],
+		        (array_agg(total_cloud_cover ORDER BY observed_at DESC) FILTER (WHERE total_cloud_cover IS NOT NULL))[1],
+		        (array_agg(weather_code ORDER BY observed_at DESC) FILTER (WHERE weather_code IS NOT NULL))[1],
+		        (array_agg(extra ORDER BY observed_at DESC) FILTER (WHERE extra IS NOT NULL))[1]
+		 FROM recent
+		 HAVING count(*) > 0`,
 		fmisid,
 	).Scan(
 		&o.FMISID, &o.ObservedAt, &o.Temperature, &o.WindSpeed, &o.WindGust, &o.WindDir, &o.Humidity, &o.DewPoint,

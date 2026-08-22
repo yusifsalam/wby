@@ -176,7 +176,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			PrecipIntensity: result.Current.Observation.PrecipIntensity,
 			SnowDepth:       result.Current.Observation.SnowDepth,
 			Visibility:      result.Current.Observation.Visibility,
-			CloudCover:      result.Current.Observation.TotalCloudCover,
+			CloudCover:      oktasToPercent(result.Current.Observation.TotalCloudCover),
 			WeatherCode:     result.Current.Observation.WeatherCode,
 			Extra:           result.Current.Observation.ExtraNumericParams,
 			ObservedAt:      result.Current.Observation.ObservedAt,
@@ -364,4 +364,14 @@ func (h *Handler) getClimateNormals(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status":"ok"}`))
+}
+
+// oktasToPercent converts an FMI station cloud-cover observation (oktas,
+// 0–8; 9 = sky obscured) to a percentage, matching the forecast fields.
+func oktasToPercent(oktas *float64) *float64 {
+	if oktas == nil {
+		return nil
+	}
+	pct := math.Min(*oktas, 8) * 12.5
+	return &pct
 }
