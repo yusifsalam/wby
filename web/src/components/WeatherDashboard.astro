@@ -3,6 +3,8 @@ import type { City } from "../lib/cities";
 import type { CacheResult } from "../lib/weatherCache";
 import TopBar from "./TopBar.astro";
 import Footer from "./Footer.astro";
+import WeatherSymbol from "./WeatherSymbol.astro";
+import { symbolAssetFile, symbolDescription } from "../lib/weatherSymbols";
 import type { DailyForecast, HourlyForecast, WeatherResponse } from "../lib/weatherApi";
 import {
   dayLabel,
@@ -27,6 +29,10 @@ const current = data.current;
 const timeZone = data.timezone || "Europe/Helsinki";
 const hourly = data.hourly_forecast.slice(0, 12);
 const daily = data.daily_forecast.slice(0, 7);
+// Current conditions carry no symbol; use the first forecast hour like the iOS app.
+const primarySymbol = hourly[0]?.symbol ?? daily[0]?.symbol;
+const hasPrimarySymbol = symbolAssetFile(primarySymbol, "light") != null;
+const condition = symbolDescription(primarySymbol);
 const lows = daily.map((day) => day.low).filter((value): value is number => value != null);
 const highs = daily.map((day) => day.high).filter((value): value is number => value != null);
 const overallLow = lows.length > 0 ? Math.min(...lows) : 0;
@@ -68,7 +74,9 @@ function hourlyMeta(hour: HourlyForecast): string {
       <h1 class="mb-3 text-[clamp(3rem,10vw,7rem)] font-bold leading-[0.92]">{city.name}</h1>
       <div class="flex flex-wrap items-baseline gap-3.5">
         <span class="text-[clamp(3.5rem,11vw,8rem)] font-[250] leading-[0.95]">{formatTemperature(current.temperature)}</span>
-        <small class="text-base text-muted">Feels like {formatTemperature(current.feels_like)}</small>
+        <small class="text-base text-muted">
+          {condition ? `${condition} · ` : ""}Feels like {formatTemperature(current.feels_like)}
+        </small>
       </div>
       <p class="mt-3.5 text-muted">
         Observed {formatObservedTime(current.observed_at, timeZone)}
@@ -76,7 +84,11 @@ function hourlyMeta(hour: HourlyForecast): string {
       </p>
     </div>
     <div class="grid place-items-center max-[820px]:hidden" aria-hidden="true">
-      <img class="w-[min(240px,100%)] filter-[drop-shadow(0_18px_24px_rgba(23,33,43,0.16))]" src="/wby-weather.svg" alt="" />
+      {hasPrimarySymbol ? (
+        <WeatherSymbol code={primarySymbol} class="h-auto w-[min(240px,100%)] filter-[drop-shadow(0_18px_24px_rgba(23,33,43,0.16))]" loading="eager" />
+      ) : (
+        <img class="w-[min(240px,100%)] filter-[drop-shadow(0_18px_24px_rgba(23,33,43,0.16))]" src="/wby-weather.svg" alt="" />
+      )}
     </div>
   </section>
 
@@ -90,7 +102,8 @@ function hourlyMeta(hour: HourlyForecast): string {
         {hourly.map((hour) => (
           <article class="min-h-29 rounded-lg border border-line bg-surface-strong p-3">
             <time class="block text-[0.85rem] font-extrabold text-teal" datetime={hour.time}>{hourLabel(hour.time, timeZone)}</time>
-            <strong class="mt-3.5 mb-2 block text-[1.45rem]">{formatTemperature(hour.temperature)}</strong>
+            <WeatherSymbol code={hour.symbol} class="mt-2 h-9 w-9" />
+            <strong class="mt-1.5 mb-2 block text-[1.45rem]">{formatTemperature(hour.temperature)}</strong>
             <span class="block text-[0.82rem] leading-[1.35] text-muted">{hourlyMeta(hour) || "--"}</span>
           </article>
         ))}
@@ -107,8 +120,9 @@ function hourlyMeta(hour: HourlyForecast): string {
         </div>
         <div class="px-4.5 pt-2.5 pb-4.5">
           {daily.map((day) => (
-            <article class="grid min-h-12 grid-cols-[72px_44px_minmax(90px,1fr)_44px_64px] items-center gap-3 border-t border-line first:border-t-0 max-[560px]:grid-cols-[56px_36px_minmax(72px,1fr)_36px]">
+            <article class="grid min-h-12 grid-cols-[72px_36px_44px_minmax(90px,1fr)_44px_64px] items-center gap-3 border-t border-line first:border-t-0 max-[560px]:grid-cols-[56px_28px_36px_minmax(72px,1fr)_36px]">
               <time class="font-[750]" datetime={day.date}>{dayLabel(day.date, timeZone)}</time>
+              <span class="flex h-9 items-center"><WeatherSymbol code={day.symbol} class="h-8 w-8" /></span>
               <span class="text-right">{formatTemperature(day.low)}</span>
               <span class="temp-range" style={tempRangeStyle(day)}></span>
               <span class="text-right font-[750] text-ink">{formatTemperature(day.high)}</span>

@@ -1,0 +1,36 @@
+---
+// Renders an FMI SmartSymbol icon from src/assets/symbols. The files are
+// imported as ImageMetadata so Astro emits hashed, cacheable /_astro/ URLs;
+// a plain <img> is used because SVGs gain nothing from the <Image> transform
+// endpoint. Light and dark artwork are both emitted and switched purely by the
+// .dark class on <html>, so no script is needed.
+import type { ImageMetadata } from "astro";
+import { symbolAssetFile, symbolDescription } from "../lib/weatherSymbols";
+
+type Props = {
+  code: string | null | undefined;
+  class?: string;
+  loading?: "eager" | "lazy";
+};
+
+const symbols = import.meta.glob<ImageMetadata>("../assets/symbols/*/*.svg", {
+  eager: true,
+  import: "default",
+});
+
+function symbolImage(file: string | null): ImageMetadata | null {
+  return file ? (symbols[`../assets/symbols/${file}`] ?? null) : null;
+}
+
+const { code, class: className = "", loading = "lazy" } = Astro.props;
+const light = symbolImage(symbolAssetFile(code, "light"));
+const dark = symbolImage(symbolAssetFile(code, "dark"));
+const label = symbolDescription(code) ?? "";
+---
+
+{light && dark && (
+  <>
+    <img class:list={["dark:hidden", className]} src={light.src} width={light.width} height={light.height} alt={label} title={label} loading={loading} decoding="async" />
+    <img class:list={["hidden dark:block", className]} src={dark.src} width={dark.width} height={dark.height} alt="" title={label} aria-hidden="true" loading={loading} decoding="async" />
+  </>
+)}
