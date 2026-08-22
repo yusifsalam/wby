@@ -221,6 +221,12 @@ func ParseObservations(data []byte) (*ObservationResult, error) {
 	return result, nil
 }
 
+// hourlyEntry is one timestamped forecast value for a single parameter.
+type hourlyEntry struct {
+	t   time.Time
+	val float64
+}
+
 // ParseForecast parses an FMI WFS forecast response and aggregates hourly
 // values into daily forecast columns.
 func ParseForecast(data []byte, gridLat, gridLon float64) (weather.ForecastData, error) {
@@ -229,10 +235,6 @@ func ParseForecast(data []byte, gridLat, gridLon float64) (weather.ForecastData,
 		return weather.ForecastData{}, fmt.Errorf("unmarshal WFS forecast: %w", err)
 	}
 
-	type hourlyEntry struct {
-		t   time.Time
-		val float64
-	}
 	params := make(map[string][]hourlyEntry)
 	var timezone string
 
@@ -275,6 +277,15 @@ func ParseForecast(data []byte, gridLat, gridLon float64) (weather.ForecastData,
 			addValue(e.t.Format("2006-01-02"), param, e.val)
 		}
 	}
+	// params is a map, so days were discovered in random order.
+	slices.Sort(dayOrder)
+
+	loc := time.UTC
+	if timezone != "" {
+		if l, err := time.LoadLocation(timezone); err == nil {
+			loc = l
+		}
+	}
 
 	now := time.Now()
 	var forecasts []weather.DailyForecast
@@ -309,7 +320,7 @@ func ParseForecast(data []byte, gridLat, gridLon float64) (weather.ForecastData,
 		f.HumidityAvg = avgPtr(vals("humidity"))
 		f.PrecipMM = sumPtr(vals("precipitation1h"))
 		f.Precip1hSum = f.PrecipMM
-		f.Symbol = modeRoundedStringPtr(vals("weathersymbol3"))
+		f.Symbol = representativeSymbol(params["smartsymbol"], dk, loc)
 
 		f.DewPointAvg = avgPtr(vals("dewpoint"))
 		f.FogIntensityAvg = avgPtr(vals("fogintensity"))
@@ -393,7 +404,7 @@ func ParseHourlyForecast(data []byte, limit int) ([]weather.HourlyForecast, erro
 				p.rh = val
 			case "precipitation1h":
 				p.precip = val
-			case "weathersymbol3":
+			case "smartsymbol":
 				s := strconv.Itoa(int(math.Round(*val)))
 				p.sym = &s
 			}
@@ -558,12 +569,33 @@ func modeRoundedFloatPtr(values []float64) *float64 {
 	return &mode
 }
 
-func modeRoundedStringPtr(values []float64) *string {
-	mode := modeRoundedFloatPtr(values)
-	if mode == nil {
+// representativeSymbolHour is the local hour whose symbol stands for the
+// whole day, matching the official FMI app's daily symbol choice.
+const representativeSymbolHour = 15
+
+// representativeSymbol picks the day's SmartSymbol from the hourly entries
+// that fall on dateKey (UTC date, the same bucketing as the other daily
+// aggregates): the entry at 15:00 local time, or the one nearest to it.
+func representativeSymbol(entries []hourlyEntry, dateKey string, loc *time.Location) *string {
+	var best *hourlyEntry
+	bestDist := 0
+	for i := range entries {
+		e := &entries[i]
+		if e.t.Format("2006-01-02") != dateKey {
+			continue
+		}
+		dist := e.t.In(loc).Hour() - representativeSymbolHour
+		if dist < 0 {
+			dist = -dist
+		}
+		if best == nil || dist < bestDist {
+			best, bestDist = e, dist
+		}
+	}
+	if best == nil {
 		return nil
 	}
-	s := strconv.Itoa(int(math.Round(*mode)))
+	s := strconv.Itoa(int(math.Round(best.val)))
 	return &s
 }
 

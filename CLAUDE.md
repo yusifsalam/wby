@@ -93,7 +93,7 @@ the override, so `.dev.yml` is self-contained.
 - `WeatherService` (actor): REST client with offline JSON cache fallback
 - `LocationService` (@Observable): CoreLocation GPS + reverse geocoding + altitude
 - `ContentView`: main scrollable weather screen; individual cards in `Views/`
-- `SmartSymbol`: maps FMI weather symbol codes (1-99, 100+ for night) to SF Symbols
+- `SmartSymbol`: maps FMI SmartSymbol codes (1-77, 100+ for night) to SF Symbols
 - No third-party dependencies
 
 ## Key Conventions
@@ -124,7 +124,12 @@ Three stored queries used via the public WFS endpoint:
 |-------|---------|
 | `fmi::observations::weather::timevaluepair` | All Finnish station observations (bbox 19,59,32,71) |
 | `fmi::observations::radiation::timevaluepair` | Radiation data (merged by station/time) |
-| `fmi::forecast::edited::weather::scandinavia::point::timevaluepair` | Point forecasts (Harmonie model, 11-day window) |
+| `fmi::forecast::edited::weather::scandinavia::point::timevaluepair` | Point forecasts (Harmonie model, 11-day window). Requests an explicit `parameters` list (`forecastParameters` in `client.go`): FMI's defaults plus `SmartSymbol` |
+
+The `symbol` field on hourly/daily forecasts is FMI's **SmartSymbol** code (1–77;
+`+100` = night variant, assigned by FMI), the same scheme the official FMI app
+uses. The daily symbol is the 15:00 local-time hour. `weather_symbol3_mode`
+carries the older `WeatherSymbol3` code for reference only.
 
 Radiation observations come from a separate query and are merged into the nearest station's data as a fallback when the primary station lacks a radiometer.
 

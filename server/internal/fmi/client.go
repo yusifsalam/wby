@@ -25,6 +25,19 @@ type Client struct {
 const forecastDays = 11
 const hourlyForecastHours = 12
 
+// forecastParameters is the explicit parameter list for the edited point
+// forecast. Setting "parameters" replaces FMI's default set, so this must
+// spell out every default parameter the parser relies on, plus SmartSymbol
+// (the weather symbol used by the official FMI app; night codes are +100),
+// which is not part of the default set.
+const forecastParameters = "DewPoint,FogIntensity,FrostProbability,GeopHeight,HighCloudCover," +
+	"HourlyMaximumGust,HourlyMaximumWindSpeed,Humidity,LowCloudCover,MediumCloudCover," +
+	"MiddleAndLowCloudCover,PoP,PotentialPrecipitationForm,PotentialPrecipitationType," +
+	"Precipitation1h,PrecipitationForm,PrecipitationType,Pressure,ProbabilityThunderstorm," +
+	"RadiationGlobal,RadiationLW,SevereFrostProbability,Temperature,TotalCloudCover," +
+	"WeatherNumber,WeatherSymbol3,WindDirection,WindSpeedMS,WindUMS,WindVectorMS,WindVMS," +
+	"SmartSymbol"
+
 func NewClient(baseURL, apiKey, timeseriesURL string) *Client {
 	return NewClientWithWMS(baseURL, apiKey, timeseriesURL, "", "")
 }
@@ -71,6 +84,7 @@ func (c *Client) FetchForecast(ctx context.Context, lat, lon float64) (weather.F
 		"request":        {"getFeature"},
 		"storedquery_id": {"fmi::forecast::edited::weather::scandinavia::point::timevaluepair"},
 		"latlon":         {fmt.Sprintf("%f,%f", lat, lon)},
+		"parameters":     {forecastParameters},
 		"timestep":       {"60"},
 		"starttime":      {start},
 		"endtime":        {end},
@@ -96,6 +110,7 @@ func (c *Client) FetchHourlyForecast(ctx context.Context, lat, lon float64, limi
 		"request":        {"getFeature"},
 		"storedquery_id": {"fmi::forecast::edited::weather::scandinavia::point::timevaluepair"},
 		"latlon":         {fmt.Sprintf("%f,%f", lat, lon)},
+		"parameters":     {forecastParameters},
 		"timestep":       {"60"},
 		"starttime":      {start},
 		"endtime":        {end},

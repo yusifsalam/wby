@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"testing"
+	"time"
 
 	"wby/internal/weather"
 )
@@ -125,6 +126,48 @@ func TestParseForecast(t *testing.T) {
 	if day.HumidityAvg == nil {
 		t.Error("expected humidity_avg to be set")
 	}
+	// The fixture's SmartSymbol series is 7 by day and 107 at night; the daily
+	// symbol must be the 15:00 Europe/Helsinki value, not a night code.
+	if day.Symbol == nil || *day.Symbol != "7" {
+		t.Errorf("expected daily symbol 7, got %v", day.Symbol)
+	}
+	for i := 1; i < len(result.Forecasts); i++ {
+		if !result.Forecasts[i].Date.After(result.Forecasts[i-1].Date) {
+			t.Fatalf("daily forecasts not sorted: %s after %s", result.Forecasts[i].Date, result.Forecasts[i-1].Date)
+		}
+	}
+}
+
+func TestRepresentativeSymbol(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Helsinki")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := func(hourUTC int, val float64) hourlyEntry {
+		return hourlyEntry{t: time.Date(2026, 2, 16, hourUTC, 0, 0, 0, time.UTC), val: val}
+	}
+
+	// 13:00 UTC is 15:00 in Helsinki (winter time).
+	entries := []hourlyEntry{at(6, 101), at(12, 4), at(13, 7), at(14, 1), at(20, 107)}
+	if got := representativeSymbol(entries, "2026-02-16", loc); got == nil || *got != "7" {
+		t.Errorf("expected exact 15:00 local pick 7, got %v", got)
+	}
+
+	// Without a 15:00 entry, the nearest hour wins: 11:00 UTC is 13:00 local
+	// (2h away) versus 16:00 UTC at 18:00 local (3h away).
+	entries = []hourlyEntry{at(6, 101), at(11, 4), at(16, 1)}
+	if got := representativeSymbol(entries, "2026-02-16", loc); got == nil || *got != "4" {
+		t.Errorf("expected nearest-hour pick 4, got %v", got)
+	}
+
+	// Entries from other days are ignored.
+	entries = []hourlyEntry{{t: time.Date(2026, 2, 17, 13, 0, 0, 0, time.UTC), val: 38}}
+	if got := representativeSymbol(entries, "2026-02-16", loc); got != nil {
+		t.Errorf("expected nil for a day without entries, got %q", *got)
+	}
+	if got := representativeSymbol(nil, "2026-02-16", loc); got != nil {
+		t.Errorf("expected nil for no entries, got %q", *got)
+	}
 }
 
 func TestParseHourlyForecast(t *testing.T) {
@@ -154,6 +197,9 @@ func TestParseHourlyForecast(t *testing.T) {
 	}
 	if result[0].Humidity == nil {
 		t.Error("expected hourly humidity to be set")
+	}
+	if result[0].Symbol == nil || *result[0].Symbol != "7" {
+		t.Errorf("expected hourly SmartSymbol 7, got %v", result[0].Symbol)
 	}
 	for i := 1; i < len(result); i++ {
 		if result[i].Time.Before(result[i-1].Time) {
