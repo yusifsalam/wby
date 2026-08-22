@@ -42,6 +42,7 @@ export type HourlyForecast = {
   wind_gust?: number | null;
   pressure?: number | null;
   cloud_cover?: number | null;
+  pop?: number | null;
 };
 
 export type DailyForecast = {

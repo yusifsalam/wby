@@ -19,6 +19,11 @@ describe("hourly metric settings", () => {
 
   it("keeps only known keys in canonical order", () => {
     expect(parseHourlyMetrics("cloud bogus  wind")).toEqual(["wind", "cloud"]);
+    expect(parseHourlyMetrics("humidity pop direction")).toEqual([
+      "direction",
+      "pop",
+      "humidity",
+    ]);
     expect(parseHourlyMetrics("gust gust pressure")).toEqual([
       "gust",
       "pressure",
@@ -40,7 +45,10 @@ describe("hourly metric settings", () => {
           time: "2026-08-22T12:00:00Z",
           wind_speed: 4.4,
           wind_gust: 11.6,
+          wind_direction: 135,
           precipitation_1h: 0.3,
+          pop: 35.4,
+          humidity: 80.6,
           pressure: 1008.7,
           cloud_cover: 62.2,
         }),
@@ -49,7 +57,10 @@ describe("hourly metric settings", () => {
     expect(formatted).toEqual({
       wind: "4 m/s",
       gust: "12 m/s",
+      direction: "SE",
       precip: "0.3 mm",
+      pop: "35%",
+      humidity: "81%",
       pressure: "1009 hPa",
       cloud: "62%",
     });

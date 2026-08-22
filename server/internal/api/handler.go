@@ -128,6 +128,7 @@ type hourlyForecastJSON struct {
 	WindGust    *float64  `json:"wind_gust"`
 	Pressure    *float64  `json:"pressure"`
 	CloudCover  *float64  `json:"cloud_cover"`
+	PoP         *float64  `json:"pop"`
 }
 
 func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
@@ -236,6 +237,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			WindGust:    hfc.WindGust,
 			Pressure:    hfc.Pressure,
 			CloudCover:  hfc.CloudCover,
+			PoP:         hfc.PoP,
 		})
 	}
 

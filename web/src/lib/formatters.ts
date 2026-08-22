@@ -36,6 +36,17 @@ export function formatPressure(value: number | null | undefined): string {
   return `${Math.round(value)} hPa`;
 }
 
+const COMPASS_POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
+
+// Meteorological direction (degrees the wind blows *from*) as a compass point.
+export function formatWindDirection(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) {
+    return "--";
+  }
+  const index = Math.round((((value % 360) + 360) % 360) / 45) % 8;
+  return COMPASS_POINTS[index];
+}
+
 export function formatVisibility(value: number | null | undefined): string {
   if (value == null) {
     return "--";

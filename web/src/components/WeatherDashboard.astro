@@ -12,7 +12,7 @@ import {
   hourLabel,
 } from "../lib/formatters";
 import { HOURLY_METRICS, type HourlyMetricKey } from "../lib/hourlyMetrics";
-import type { DailyForecast, WeatherResponse } from "../lib/weatherApi";
+import type { DailyForecast, HourlyForecast, WeatherResponse } from "../lib/weatherApi";
 import type { CacheResult } from "../lib/weatherCache";
 import { symbolAssetFile, symbolDescription } from "../lib/weatherSymbols";
 import Footer from "./Footer.astro";
@@ -67,11 +67,22 @@ function tempRangeStyle(day: DailyForecast): string {
 const metricIcons: Record<HourlyMetricKey, string> = {
   wind: "M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2",
   gust: "M3 6h10M3 12h14M3 18h8M17 8l4 4-4 4",
+  direction: "M12 19V5M5 12l7-7 7 7",
   precip:
     "M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z",
+  pop: "M22 12a10.06 10.06 0 0 0-20 0ZM12 12v8a2 2 0 0 0 4 0M12 2v1",
+  humidity:
+    "M7 16.3c2.2 0 4-1.8 4-4 0-1.2-.6-2.3-1.7-3.2S7.3 6.8 7 5.3c-.3 1.5-1.1 2.8-2.3 3.8S3 11.1 3 12.3c0 2.2 1.8 4 4 4zM12.6 6.6A11 11 0 0 0 14 3c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a7 7 0 0 1-11.9 5",
   pressure: "m12 14 4-4M3.34 19a10 10 0 1 1 17.32 0",
   cloud: "M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z",
 };
+
+// The direction arrow points where the wind blows *to* (FMI reports the
+// "from" bearing), matching the convention of the official FMI app.
+function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | undefined {
+  if (key !== "direction" || hour.wind_direction == null) return undefined;
+  return `transform:rotate(${Math.round(hour.wind_direction + 180) % 360}deg)`;
+}
 ---
 
 <main class="mx-auto flex min-h-screen w-[min(1180px,100%)] flex-col p-6 max-[820px]:p-4">
@@ -115,7 +126,7 @@ const metricIcons: Record<HourlyMetricKey, string> = {
             <div class="text-[0.78rem] leading-[1.4] text-muted">
               {HOURLY_METRICS.map((metric) => (
                 <span class="hourly-metric items-center gap-1 whitespace-nowrap" data-metric={metric.key} title={metric.label}>
-                  <svg class="h-3 w-3 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <svg class="h-3 w-3 flex-none" style={metricIconStyle(metric.key, hour)} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d={metricIcons[metric.key]} />
                   </svg>
                   <span class="sr-only">{metric.label}: </span>

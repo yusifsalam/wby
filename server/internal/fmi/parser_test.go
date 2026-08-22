@@ -210,6 +210,9 @@ func TestParseHourlyForecast(t *testing.T) {
 	if result[0].CloudCover == nil {
 		t.Error("expected hourly cloud_cover to be set")
 	}
+	if result[0].PoP == nil {
+		t.Error("expected hourly pop to be set")
+	}
 	for i := 1; i < len(result); i++ {
 		if result[i].Time.Before(result[i-1].Time) {
 			t.Fatalf("hourly forecast not sorted: %s before %s", result[i].Time, result[i-1].Time)

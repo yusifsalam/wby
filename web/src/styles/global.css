@@ -148,7 +148,10 @@
 
   [data-hourly-metrics~="wind"] .hourly-metric[data-metric="wind"],
   [data-hourly-metrics~="gust"] .hourly-metric[data-metric="gust"],
+  [data-hourly-metrics~="direction"] .hourly-metric[data-metric="direction"],
   [data-hourly-metrics~="precip"] .hourly-metric[data-metric="precip"],
+  [data-hourly-metrics~="pop"] .hourly-metric[data-metric="pop"],
+  [data-hourly-metrics~="humidity"] .hourly-metric[data-metric="humidity"],
   [data-hourly-metrics~="pressure"] .hourly-metric[data-metric="pressure"],
   [data-hourly-metrics~="cloud"] .hourly-metric[data-metric="cloud"] {
     display: flex;

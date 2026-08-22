@@ -432,16 +432,16 @@ func (s *Store) UpsertHourlyForecasts(ctx context.Context, gridLat, gridLon floa
 			`INSERT INTO hourly_forecasts (
 				grid_lat, grid_lon, forecast_time, fetched_at,
 				temperature, wind_speed, wind_direction, humidity, precipitation_1h, symbol, uv_cumulated,
-				wind_gust, pressure, cloud_cover
+				wind_gust, pressure, cloud_cover, pop
 			)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 			 ON CONFLICT (grid_lat, grid_lon, forecast_time) DO UPDATE SET
 			   fetched_at = $4, temperature = $5, wind_speed = $6, wind_direction = $7,
 			   humidity = $8, precipitation_1h = $9, symbol = $10, uv_cumulated = $11,
-			   wind_gust = $12, pressure = $13, cloud_cover = $14`,
+			   wind_gust = $12, pressure = $13, cloud_cover = $14, pop = $15`,
 			gridLat, gridLon, h.Time, fetchedAt,
 			h.Temperature, h.WindSpeed, h.WindDir, h.Humidity, h.Precip1h, h.Symbol, h.UVCumulated,
-			h.WindGust, h.Pressure, h.CloudCover,
+			h.WindGust, h.Pressure, h.CloudCover, h.PoP,
 		)
 	}
 	br := s.pool.SendBatch(ctx, batch)
@@ -464,7 +464,7 @@ func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64
 	}
 	rows, err := s.pool.Query(ctx,
 		`SELECT forecast_time, fetched_at, temperature, wind_speed, wind_direction, humidity, precipitation_1h, symbol, uv_cumulated,
-		        wind_gust, pressure, cloud_cover
+		        wind_gust, pressure, cloud_cover, pop
 		 FROM hourly_forecasts
 		 WHERE grid_lat = $1 AND grid_lon = $2 AND forecast_time >= date_trunc('hour', NOW())
 		 ORDER BY forecast_time
@@ -481,7 +481,7 @@ func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64
 		var h weather.HourlyForecast
 		if err := rows.Scan(
 			&h.Time, &h.FetchedAt, &h.Temperature, &h.WindSpeed, &h.WindDir, &h.Humidity, &h.Precip1h, &h.Symbol, &h.UVCumulated,
-			&h.WindGust, &h.Pressure, &h.CloudCover,
+			&h.WindGust, &h.Pressure, &h.CloudCover, &h.PoP,
 		); err != nil {
 			return nil, err
 		}

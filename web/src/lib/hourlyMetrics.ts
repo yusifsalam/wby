@@ -3,13 +3,17 @@ import {
   formatPercent,
   formatPressure,
   formatSpeed,
+  formatWindDirection,
 } from "./formatters";
 import type { HourlyForecast } from "./weatherApi";
 
 export const HOURLY_METRIC_KEYS = [
   "wind",
   "gust",
+  "direction",
   "precip",
+  "pop",
+  "humidity",
   "pressure",
   "cloud",
 ] as const;
@@ -27,9 +31,24 @@ export const HOURLY_METRICS: readonly HourlyMetric[] = [
   { key: "wind", label: "Wind", format: (h) => formatSpeed(h.wind_speed) },
   { key: "gust", label: "Wind gusts", format: (h) => formatSpeed(h.wind_gust) },
   {
+    key: "direction",
+    label: "Wind direction",
+    format: (h) => formatWindDirection(h.wind_direction),
+  },
+  {
     key: "precip",
     label: "Precipitation",
     format: (h) => formatMillimeters(h.precipitation_1h),
+  },
+  {
+    key: "pop",
+    label: "Chance of rain",
+    format: (h) => formatPercent(h.pop),
+  },
+  {
+    key: "humidity",
+    label: "Humidity",
+    format: (h) => formatPercent(h.humidity),
   },
   {
     key: "pressure",

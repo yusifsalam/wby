@@ -9,6 +9,7 @@ import {
   formatSpeed,
   formatTemperature,
   formatVisibility,
+  formatWindDirection,
   hourLabel,
 } from "./formatters";
 
@@ -21,6 +22,12 @@ describe("weather value formatters", () => {
     expect(formatMillimeters(0.24)).toBe("0.2 mm");
     expect(formatPressure(1013.4)).toBe("1013 hPa");
     expect(formatPressure(null)).toBe("--");
+    expect(formatWindDirection(0)).toBe("N");
+    expect(formatWindDirection(44)).toBe("NE");
+    expect(formatWindDirection(202.5)).toBe("SW");
+    expect(formatWindDirection(359)).toBe("N");
+    expect(formatWindDirection(-90)).toBe("W");
+    expect(formatWindDirection(null)).toBe("--");
     expect(formatMillimeters(2.01)).toBe("2 mm");
     expect(formatVisibility(15000)).toBe("15.0 km");
   });
