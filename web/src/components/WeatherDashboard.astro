@@ -1,11 +1,5 @@
 ---
 import type { City } from "../lib/cities";
-import type { CacheResult } from "../lib/weatherCache";
-import TopBar from "./TopBar.astro";
-import Footer from "./Footer.astro";
-import WeatherSymbol from "./WeatherSymbol.astro";
-import { symbolAssetFile, symbolDescription } from "../lib/weatherSymbols";
-import type { DailyForecast, HourlyForecast, WeatherResponse } from "../lib/weatherApi";
 import {
   dayLabel,
   formatMillimeters,
@@ -16,6 +10,13 @@ import {
   formatVisibility,
   hourLabel,
 } from "../lib/formatters";
+import type { DailyForecast, HourlyForecast, WeatherResponse } from "../lib/weatherApi";
+import type { CacheResult } from "../lib/weatherCache";
+import { symbolAssetFile, symbolDescription } from "../lib/weatherSymbols";
+import Footer from "./Footer.astro";
+import PrecipitationMap from "./PrecipitationMap.astro";
+import TopBar from "./TopBar.astro";
+import WeatherSymbol from "./WeatherSymbol.astro";
 
 type Props = {
   city: City;
@@ -110,6 +111,8 @@ function hourlyMeta(hour: HourlyForecast): string[] {
       </div>
     </section>
   )}
+
+  <PrecipitationMap city={city} />
 
   <section class="mt-4.5 grid grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)] gap-4.5 max-[820px]:grid-cols-1">
     {daily.length > 0 && (

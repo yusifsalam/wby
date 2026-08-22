@@ -77,94 +77,33 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 <script>
   import * as maplibregl from "maplibre-gl";
-  import type { LayerSpecification } from "maplibre-gl";
   import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-  import { FINLAND_RINGS } from "../lib/finland-outline";
+  import {
+    bakeOverlayImage,
+    basemapStyleFor,
+    type Corners,
+    FINLAND_CORNERS,
+    type Frame,
+    fallbackManifest,
+    fixedFrame,
+    formatFrameClock,
+    formatFrameOffset,
+    frameTimeParam,
+    loadImage,
+    loadManifest,
+    type Manifest,
+    observeTheme,
+    overlayBeforeId,
+    TRANSPARENT_PNG,
+    tuneBasemap,
+  } from "../lib/mapOverlay";
+  import type { MapLayer as Layer } from "../lib/weatherApi";
 
   maplibregl.setWorkerUrl(workerUrl);
 
-  type Layer = "temperature" | "precipitation";
-
-  const STYLES = {
-    light: "https://tiles.openfreemap.org/styles/positron",
-    dark: "https://tiles.openfreemap.org/styles/dark",
-  };
-
-  const styleFor = () =>
-    document.documentElement.classList.contains("dark") ? STYLES.dark : STYLES.light;
-
-  // Frame manifest: the server publishes the discrete scrubbable instants per
-  // layer (index of "now", step). Snapping the scrubber to these instants keeps
-  // overlay URLs stable across scrubs so HTTP caches actually hit. Falls back to
-  // a client-derived schedule if the manifest can't be fetched.
-  type FrameSet = { times: string[]; nowIndex: number; stepSeconds: number };
-  type Manifest = Record<Layer, FrameSet>;
-
-  function fallbackFrameSet(layer: Layer): FrameSet {
-    const nowMs = Date.now();
-    if (layer === "temperature") {
-      const base = Math.floor(nowMs / 3_600_000) * 3_600_000;
-      // now + 48 forecast hours, matching the server's MapForecastHorizon.
-      return {
-        times: Array.from({ length: 49 }, (_, i) =>
-          new Date(base + i * 3_600_000).toISOString(),
-        ),
-        nowIndex: 0,
-        stepSeconds: 3600,
-      };
-    }
-    const base = Math.floor(nowMs / 300_000) * 300_000;
-    return {
-      times: Array.from({ length: 25 }, (_, i) =>
-        new Date(base + (i - 12) * 300_000).toISOString(),
-      ),
-      nowIndex: 12,
-      stepSeconds: 300,
-    };
-  }
-
-  let manifest: Manifest = {
-    temperature: fallbackFrameSet("temperature"),
-    precipitation: fallbackFrameSet("precipitation"),
-  };
-
-  // Server frame-set shape. The backend's JSON contract is snake_case, so map it
-  // to the camelCase FrameSet the rest of this module uses — a bare `as FrameSet`
-  // cast leaves nowIndex/stepSeconds undefined at runtime (NaN offsets, a slider
-  // that can't seek).
-  type FrameSetJSON = {
-    times?: string[];
-    now_index?: number;
-    step_seconds?: number;
-  };
-
-  function normalizeFrameSet(raw: FrameSetJSON | undefined, layer: Layer): FrameSet {
-    if (!raw?.times?.length || raw.now_index == null || raw.step_seconds == null) {
-      return fallbackFrameSet(layer);
-    }
-    return {
-      times: raw.times,
-      nowIndex: raw.now_index,
-      stepSeconds: raw.step_seconds,
-    };
-  }
-
-  async function loadManifest() {
-    try {
-      const res = await fetch("/api/map/frames");
-      if (!res.ok) return;
-      const data = (await res.json()) as {
-        temperature?: FrameSetJSON;
-        precipitation?: FrameSetJSON;
-      };
-      manifest = {
-        temperature: normalizeFrameSet(data.temperature, "temperature"),
-        precipitation: normalizeFrameSet(data.precipitation, "precipitation"),
-      };
-    } catch (err) {
-      console.error("frame manifest fetch failed", err);
-    }
-  }
+  // Frame manifest (see lib/mapOverlay): starts on the client-derived fallback
+  // schedule and is replaced once the server manifest lands.
+  let manifest: Manifest = fallbackManifest();
 
   // The active layer is mirrored to the ?layer= query param so a shared URL
   // reopens on the same map.
@@ -187,7 +126,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
   const map = new maplibregl.Map({
     container: "map",
-    style: styleFor(),
+    style: basemapStyleFor(),
     center: [26, 64.5],
     zoom: 4.5,
     attributionControl: { compact: true },
@@ -195,23 +134,9 @@ import "maplibre-gl/dist/maplibre-gl.css";
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
 
   // The frame instant for the active scrubber position, or null for the live
-  // "now" frame (rendered by omitting the time param so the server applies its
-  // latest-observation + fallback logic). Snapped to the manifest, so identical
-  // instants share a cacheable overlay URL.
-  function timeParamAt(index: number): string | null {
-    const frames = manifest[layer];
-    if (index === frames.nowIndex) return null;
-    return frames.times[index] ?? null;
-  }
+  // "now" frame.
+  const timeParamAt = (index: number) => frameTimeParam(manifest[layer], index);
   const timeParam = () => timeParamAt(frameIndex);
-
-  type Corners = [
-    [number, number],
-    [number, number],
-    [number, number],
-    [number, number],
-  ];
-  type Frame = { url: string; corners: Corners };
 
   // 8-stop temperature ramp, matching the server's rampColorForTemperature
   // (internal/weather/overlay.go) so the grid render agrees with the PNG/iOS.
@@ -325,6 +250,9 @@ import "maplibre-gl/dist/maplibre-gl.css";
     return frame;
   }
 
+  // Server PNG for the active layer over the fixed Finland extent.
+  const fixedView = (t: string | null = timeParam()): Frame => fixedFrame(layer, t);
+
   // Holds refs to decoded precipitation preloads so the browser keeps the HTTP
   // responses cached; keyed by overlay URL. URLs are viewport-independent now
   // (fixed extent), so they never go stale — the map holds at most one entry per
@@ -371,44 +299,6 @@ import "maplibre-gl/dist/maplibre-gl.css";
     return fixedView();
   }
 
-  // Fixed full-Finland overlay extent (lng/lat), covering FMI's radar/forecast
-  // coverage. Hardcoding it — instead of tracking the viewport — makes every
-  // overlay URL depend only on (layer, time): identical across pans, users, and
-  // sessions, so browser and server caches actually hit and the whole frame
-  // window is prefetchable (sataako-fi's fixed-image model). The server renders
-  // Mercator-correct — temperature rows interpolate in Mercator-Y and the WMS
-  // request is EPSG:3857 — so these lng/lat corners align on the basemap, and
-  // data outside Finland masks to transparent. Panning/zoom needs no refetch;
-  // MapLibre reprojects the fixed raster on the GPU.
-  const FINLAND = { w: 10.2155, s: 56.7513, e: 37.3717, n: 71.2417 };
-  const FINLAND_CORNERS: Corners = [
-    [FINLAND.w, FINLAND.n],
-    [FINLAND.e, FINLAND.n],
-    [FINLAND.e, FINLAND.s],
-    [FINLAND.w, FINLAND.s],
-  ];
-  // Fixed render size, aspect-correct in Web Mercator and capped at the server's
-  // max overlay dimension (1600px), so the overlay isn't stretched.
-  const mercatorY = (lat: number) =>
-    Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
-  const inverseMercatorLat = (y: number) =>
-    (Math.atan(Math.sinh(y)) * 180) / Math.PI;
-  const FINLAND_H = 1600;
-  const FINLAND_W = Math.round(
-    (FINLAND_H * ((FINLAND.e - FINLAND.w) * (Math.PI / 180))) /
-      (mercatorY(FINLAND.n) - mercatorY(FINLAND.s)),
-  );
-
-  function fixedView(t: string | null = timeParam()): Frame {
-    const q = new URLSearchParams({
-      bbox: `${FINLAND.w},${FINLAND.s},${FINLAND.e},${FINLAND.n}`,
-      width: String(FINLAND_W),
-      height: String(FINLAND_H),
-    });
-    if (t) q.set("time", t);
-    return { url: `/api/map/${layer}?${q.toString()}`, corners: FINLAND_CORNERS };
-  }
-
   // A single persistent image source + raster layer, whose texture we swap per
   // frame via updateImage — sataako-fi's model. The layer opacity is constant
   // (never two translucent layers stacked), so there's no brightness pulse; and
@@ -418,118 +308,6 @@ import "maplibre-gl/dist/maplibre-gl.css";
   // temperature forecast grid needs (its extent differs from the fixed PNG one).
   const OVERLAY_SRC = "overlay-src";
   const OVERLAY_LAYER = "overlay-layer";
-  // 1×1 transparent PNG the source is seeded with until the first frame loads.
-  const TRANSPARENT_PNG =
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-
-  // Finland clip (temperature only): rather than painting an opaque fill over the
-  // basemap outside Finland (which also hid the sea), we bake the Finland shape
-  // into the overlay image itself — pixels outside the coastline become
-  // transparent. The basemap (land AND water) then renders normally everywhere,
-  // and the temperature field shows only over the country (precipitation renders
-  // unclipped, since rain over the sea is real). The clip path is vector
-  // (FINLAND_RINGS), so the coastline
-  // edge stays crisp even though the source texture is low-res and GPU-upscaled;
-  // the interior is smoothed on upscale. Coarse coastline (finland-outline.ts),
-  // precise enough at country zoom.
-  function loadImage(url: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = url;
-    });
-  }
-
-  // Redraw an overlay image onto a Mercator-correct canvas spanning `corners`,
-  // returning a data URL. lng→x is linear, lat→y is Mercator — matching how
-  // MapLibre lays the image across the coordinate quad. When `clip` is set, the
-  // Finland outline (FINLAND_RINGS) is applied as a clip path first, so the edge
-  // lines up with the basemap coastline (temperature only), and the source raster
-  // — whose rows are LINEAR in latitude (rasterizeGrid) — is resampled row-band by
-  // row-band into Mercator space. A plain stretch would misregister the field by
-  // ~0.2–0.7° of latitude (tens of km south at these latitudes), dragging cool
-  // offshore cells over coastal cities; the warp lands isotherms on the right
-  // pixels, matching the iOS Metal shader (inverseMercatorLat per fragment).
-  // Precipitation passes clip=false: its source is the server PNG, already
-  // rendered in Mercator, so it's copied whole.
-  //
-  // Both layers must flow through this bake even when unclipped: MapLibre's
-  // ImageSource.updateImage repaints on its own only for an already-decoded data
-  // URL. Handing it a remote URL (the raw /api/map/precipitation PNG) sets the
-  // texture but doesn't trigger a render until something else forces one — so a
-  // plain layer switch wouldn't show until you scrubbed or hit play.
-  function bakeOverlayImage(
-    source: HTMLImageElement | HTMLCanvasElement,
-    corners: Corners,
-    clip: boolean,
-  ): string {
-    const [west, north] = corners[0];
-    const [east, south] = corners[2];
-    const myN = mercatorY(north);
-    const myS = mercatorY(south);
-    const h = FINLAND_H;
-    const w = Math.max(
-      1,
-      Math.round((h * ((east - west) * (Math.PI / 180))) / (myN - myS)),
-    );
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("no 2d canvas context");
-    if (clip) {
-      const toX = (lng: number) => ((lng - west) / (east - west)) * w;
-      const toY = (lat: number) => ((myN - mercatorY(lat)) / (myN - myS)) * h;
-      ctx.beginPath();
-      for (const ring of FINLAND_RINGS) {
-        ring.forEach(([lng, lat], i) => {
-          const x = toX(lng);
-          const y = toY(lat);
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.closePath();
-      }
-      ctx.clip();
-    }
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    if (clip) {
-      // Linear-lat source → Mercator dest, in two seamless passes. Warping the
-      // small source directly in strips leaves dark seams: fractional-y strip
-      // edges anti-alias against the transparent canvas. Instead:
-      //   1. upscale the source once to a full-size linear-lat buffer (smooth,
-      //      no internal seams), then
-      //   2. remap it row by row — each integer dest row samples the source
-      //      latitude for its Mercator y (inverseMercatorLat). Integer, fully
-      //      contiguous 1px rows can't leave anti-aliased gaps.
-      // The warped buffer is then composited once through the coastline clip.
-      const lin = document.createElement("canvas");
-      lin.width = w;
-      lin.height = h;
-      const lctx = lin.getContext("2d");
-      const warp = document.createElement("canvas");
-      warp.width = w;
-      warp.height = h;
-      const wctx = warp.getContext("2d");
-      if (!lctx || !wctx) throw new Error("no 2d canvas context");
-      lctx.imageSmoothingEnabled = true;
-      lctx.imageSmoothingQuality = "high";
-      lctx.drawImage(source, 0, 0, w, h);
-      wctx.imageSmoothingEnabled = true;
-      wctx.imageSmoothingQuality = "high";
-      for (let y = 0; y < h; y++) {
-        const lat = inverseMercatorLat(myN - ((y + 0.5) / h) * (myN - myS));
-        const srcY = ((north - lat) / (north - south)) * h;
-        wctx.drawImage(lin, 0, srcY, w, 1, 0, y, w, 1);
-      }
-      ctx.drawImage(warp, 0, 0);
-    } else {
-      ctx.drawImage(source, 0, 0, w, h);
-    }
-    return canvas.toDataURL("image/png");
-  }
 
   // Baked (decoded, Mercator-canvas) overlay data URLs, memoised by the source
   // frame url so scrubbing/animation re-render each unique frame once. Both
@@ -550,34 +328,6 @@ import "maplibre-gl/dist/maplibre-gl.css";
     return baked;
   }
 
-  // Where to slot the overlay in the basemap's layer stack, per weather layer.
-  //
-  // Temperature sits BELOW the (opaque) water fill: the sea and lakes then paint
-  // over it, hiding — crucially in dark mode, where water is near-black — the dark
-  // lake blobs a translucent overlay would otherwise reveal. Temperature is a land
-  // field, so hiding it over water reads correctly. Precipitation sits ABOVE the
-  // fills (below roads/borders/labels) so rain stays visible over the sea. Either
-  // way roads, municipality borders, and place names render on top and stay
-  // legible.
-  function overlayBeforeId(forLayer: Layer): string | undefined {
-    const layers = map.getStyle().layers ?? [];
-    if (forLayer === "temperature") {
-      const water = layers.find(
-        (l) =>
-          l.type === "fill" &&
-          ("source-layer" in l ? l["source-layer"] : undefined) === "water",
-      );
-      if (water) return water.id;
-    }
-    for (const l of layers) {
-      const src = "source-layer" in l ? l["source-layer"] : undefined;
-      if (l.type === "symbol" || src === "transportation" || src === "boundary") {
-        return l.id;
-      }
-    }
-    return undefined;
-  }
-
   function ensureOverlayLayer() {
     if (!map.getSource(OVERLAY_SRC)) {
       map.addSource(OVERLAY_SRC, {
@@ -592,7 +342,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
           source: OVERLAY_SRC,
           paint: { "raster-opacity": opacity, "raster-fade-duration": 0 },
         },
-        overlayBeforeId(layer),
+        overlayBeforeId(map, layer),
       );
     }
   }
@@ -643,71 +393,12 @@ import "maplibre-gl/dist/maplibre-gl.css";
   };
   const refreshDebounced = debounce(refreshOverlay, 250);
 
-  // Basemap layer visibility, extracted from web/layers.json but keyed on the
-  // OpenMapTiles **source-layer** rather than layer id — source-layers are part of
-  // the tile schema and identical across our light (positron) and dark styles,
-  // whereas the styles name their layers differently (label_* vs place_*,
-  // boundary_2 vs boundary_country_*), so an id list only ever matches one theme.
-  //
-  // Visible: water fills, borders, place labels, and motorway/major roads.
-  // Hidden (any other source-layer): rivers, water names, land use, landcover,
-  // buildings, aeroways, minor/service/path roads, piers, railways, road labels,
-  // parks, POIs — so the weather overlay stays readable.
-  //
-  // The transportation source-layer mixes motorways, minor roads and railways, so
-  // it's the one case source-layer can't decide alone: we read the layer's own
-  // class filter (stable OpenMapTiles class names, not style-specific ids) and
-  // keep only motorways + major roads.
-  const KEEP_ROAD_CLASSES = ["motorway", "trunk", "primary", "secondary", "tertiary"];
-
-  function keepBasemapLayer(l: LayerSpecification): boolean {
-    if (l.type === "background") return true;
-    const src = "source-layer" in l ? l["source-layer"] : undefined;
-    switch (src) {
-      case "water": // sea + lakes (fills)
-      case "boundary": // state + national borders
-      case "place": // all place labels
-        return true;
-      case "transportation": {
-        if (l.type !== "line") return false; // skip oneway arrows, pier fills
-        const filter = JSON.stringify(("filter" in l ? l.filter : undefined) ?? "");
-        return KEEP_ROAD_CLASSES.some((c) => filter.includes(`"${c}"`));
-      }
-      default:
-        return false;
-    }
-  }
-
-  // Re-apply our basemap tweaks after each (re)load: hide every layer outside the
-  // minimal inventory above, and in dark mode make the surviving place labels
-  // legible over the bright overlay — the stock dark style uses mid-grey text with
-  // a soft translucent halo that muddies against the temperature/precip colours,
-  // so brighten the text and give it a crisp opaque halo. Light mode reads fine
-  // and is left untouched. setStyle resets everything, so this runs on every
-  // style.load.
-  function tuneBasemap() {
-    const dark = document.documentElement.classList.contains("dark");
-    for (const l of map.getStyle().layers ?? []) {
-      const src = "source-layer" in l ? l["source-layer"] : undefined;
-      if (!keepBasemapLayer(l)) {
-        map.setLayoutProperty(l.id, "visibility", "none");
-        continue;
-      }
-      if (dark && l.type === "symbol" && src === "place") {
-        map.setPaintProperty(l.id, "text-color", "rgb(236,236,236)");
-        map.setPaintProperty(l.id, "text-halo-color", "rgb(0,0,0)");
-        map.setPaintProperty(l.id, "text-halo-width", 1.8);
-        map.setPaintProperty(l.id, "text-halo-blur", 0);
-      }
-    }
-  }
-
   // The style is (re)loaded on init and whenever we switch light/dark, which
   // drops custom sources; refreshOverlay recreates the overlay layer and repaints
   // the current frame.
   map.on("style.load", () => {
     styleReady = true;
-    tuneBasemap();
+    tuneBasemap(map);
     refreshOverlay();
     maybeAutostart();
   });
@@ -738,7 +429,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
       // Temperature and precipitation slot at different depths (below vs above
       // the water fill), so restack the existing overlay for the new layer.
       if (map.getLayer(OVERLAY_LAYER)) {
-        map.moveLayer(OVERLAY_LAYER, overlayBeforeId(layer));
+        map.moveLayer(OVERLAY_LAYER, overlayBeforeId(map, layer));
       }
       stopPlaying();
       applyTimeRange();
@@ -761,37 +452,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
   const timeInput = document.getElementById("time") as HTMLInputElement;
   const timeLabel = document.getElementById("time-label") as HTMLElement;
 
-  function formatOffset(): string {
-    const frames = manifest[layer];
-    const steps = frameIndex - frames.nowIndex;
-    if (steps === 0) return "Now";
-    const min = (steps * frames.stepSeconds) / 60;
-    const sign = min > 0 ? "+" : "−";
-    const abs = Math.abs(min);
-    return abs % 60 === 0 ? `${sign}${abs / 60}h` : `${sign}${abs}m`;
-  }
-
-  // Local clock time of the active frame — HH:mm, prefixed with a short weekday
-  // when it falls on a different day than now (temperature reaches +12h).
-  function formatClock(): string {
-    const iso = manifest[layer].times[frameIndex];
-    if (!iso) return "";
-    const d = new Date(iso);
-    const tz = "Europe/Helsinki";
-    const time = d.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: tz,
-    });
-    // Compare calendar days in Helsinki time so the weekday prefix flips at
-    // Finnish midnight regardless of the viewer's own timezone.
-    const dayKey = (t: Date) =>
-      t.toLocaleDateString("en-CA", { timeZone: tz });
-    return dayKey(d) === dayKey(new Date())
-      ? time
-      : `${d.toLocaleDateString([], { weekday: "short", timeZone: tz })} ${time}`;
-  }
+  const formatOffset = () => formatFrameOffset(manifest[layer], frameIndex);
+  const formatClock = () => formatFrameClock(manifest[layer], frameIndex);
 
   function updateTimeLabel() {
     const clock = formatClock();
@@ -881,23 +543,18 @@ import "maplibre-gl/dist/maplibre-gl.css";
   });
 
   // Fetch the frame manifest, then re-anchor the scrubber to real frame times.
-  loadManifest().then(() => {
+  loadManifest().then((loaded) => {
+    manifest = loaded;
     applyTimeRange();
     prefetchAround(frameIndex, 2);
     maybeAutostart();
   });
   applyTimeRange();
 
-  // Follow the app-wide light/dark theme toggle.
-  new MutationObserver((records) => {
-    for (const r of records) {
-      if (r.attributeName === "class") {
-        // setStyle drops custom layers until style.load refires; block overlay
-        // mutation until then.
-        styleReady = false;
-        map.setStyle(styleFor());
-        return;
-      }
-    }
-  }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+  // Follow the app-wide light/dark theme toggle. setStyle drops custom layers
+  // until style.load refires; block overlay mutation until then.
+  observeTheme(() => {
+    styleReady = false;
+    map.setStyle(basemapStyleFor());
+  });
 </script>

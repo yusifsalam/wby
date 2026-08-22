@@ -1,0 +1,306 @@
+---
+import type { City } from "../lib/cities";
+import "maplibre-gl/dist/maplibre-gl.css";
+
+// Precipitation radar widget: a non-interactive MapLibre map centred on the
+// city, looping the server's precipitation frames (past hour → next hour) the
+// same way the full map page does. Links through to /map for the interactive
+// version.
+type Props = {
+  city: City;
+};
+
+const { city } = Astro.props;
+---
+
+<section class="mt-4.5 rounded-lg border border-line bg-surface/92 shadow-panel" data-precip-widget>
+  <div class="flex items-center justify-between gap-4 px-4.5 pt-4">
+    <h2 class="text-base font-bold">Precipitation</h2>
+    <a href="/map?layer=precipitation" class="text-muted hover:text-ink">Open map →</a>
+  </div>
+  <div
+    class="relative mx-4.5 mt-3.5 mb-3 h-80 overflow-hidden rounded-lg border border-line bg-surface-strong max-[560px]:h-64"
+    data-precip-map
+    data-lat={city.latitude}
+    data-lon={city.longitude}
+    data-name={city.name}
+  >
+    <div class="h-full w-full" data-precip-canvas aria-label={`Precipitation radar around ${city.name}`} role="img"></div>
+
+    <div class="pointer-events-none absolute bottom-2 left-2 z-10 rounded-md border border-line bg-surface/90 px-2 py-1.5 backdrop-blur">
+      <p class="mb-1 text-[0.65rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain mm/h</p>
+      <div class="h-1.5 w-32 rounded" style="background:linear-gradient(to right,#a8e0ff,#3fa0ff,#1436ff,#8b00ff,#ff00aa)"></div>
+      <div class="mt-0.5 flex w-32 justify-between text-[0.6rem] font-[650] text-muted">
+        <span>0.1</span><span>1</span><span>5</span><span>20+</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="mx-4.5 mb-4.5 flex items-center gap-3" data-precip-controls>
+    <button
+      type="button"
+      data-precip-play
+      aria-pressed="false"
+      aria-label="Play precipitation animation"
+      class="flex-none rounded-md px-2 py-0.5 text-[1rem] leading-none text-ink hover:text-teal"
+    >▶</button>
+    <input
+      type="range"
+      data-precip-scrub
+      value="0"
+      class="min-w-0 flex-1 accent-teal"
+      aria-label="Precipitation frame time"
+    />
+    <span
+      class="w-28 flex-none whitespace-nowrap text-right text-[0.85rem] font-[650] text-ink tabular-nums"
+      data-precip-time
+    >Now</span>
+  </div>
+</section>
+
+<script>
+  import * as maplibregl from "maplibre-gl";
+  import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+  import {
+    bakeOverlayImage,
+    basemapStyleFor,
+    FINLAND_CORNERS,
+    type FrameSet,
+    fallbackFrameSet,
+    fixedFrame,
+    formatFrameClock,
+    formatFrameOffset,
+    frameTimeParam,
+    loadImage,
+    loadManifest,
+    observeTheme,
+    overlayBeforeId,
+    TRANSPARENT_PNG,
+    tuneBasemap,
+  } from "../lib/mapOverlay";
+
+  // The controls row sits outside the map box, so resolve everything from the
+  // card, not the map element.
+  const widget = document.querySelector<HTMLElement>("[data-precip-widget]");
+  const root = widget?.querySelector<HTMLElement>("[data-precip-map]");
+  const container = root?.querySelector<HTMLElement>("[data-precip-canvas]");
+  const timeLabel = widget?.querySelector<HTMLElement>("[data-precip-time]");
+  const playButton = widget?.querySelector<HTMLButtonElement>("[data-precip-play]");
+  const scrubber = widget?.querySelector<HTMLInputElement>("[data-precip-scrub]");
+  const lat = Number(root?.dataset.lat);
+  const lon = Number(root?.dataset.lon);
+
+  if (
+    root &&
+    container &&
+    timeLabel &&
+    playButton &&
+    scrubber &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lon)
+  ) {
+    // Re-bind so nested functions see the narrowed (non-null) elements.
+    const label = timeLabel;
+    const play = playButton;
+    const scrub = scrubber;
+    maplibregl.setWorkerUrl(workerUrl);
+
+    const OVERLAY_SRC = "precip-src";
+    const OVERLAY_LAYER = "precip-layer";
+    const FRAME_MS = 600;
+    // How far ahead of the playhead to warm the browser cache.
+    const PREFETCH_SPAN = 3;
+
+    let frames: FrameSet = fallbackFrameSet("precipitation");
+    let frameIndex = frames.nowIndex;
+    let styleReady = false;
+    let refreshSeq = 0;
+
+    const map = new maplibregl.Map({
+      container,
+      style: basemapStyleFor(),
+      center: [lon, lat],
+      zoom: 7,
+      interactive: false,
+      attributionControl: { compact: true },
+    });
+
+    // City pin: a plain dot so it reads against both the basemap and rain.
+    const pin = document.createElement("span");
+    pin.className =
+      "block h-3.5 w-3.5 rounded-full border-2 border-white bg-teal shadow-[0_0_0_3px_rgba(23,33,43,0.25)]";
+    pin.setAttribute("aria-hidden", "true");
+    new maplibregl.Marker({ element: pin }).setLngLat([lon, lat]).addTo(map);
+
+    const frameUrl = (index: number) =>
+      fixedFrame("precipitation", frameTimeParam(frames, index)).url;
+
+    // Baked (Mercator canvas) data URLs keyed by overlay URL, so each frame is
+    // fetched and encoded once per loop.
+    const bakedFrameCache = new Map<string, string>();
+    const preloads = new Map<string, HTMLImageElement>();
+
+    async function bakedFrame(url: string): Promise<string> {
+      const cached = bakedFrameCache.get(url);
+      if (cached !== undefined) return cached;
+      const baked = bakeOverlayImage(await loadImage(url), FINLAND_CORNERS, false);
+      bakedFrameCache.set(url, baked);
+      return baked;
+    }
+
+    function prefetchAround(center: number, span: number) {
+      const len = frames.times.length;
+      for (let offset = 1; offset <= span; offset++) {
+        const idx = (center + offset) % len;
+        const url = frameUrl(idx);
+        if (preloads.has(url) || bakedFrameCache.has(url)) continue;
+        const img = new Image();
+        img.src = url;
+        preloads.set(url, img);
+      }
+    }
+
+    function ensureOverlayLayer() {
+      if (map.getSource(OVERLAY_SRC)) return;
+      map.addSource(OVERLAY_SRC, {
+        type: "image",
+        url: TRANSPARENT_PNG,
+        coordinates: FINLAND_CORNERS,
+      });
+      map.addLayer(
+        {
+          id: OVERLAY_LAYER,
+          type: "raster",
+          source: OVERLAY_SRC,
+          paint: { "raster-opacity": 0.8, "raster-fade-duration": 0 },
+        },
+        overlayBeforeId(map, "precipitation"),
+      );
+    }
+
+    function updateTimeLabel() {
+      const clock = formatFrameClock(frames, frameIndex);
+      const offset = formatFrameOffset(frames, frameIndex);
+      label.textContent = clock ? `${offset} · ${clock}` : offset;
+      scrub.value = String(frameIndex);
+    }
+
+    // Re-point the scrubber at the frame list and reset to "now".
+    function applyTimeRange() {
+      scrub.min = "0";
+      scrub.max = String(frames.times.length - 1);
+      scrub.step = "1";
+      frameIndex = frames.nowIndex;
+      updateTimeLabel();
+    }
+
+    async function refreshOverlay() {
+      if (!styleReady) return;
+      ensureOverlayLayer();
+      const seq = ++refreshSeq;
+      let imageUrl: string;
+      try {
+        imageUrl = await bakedFrame(frameUrl(frameIndex));
+      } catch (err) {
+        console.error("precipitation overlay refresh failed", err);
+        return;
+      }
+      if (seq !== refreshSeq || !styleReady) return;
+      const src = map.getSource(OVERLAY_SRC) as maplibregl.ImageSource | undefined;
+      src?.updateImage({ url: imageUrl, coordinates: FINLAND_CORNERS });
+    }
+
+    // Loop playback: runs while the user wants it (on by default, off under
+    // prefers-reduced-motion, toggled by the play button, off after a scrub)
+    // and only while the widget is on screen and the tab is visible.
+    let wantsPlay = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let visible = false;
+    let playTimer: ReturnType<typeof setTimeout> | undefined;
+
+    function tick() {
+      frameIndex = (frameIndex + 1) % frames.times.length;
+      updateTimeLabel();
+      prefetchAround(frameIndex, PREFETCH_SPAN);
+      refreshOverlay();
+      playTimer = setTimeout(tick, FRAME_MS);
+    }
+
+    function syncPlayback() {
+      const shouldPlay = wantsPlay && visible && !document.hidden && styleReady;
+      if (shouldPlay && playTimer === undefined) {
+        prefetchAround(frameIndex, PREFETCH_SPAN);
+        playTimer = setTimeout(tick, FRAME_MS);
+      } else if (!shouldPlay && playTimer !== undefined) {
+        clearTimeout(playTimer);
+        playTimer = undefined;
+      }
+      play.setAttribute("aria-pressed", String(wantsPlay));
+      play.textContent = wantsPlay ? "⏸" : "▶";
+    }
+
+    play.addEventListener("click", () => {
+      wantsPlay = !wantsPlay;
+      syncPlayback();
+    });
+
+    const debounce = (fn: () => void, ms: number) => {
+      let timer: ReturnType<typeof setTimeout>;
+      return () => {
+        clearTimeout(timer);
+        timer = setTimeout(fn, ms);
+      };
+    };
+    const refreshDebounced = debounce(refreshOverlay, 150);
+
+    scrub.addEventListener("input", () => {
+      wantsPlay = false;
+      syncPlayback();
+      frameIndex = Number(scrub.value);
+      updateTimeLabel();
+      prefetchAround(frameIndex, 2);
+      refreshDebounced();
+    });
+
+    new IntersectionObserver(
+      (entries) => {
+        visible = entries.some((e) => e.isIntersecting);
+        syncPlayback();
+      },
+      { threshold: 0.25 },
+    ).observe(root);
+    document.addEventListener("visibilitychange", syncPlayback);
+
+    // MapLibre opens the compact attribution expanded and only minimises it on
+    // the first drag — which a non-interactive map never gets. Collapse it to
+    // the ⓘ button once the attributions have been populated (same end state
+    // the full map reaches after a pan).
+    function collapseAttribution() {
+      map
+        .getContainer()
+        .querySelector(".maplibregl-ctrl-attrib.maplibregl-compact-show")
+        ?.classList.remove("maplibregl-compact-show");
+    }
+    map.on("load", collapseAttribution);
+    map.once("idle", collapseAttribution);
+
+    map.on("style.load", () => {
+      styleReady = true;
+      tuneBasemap(map);
+      refreshOverlay();
+      syncPlayback();
+    });
+
+    loadManifest().then((manifest) => {
+      frames = manifest.precipitation;
+      applyTimeRange();
+      refreshOverlay();
+    });
+    applyTimeRange();
+    syncPlayback();
+
+    observeTheme(() => {
+      styleReady = false;
+      map.setStyle(basemapStyleFor());
+    });
+  }
+</script>
