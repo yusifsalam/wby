@@ -23,13 +23,13 @@ import "maplibre-gl/dist/maplibre-gl.css";
             type="button"
             data-layer="temperature"
             class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-current:bg-page aria-current:text-ink aria-current:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
-            aria-current="true"
+            aria-current="false"
           >Temperature</button>
           <button
             type="button"
             data-layer="precipitation"
             class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-current:bg-page aria-current:text-ink aria-current:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
-            aria-current="false"
+            aria-current="true"
           >Precipitation</button>
         </div>
 
@@ -43,14 +43,14 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
     <!-- Legend -->
     <div class="pointer-events-none absolute bottom-16 left-3 z-10 rounded-lg border border-line bg-surface/90 px-3 py-2 shadow-panel backdrop-blur">
-      <div id="legend-temperature">
+      <div id="legend-temperature" hidden>
         <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Temperature °C</p>
         <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#3a0a54,#00e5ff,#a8e05f,#ffb300,#8b0000)"></div>
         <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
           <span>-40</span><span>0</span><span>20</span><span>40</span>
         </div>
       </div>
-      <div id="legend-precipitation" hidden>
+      <div id="legend-precipitation">
         <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain mm/h</p>
         <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#a8e0ff,#3fa0ff,#1436ff,#8b00ff,#ff00aa)"></div>
         <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
@@ -106,15 +106,16 @@ import "maplibre-gl/dist/maplibre-gl.css";
   let manifest: Manifest = fallbackManifest();
 
   // The active layer is mirrored to the ?layer= query param so a shared URL
-  // reopens on the same map.
+  // reopens on the same map. Precipitation is the default and omits the param.
+  const DEFAULT_LAYER: Layer = "precipitation";
   function layerFromURL(): Layer {
-    return new URLSearchParams(window.location.search).get("layer") === "precipitation"
-      ? "precipitation"
-      : "temperature";
+    return new URLSearchParams(window.location.search).get("layer") === "temperature"
+      ? "temperature"
+      : DEFAULT_LAYER;
   }
   function writeLayerToURL(next: Layer) {
     const url = new URL(window.location.href);
-    if (next === "temperature") url.searchParams.delete("layer");
+    if (next === DEFAULT_LAYER) url.searchParams.delete("layer");
     else url.searchParams.set("layer", next);
     history.replaceState(null, "", url);
   }
@@ -408,8 +409,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
   const legendTemp = document.getElementById("legend-temperature") as HTMLElement;
   const legendPrecip = document.getElementById("legend-precipitation") as HTMLElement;
   // Mirror the active layer to the toggle buttons and legends. Called on load too,
-  // so a ?layer= URL that opens on precipitation flips the statically-rendered
-  // temperature defaults.
+  // so a ?layer= URL that opens on temperature flips the statically-rendered
+  // precipitation defaults.
   function syncLayerUI() {
     for (const b of toggle?.querySelectorAll<HTMLButtonElement>("button[data-layer]") ?? []) {
       b.setAttribute("aria-current", String(b.dataset.layer === layer));
