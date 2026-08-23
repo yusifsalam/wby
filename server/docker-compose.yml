@@ -1,6 +1,7 @@
 services:
   db:
     image: postgis/postgis:18-3.6
+    restart: unless-stopped
     environment:
       POSTGRES_USER: "${POSTGRES_USER:-weather}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-weather}"
@@ -16,6 +17,7 @@ services:
 
   gribsvc:
     build: ../gribsvc
+    restart: unless-stopped
     environment:
       GRIB_DATA_DIR: /data
       PORT: "9090"
@@ -39,6 +41,7 @@ services:
 
   server:
     build: .
+    restart: unless-stopped
     environment:
       PORT: "${PORT:-8080}"
       DATABASE_URL: "postgres://${POSTGRES_USER:-weather}:${POSTGRES_PASSWORD:-weather}@db:5432/${POSTGRES_DB:-weather}?sslmode=disable"
@@ -61,6 +64,7 @@ services:
 
   web:
     build: ../web
+    restart: unless-stopped
     environment:
       HOST: "0.0.0.0"
       PORT: "4321"
