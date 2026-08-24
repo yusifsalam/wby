@@ -205,6 +205,7 @@ final class WeatherMapViewModel {
             applyOverlay(
                 image: initialOverlaySeed.image,
                 bbox: initialOverlaySeed.bbox,
+                clipsToFinland: true,
                 on: mapView
             )
         }
@@ -389,6 +390,7 @@ final class WeatherMapViewModel {
                     applyOverlay(
                         image: image,
                         bbox: overlayImage.bbox,
+                        clipsToFinland: true,
                         on: mapView
                     )
                     meta = OverlayMeta(
@@ -628,7 +630,7 @@ final class WeatherMapViewModel {
                 maxTemp: response.maxTemp
             )
             if let seed = cachedMetalOverlaySeed, let mapView {
-                applyOverlay(image: seed.image, bbox: seed.bbox, on: mapView)
+                applyOverlay(image: seed.image, bbox: seed.bbox, clipsToFinland: true, on: mapView)
             }
         }
     }
@@ -737,15 +739,15 @@ final class WeatherMapViewModel {
             case .png:
                 if let cachedOverlayImage,
                    let image = UIImage(data: cachedOverlayImage.imageData) {
-                    applyOverlay(image: image, bbox: cachedOverlayImage.bbox, on: mapView)
+                    applyOverlay(image: image, bbox: cachedOverlayImage.bbox, clipsToFinland: true, on: mapView)
                 }
             case .metal:
                 if let seed = cachedMetalOverlaySeed {
-                    applyOverlay(image: seed.image, bbox: seed.bbox, on: mapView)
+                    applyOverlay(image: seed.image, bbox: seed.bbox, clipsToFinland: true, on: mapView)
                 } else if let cachedSamples {
                     updateMetalOverlayCache(from: cachedSamples)
                     if let seed = cachedMetalOverlaySeed {
-                        applyOverlay(image: seed.image, bbox: seed.bbox, on: mapView)
+                        applyOverlay(image: seed.image, bbox: seed.bbox, clipsToFinland: true, on: mapView)
                     }
                 }
             }
@@ -939,21 +941,26 @@ final class WeatherMapViewModel {
         mapView.bubbleView(for: annotation)?.configurePreview(with: annotation)
     }
 
-    private func applyOverlay(image: UIImage, bbox: MapBBox, on mapView: MKMapView) {
+    private func applyOverlay(
+        image: UIImage,
+        bbox: MapBBox,
+        clipsToFinland: Bool = false,
+        on mapView: MKMapView
+    ) {
         let existing = mapView.overlays.compactMap { $0 as? TemperatureImageOverlay }
-        if let current = existing.first(where: { $0.bbox == bbox }) {
+        if let current = existing.first(where: { $0.bbox == bbox && $0.clipsToFinland == clipsToFinland }) {
             current.image = image
             if let renderer = mapView.renderer(for: current) {
                 renderer.setNeedsDisplay()
             }
-            // Drop any other stale overlays (different bbox).
+            // Drop any other stale overlays (different bbox or clip).
             let stale = existing.filter { $0 !== current }
             if !stale.isEmpty {
                 mapView.removeOverlays(stale)
             }
             return
         }
-        let new = TemperatureImageOverlay(bbox: bbox, image: image)
+        let new = TemperatureImageOverlay(bbox: bbox, image: image, clipsToFinland: clipsToFinland)
         mapView.addOverlay(new, level: .aboveRoads)
         if !existing.isEmpty {
             mapView.removeOverlays(existing)
