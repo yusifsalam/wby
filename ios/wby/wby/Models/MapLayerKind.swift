@@ -45,7 +45,7 @@ enum MapLayerKind: String, CaseIterable {
     /// How many timeline steps after "now" the scrubber covers.
     var scrubberFutureSteps: Int {
         switch self {
-        case .temperature: return 12
+        case .temperature: return 48
         case .precipitation: return 12
         case .precipitation12h: return 12
         }

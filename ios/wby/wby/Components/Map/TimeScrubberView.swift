@@ -14,7 +14,7 @@ struct TimeScrubberView: View {
                 playPauseButton
                 slider
                 timeLabel
-                    .frame(width: 64, alignment: .trailing)
+                    .frame(width: 78, alignment: .trailing)
             }
         }
         .padding(.horizontal, 12)
@@ -111,7 +111,16 @@ struct TimeScrubberView: View {
         f.dateStyle = .none
         f.timeStyle = .short
         f.timeZone = timeZone
-        return f.string(from: date)
+        let time = f.string(from: date)
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        if calendar.isDate(date, inSameDayAs: Date()) {
+            return time
+        }
+        let day = DateFormatter()
+        day.dateFormat = "EEE"
+        day.timeZone = timeZone
+        return "\(day.string(from: date)) \(time)"
     }
 
     private func relativeLabel(for date: Date) -> String {
