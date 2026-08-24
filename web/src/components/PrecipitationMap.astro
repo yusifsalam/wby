@@ -145,7 +145,7 @@ const { city } = Astro.props;
     async function bakedFrame(url: string): Promise<string> {
       const cached = bakedFrameCache.get(url);
       if (cached !== undefined) return cached;
-      const baked = bakeOverlayImage(await loadImage(url), FINLAND_CORNERS, false);
+      const baked = bakeOverlayImage(await loadImage(url), FINLAND_CORNERS);
       bakedFrameCache.set(url, baked);
       return baked;
     }

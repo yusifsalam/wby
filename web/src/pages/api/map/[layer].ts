@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { readWebConfig } from "../../../lib/config";
+import { isOverlayPngLayer } from "../../../lib/mapLayers";
 import {
-  isMapLayer,
   jsonError,
   pageCacheControl,
   signedFetch,
@@ -24,7 +24,7 @@ const FORWARDED_HEADERS = [
 
 export const GET: APIRoute = async ({ params, url }) => {
   const layer = params.layer ?? "";
-  if (!isMapLayer(layer)) {
+  if (!isOverlayPngLayer(layer)) {
     return jsonError(`unknown map layer: ${layer}`, 400);
   }
 

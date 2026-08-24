@@ -57,6 +57,13 @@ describe("map overlay proxy", () => {
     expect(res.status).toBe(400);
   });
 
+  it("rejects the grid-only 12h forecast layer", async () => {
+    // precipitation12h has no PNG endpoint; it goes through the
+    // precipitation-forecast proxy instead.
+    const res = await GET(context("precipitation12h", "bbox=19,59,32,71"));
+    expect(res.status).toBe(400);
+  });
+
   it("requires a bbox", async () => {
     const res = await GET(context("precipitation", "width=800"));
     expect(res.status).toBe(400);

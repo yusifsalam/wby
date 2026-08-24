@@ -87,12 +87,6 @@ export type LeaderboardResponse = {
   leaderboard: LeaderboardEntry[];
 };
 
-export const MAP_LAYERS = ["temperature", "precipitation"] as const;
-export type MapLayer = (typeof MAP_LAYERS)[number];
-
-export function isMapLayer(value: string): value is MapLayer {
-  return (MAP_LAYERS as readonly string[]).includes(value);
-}
 
 type SignedFetchInput = {
   config: WebConfig;

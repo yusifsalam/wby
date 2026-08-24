@@ -24,13 +24,19 @@ import "maplibre-gl/dist/maplibre-gl.css";
             data-layer="temperature"
             class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-current:bg-page aria-current:text-ink aria-current:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
             aria-current="false"
-          >Temperature</button>
+          >Temp<span class="max-[560px]:hidden">erature</span></button>
           <button
             type="button"
             data-layer="precipitation"
             class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-current:bg-page aria-current:text-ink aria-current:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
             aria-current="true"
-          >Precipitation</button>
+          ><span class="max-[560px]:hidden">Precipitation 1h</span><span class="min-[561px]:hidden">Rain 1h</span></button>
+          <button
+            type="button"
+            data-layer="precipitation12h"
+            class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-current:bg-page aria-current:text-ink aria-current:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
+            aria-current="false"
+          ><span class="max-[560px]:hidden">Precipitation 12h</span><span class="min-[561px]:hidden">Rain 12h</span></button>
         </div>
 
         <!-- Opacity -->
@@ -50,6 +56,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
           <span>-40</span><span>0</span><span>20</span><span>40</span>
         </div>
       </div>
+      <!-- Shared by both precipitation layers: the 12h grid ramp (PRECIP_STOPS
+           below) mirrors the FMI WMS radar palette of the 1h PNGs. -->
       <div id="legend-precipitation">
         <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain mm/h</p>
         <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#a8e0ff,#3fa0ff,#1436ff,#8b00ff,#ff00aa)"></div>
@@ -79,6 +87,11 @@ import "maplibre-gl/dist/maplibre-gl.css";
   import * as maplibregl from "maplibre-gl";
   import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
   import {
+    isMapLayer,
+    type MapLayer as Layer,
+    type OverlayPngLayer,
+  } from "../lib/mapLayers";
+  import {
     bakeOverlayImage,
     basemapStyleFor,
     type Corners,
@@ -97,7 +110,6 @@ import "maplibre-gl/dist/maplibre-gl.css";
     TRANSPARENT_PNG,
     tuneBasemap,
   } from "../lib/mapOverlay";
-  import type { MapLayer as Layer } from "../lib/weatherApi";
 
   maplibregl.setWorkerUrl(workerUrl);
 
@@ -109,9 +121,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
   // reopens on the same map. Precipitation is the default and omits the param.
   const DEFAULT_LAYER: Layer = "precipitation";
   function layerFromURL(): Layer {
-    return new URLSearchParams(window.location.search).get("layer") === "temperature"
-      ? "temperature"
-      : DEFAULT_LAYER;
+    const raw = new URLSearchParams(window.location.search).get("layer") ?? "";
+    return isMapLayer(raw) ? raw : DEFAULT_LAYER;
   }
   function writeLayerToURL(next: Layer) {
     const url = new URL(window.location.href);
@@ -139,9 +150,13 @@ import "maplibre-gl/dist/maplibre-gl.css";
   const timeParamAt = (index: number) => frameTimeParam(manifest[layer], index);
   const timeParam = () => timeParamAt(frameIndex);
 
+  type RGB = [number, number, number];
+  type RGBA = [number, number, number, number];
+  type RampStops = [number, RGB][];
+
   // 8-stop temperature ramp, matching the server's rampColorForTemperature
   // (internal/weather/overlay.go) so the grid render agrees with the PNG/iOS.
-  const TEMP_STOPS: [number, [number, number, number]][] = [
+  const TEMP_STOPS: RampStops = [
     [-40, [80, 30, 130]],
     [-20, [30, 55, 150]],
     [-10, [55, 115, 220]],
@@ -152,22 +167,59 @@ import "maplibre-gl/dist/maplibre-gl.css";
     [40, [109, 22, 11]],
   ];
 
-  function rampColor(temp: number): [number, number, number] {
-    if (temp <= TEMP_STOPS[0][0]) return TEMP_STOPS[0][1];
-    const last = TEMP_STOPS.length - 1;
-    if (temp >= TEMP_STOPS[last][0]) return TEMP_STOPS[last][1];
+  function rampColor(stops: RampStops, value: number): RGB {
+    if (value <= stops[0][0]) return stops[0][1];
+    const last = stops.length - 1;
+    if (value >= stops[last][0]) return stops[last][1];
     for (let i = 0; i < last; i++) {
-      const [at, a] = TEMP_STOPS[i];
-      const [bt, b] = TEMP_STOPS[i + 1];
-      if (temp > bt) continue;
-      const t = (temp - at) / (bt - at);
+      const [at, a] = stops[i];
+      const [bt, b] = stops[i + 1];
+      if (value > bt) continue;
+      const t = (value - at) / (bt - at);
       return [
         Math.round(a[0] + (b[0] - a[0]) * t),
         Math.round(a[1] + (b[1] - a[1]) * t),
         Math.round(a[2] + (b[2] - a[2]) * t),
       ];
     }
-    return TEMP_STOPS[last][1];
+    return stops[last][1];
+  }
+
+  const temperatureRGBA = (v: number): RGBA => [
+    ...rampColor(TEMP_STOPS, v),
+    255,
+  ];
+
+  // Precipitation ramp + alpha for the 12h grid, approximating the FMI WMS
+  // radar palette of the 1h PNG frames (see the shared legend) so the two
+  // precipitation layers read as one scheme. The alpha treatment follows the
+  // iOS Metal shader (TemperatureShader.metal, precipitation_grid_fragment):
+  // below PRECIP_DRY a cell is transparent, and alpha ramps from 45% at
+  // 0.1 mm/h to full at 1 mm/h. Dry cells keep the first stop's RGB so the
+  // GPU's bilinear upscale blends toward light blue at rain edges instead of
+  // fringing dark.
+  const PRECIP_STOPS: RampStops = [
+    [0.1, [168, 224, 255]],
+    [1, [63, 160, 255]],
+    [5, [20, 54, 255]],
+    [20, [139, 0, 255]],
+    [50, [255, 0, 170]],
+  ];
+  const PRECIP_DRY = 0.1;
+  const PRECIP_OPAQUE = 1;
+  const PRECIP_MIN_ALPHA = 0.45;
+
+  function precipitationRGBA(v: number): RGBA {
+    const [r, g, b] = rampColor(PRECIP_STOPS, v);
+    if (v < PRECIP_DRY) return [r, g, b, 0];
+    const intensity =
+      v >= PRECIP_OPAQUE ? 1 : (v - PRECIP_DRY) / (PRECIP_OPAQUE - PRECIP_DRY);
+    return [
+      r,
+      g,
+      b,
+      Math.round(255 * (PRECIP_MIN_ALPHA + (1 - PRECIP_MIN_ALPHA) * intensity)),
+    ];
   }
 
   type FieldGrid = {
@@ -180,11 +232,12 @@ import "maplibre-gl/dist/maplibre-gl.css";
     values: (number | null)[];
   };
 
-  // Rasterize the dense GRIB grid to a cols×rows canvas colored by the ramp
-  // (masked cells transparent). MapLibre's raster layer bilinear-upscales the
-  // small texture on the GPU, giving the smooth field iOS renders with Metal —
-  // instead of flattening the grid back into IDW points server-side.
-  function rasterizeGrid(grid: FieldGrid): string {
+  // Rasterize the dense GRIB grid to a cols×rows canvas colored by the given
+  // colorizer (masked cells transparent). MapLibre's raster layer
+  // bilinear-upscales the small texture on the GPU, giving the smooth field iOS
+  // renders with Metal — instead of flattening the grid back into IDW points
+  // server-side.
+  function rasterizeGrid(grid: FieldGrid, rgba: (v: number) => RGBA): string {
     const { rows, cols, values } = grid;
     const canvas = document.createElement("canvas");
     canvas.width = cols;
@@ -201,11 +254,11 @@ import "maplibre-gl/dist/maplibre-gl.css";
         img.data[o + 3] = 0;
         continue;
       }
-      const [r, g, b] = rampColor(v);
+      const [r, g, b, a] = rgba(v);
       img.data[o] = r;
       img.data[o + 1] = g;
       img.data[o + 2] = b;
-      img.data[o + 3] = 255;
+      img.data[o + 3] = a;
     }
     ctx.putImageData(img, 0, 0);
     return canvas.toDataURL("image/png");
@@ -220,39 +273,65 @@ import "maplibre-gl/dist/maplibre-gl.css";
     ];
   }
 
+  // The layers rendered client-side from the GRIB grid JSON (the ±1h radar
+  // layer stays on server PNGs).
+  type GridLayer = Exclude<Layer, "precipitation">;
+
+  // The 12h grid is fetched over the full fixed map canvas (FINLAND, slightly
+  // padded — the server downloads GRIB over this same extent, GRIB_BBOX) so the
+  // layer spans the same area as the 1h radar PNGs; the response's own corners
+  // are used, so a model-domain edge inside this bbox still renders correctly.
+  // Width/height are required by the endpoint but unused for the grid payload;
+  // keeping them constant keeps the server cache key stable.
+  const PRECIP_GRID_QUERY = new URLSearchParams({
+    bbox: "10,56.5,37.6,71.5",
+    width: "600",
+    height: "600",
+  }).toString();
+
+  function gridFrameURL(l: GridLayer, at: string): string {
+    return l === "temperature"
+      ? `/api/map/temperature-samples?at=${encodeURIComponent(at)}`
+      : `/api/map/precipitation-forecast?${PRECIP_GRID_QUERY}&time=${encodeURIComponent(at)}`;
+  }
+
   // The GRIB grid is whole-Finland and independent of the viewport, so a given
-  // frame instant always rasterizes to the same texture. Memoize by instant so
-  // panning and re-scrubbing to a visited frame skip both the fetch and the
-  // synchronous PNG encode. `null` records a known GRIB miss (station fallback).
+  // (layer, instant) always rasterizes to the same texture. Memoize so panning
+  // and re-scrubbing to a visited frame skip both the fetch and the synchronous
+  // PNG encode. `null` records a known GRIB miss.
   const gridFrameCache = new Map<string, Frame | null>();
 
-  async function fetchGridFrame(at: string): Promise<Frame | null> {
-    const res = await fetch(
-      `/api/map/temperature-samples?at=${encodeURIComponent(at)}`,
-    );
+  async function fetchGridFrame(l: GridLayer, at: string): Promise<Frame | null> {
+    const res = await fetch(gridFrameURL(l, at));
+    // 404 = the GRIB source is unconfigured or the field isn't available yet;
+    // a known miss rather than a transient error.
+    if (res.status === 404) return null;
     if (!res.ok) throw new Error(`grid fetch failed: ${res.status}`);
     const data = (await res.json()) as { grid?: FieldGrid | null };
     if (!data.grid || data.grid.values.length === 0) return null;
-    return { url: rasterizeGrid(data.grid), corners: gridCorners(data.grid) };
+    const rgba = l === "temperature" ? temperatureRGBA : precipitationRGBA;
+    return { url: rasterizeGrid(data.grid, rgba), corners: gridCorners(data.grid) };
   }
 
-  // Temperature: fetch the GRIB grid JSON and render it client-side — for every
-  // frame including "now" (the server serves GRIB from the current hour onward),
-  // so the whole temperature layer is gridded. Uses the frame's real instant
-  // (not timeParam, which omits the time for "now"). Returns null on a GRIB miss
-  // so the caller can fall back to the server-rendered station PNG.
-  async function temperatureGridFrame(): Promise<Frame | null> {
-    const at = manifest.temperature.times[frameIndex];
+  // Fetch the GRIB grid JSON for the active frame and render it client-side —
+  // for every frame including "now" (the server serves GRIB from the current
+  // hour onward). Uses the frame's real instant (not timeParam, which omits the
+  // time for "now"). Returns null on a GRIB miss so the caller can fall back.
+  async function gridFrame(l: GridLayer): Promise<Frame | null> {
+    const at = manifest[l].times[frameIndex];
     if (!at) return null;
-    const cached = gridFrameCache.get(at);
+    const key = `${l}|${at}`;
+    const cached = gridFrameCache.get(key);
     if (cached !== undefined) return cached;
-    const frame = await fetchGridFrame(at);
-    gridFrameCache.set(at, frame);
+    const frame = await fetchGridFrame(l, at);
+    gridFrameCache.set(key, frame);
     return frame;
   }
 
-  // Server PNG for the active layer over the fixed Finland extent.
-  const fixedView = (t: string | null = timeParam()): Frame => fixedFrame(layer, t);
+  // Server PNG for the active layer over the fixed Finland extent. Only the PNG
+  // layers ever reach this (precipitation12h renders grids exclusively).
+  const fixedView = (t: string | null = timeParam()): Frame =>
+    fixedFrame(layer as OverlayPngLayer, t);
 
   // Holds refs to decoded precipitation preloads so the browser keeps the HTTP
   // responses cached; keyed by overlay URL. URLs are viewport-independent now
@@ -264,7 +343,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
   // animation land on already-fetched data instead of a fresh round-trip. The
   // window wraps around the list (modulo length) so the loop-restart frame is
   // warm before playback jumps back to it — otherwise the wrap stalls on a live
-  // fetch. Temperature frames warm gridFrameCache (GRIB grid); precipitation warms
+  // fetch. Grid layers warm gridFrameCache (GRIB grid); the radar layer warms
   // the browser HTTP cache via an <img> preload. Fire-and-forget; failures fall
   // back to a live fetch on demand.
   function prefetchAround(center: number, span: number) {
@@ -274,11 +353,12 @@ import "maplibre-gl/dist/maplibre-gl.css";
       if (offset === 0) continue;
       const idx = ((center + offset) % len + len) % len;
       if (idx === center) continue;
-      if (layer === "temperature") {
+      if (layer !== "precipitation") {
         const at = frames.times[idx];
-        if (gridFrameCache.has(at)) continue;
-        fetchGridFrame(at)
-          .then((frame) => gridFrameCache.set(at, frame))
+        const key = `${layer}|${at}`;
+        if (gridFrameCache.has(key)) continue;
+        fetchGridFrame(layer, at)
+          .then((frame) => gridFrameCache.set(key, frame))
           .catch(() => {});
         continue;
       }
@@ -291,11 +371,16 @@ import "maplibre-gl/dist/maplibre-gl.css";
   }
 
   async function buildFrame(): Promise<Frame> {
-    // Temperature renders the dense GRIB grid directly (every frame, now included);
-    // precipitation — and a temperature GRIB miss — uses the server PNG.
-    if (layer === "temperature") {
-      const grid = await temperatureGridFrame();
+    // The grid layers render the dense GRIB grid directly (every frame, now
+    // included); the ±1h radar layer — and a temperature GRIB miss — uses the
+    // server PNG. The 12h layer has no PNG fallback, so a miss shows an empty
+    // frame rather than leaving another layer's raster on screen.
+    if (layer !== "precipitation") {
+      const grid = await gridFrame(layer);
       if (grid) return grid;
+      if (layer === "precipitation12h") {
+        return { url: TRANSPARENT_PNG, corners: FINLAND_CORNERS };
+      }
     }
     return fixedView();
   }
@@ -311,20 +396,20 @@ import "maplibre-gl/dist/maplibre-gl.css";
   const OVERLAY_LAYER = "overlay-layer";
 
   // Baked (decoded, Mercator-canvas) overlay data URLs, memoised by the source
-  // frame url so scrubbing/animation re-render each unique frame once. Both
-  // temperature (a grid-canvas data URL, clipped) and precipitation (a server PNG
-  // url, unclipped) flow through it. Each source url belongs to one layer, so the
-  // clip flag is stable per key.
+  // frame url so scrubbing/animation re-render each unique frame once. Grid
+  // data URLs (warped, temperature also clipped) and radar PNG urls (copied
+  // verbatim) all flow through it. Each source url belongs to one layer, so the
+  // bake options are stable per key.
   const bakedFrameCache = new Map<string, string>();
 
   async function bakedFrameUrl(
     url: string,
     corners: Corners,
-    clip: boolean,
+    opts: { warp?: boolean; clip?: boolean },
   ): Promise<string> {
     const cached = bakedFrameCache.get(url);
     if (cached !== undefined) return cached;
-    const baked = bakeOverlayImage(await loadImage(url), corners, clip);
+    const baked = bakeOverlayImage(await loadImage(url), corners, opts);
     bakedFrameCache.set(url, baked);
     return baked;
   }
@@ -367,13 +452,14 @@ import "maplibre-gl/dist/maplibre-gl.css";
     let imageUrl: string;
     try {
       view = await buildFrame();
-      // Temperature is a land field, so clip it to the Finland outline; rain is
-      // real over the sea, so precipitation bakes unclipped over its full extent.
-      imageUrl = await bakedFrameUrl(
-        view.url,
-        view.corners,
-        layer === "temperature",
-      );
+      // Grid layers rasterize linear in latitude and need the Mercator warp;
+      // the radar PNG is already Mercator. Temperature is a land field, so clip
+      // it to the Finland outline; rain is real over the sea, so both
+      // precipitation layers bake unclipped over their full extent.
+      imageUrl = await bakedFrameUrl(view.url, view.corners, {
+        warp: layer !== "precipitation",
+        clip: layer === "temperature",
+      });
     } catch (err) {
       console.error("overlay refresh failed", err);
       return;
@@ -409,14 +495,14 @@ import "maplibre-gl/dist/maplibre-gl.css";
   const legendTemp = document.getElementById("legend-temperature") as HTMLElement;
   const legendPrecip = document.getElementById("legend-precipitation") as HTMLElement;
   // Mirror the active layer to the toggle buttons and legends. Called on load too,
-  // so a ?layer= URL that opens on temperature flips the statically-rendered
-  // precipitation defaults.
+  // so a ?layer= URL that opens on another layer flips the statically-rendered
+  // precipitation defaults. Both precipitation layers share one legend.
   function syncLayerUI() {
     for (const b of toggle?.querySelectorAll<HTMLButtonElement>("button[data-layer]") ?? []) {
       b.setAttribute("aria-current", String(b.dataset.layer === layer));
     }
     legendTemp.hidden = layer !== "temperature";
-    legendPrecip.hidden = layer !== "precipitation";
+    legendPrecip.hidden = layer === "temperature";
   }
   syncLayerUI();
   toggle?.querySelectorAll<HTMLButtonElement>("button[data-layer]").forEach((btn) => {

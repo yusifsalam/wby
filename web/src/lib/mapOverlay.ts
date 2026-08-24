@@ -1,6 +1,6 @@
 import type { LayerSpecification, Map as MapLibreMap } from "maplibre-gl";
 import { FINLAND_RINGS } from "./finland-outline";
-import type { MapLayer } from "./weatherApi";
+import type { MapLayer, OverlayPngLayer } from "./mapLayers";
 
 // Shared map plumbing for the full-page map (pages/map.astro) and the
 // precipitation widget (components/PrecipitationMap.astro): basemap styles and
@@ -57,6 +57,17 @@ export function fallbackFrameSet(
       stepSeconds: 3600,
     };
   }
+  if (layer === "precipitation12h") {
+    const base = Math.floor(nowMs / 3_600_000) * 3_600_000;
+    // now + 12 forecast hours at the Harmonie field's hourly cadence.
+    return {
+      times: Array.from({ length: 13 }, (_, i) =>
+        new Date(base + i * 3_600_000).toISOString(),
+      ),
+      nowIndex: 0,
+      stepSeconds: 3600,
+    };
+  }
   const base = Math.floor(nowMs / 300_000) * 300_000;
   return {
     times: Array.from({ length: 25 }, (_, i) =>
@@ -99,6 +110,7 @@ export function fallbackManifest(): Manifest {
   return {
     temperature: fallbackFrameSet("temperature"),
     precipitation: fallbackFrameSet("precipitation"),
+    precipitation12h: fallbackFrameSet("precipitation12h"),
   };
 }
 
@@ -111,10 +123,15 @@ export async function loadManifest(): Promise<Manifest> {
     const data = (await res.json()) as {
       temperature?: FrameSetJSON;
       precipitation?: FrameSetJSON;
+      precipitation12h?: FrameSetJSON;
     };
     return {
       temperature: normalizeFrameSet(data.temperature, "temperature"),
       precipitation: normalizeFrameSet(data.precipitation, "precipitation"),
+      precipitation12h: normalizeFrameSet(
+        data.precipitation12h,
+        "precipitation12h",
+      ),
     };
   } catch (err) {
     console.error("frame manifest fetch failed", err);
@@ -198,7 +215,7 @@ export const FINLAND_W = Math.round(
 
 // Server-rendered overlay PNG for `layer` at `time` (null = live frame) over
 // the fixed Finland extent.
-export function fixedFrame(layer: MapLayer, time: string | null): Frame {
+export function fixedFrame(layer: OverlayPngLayer, time: string | null): Frame {
   const q = new URLSearchParams({
     bbox: `${FINLAND.w},${FINLAND.s},${FINLAND.e},${FINLAND.n}`,
     width: String(FINLAND_W),
@@ -219,26 +236,31 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
 
 // Redraw an overlay image onto a Mercator-correct canvas spanning `corners`,
 // returning a data URL. lng→x is linear, lat→y is Mercator — matching how
-// MapLibre lays the image across the coordinate quad. When `clip` is set, the
-// Finland outline (FINLAND_RINGS) is applied as a clip path first, so the edge
-// lines up with the basemap coastline (temperature only), and the source raster
-// — whose rows are LINEAR in latitude (the client-rasterized GRIB grid) — is
-// resampled row-band by row-band into Mercator space. A plain stretch would
-// misregister the field by ~0.2–0.7° of latitude (tens of km south at these
-// latitudes), dragging cool offshore cells over coastal cities; the warp lands
-// isotherms on the right pixels, matching the iOS Metal shader
-// (inverseMercatorLat per fragment). Precipitation passes clip=false: its
-// source is the server PNG, already rendered in Mercator, so it's copied whole.
+// MapLibre lays the image across the coordinate quad.
 //
-// Both layers must flow through this bake even when unclipped: MapLibre's
+// `warp`: the source raster's rows are LINEAR in latitude (a client-rasterized
+// GRIB grid), so resample them row-band by row-band into Mercator space. A
+// plain stretch would misregister the field by ~0.2–0.7° of latitude (tens of
+// km south at these latitudes), dragging cool offshore cells over coastal
+// cities; the warp lands isotherms on the right pixels, matching the iOS Metal
+// shader (inverseMercatorLat per fragment). The radar precipitation PNG skips
+// it: the server already renders in Mercator, so it's copied whole.
+//
+// `clip`: apply the Finland outline (FINLAND_RINGS) as a clip path so the edge
+// lines up with the basemap coastline. Temperature only — it's a land field;
+// rain is real over the sea, so both precipitation layers bake unclipped.
+//
+// Every layer must flow through this bake even when copied verbatim: MapLibre's
 // ImageSource.updateImage repaints on its own only for an already-decoded data
 // URL. Handing it a remote URL (the raw /api/map/precipitation PNG) sets the
 // texture but doesn't trigger a render until something else forces one — so a
 // plain layer switch wouldn't show until you scrubbed or hit play.
+export type BakeOptions = { warp?: boolean; clip?: boolean };
+
 export function bakeOverlayImage(
   source: HTMLImageElement | HTMLCanvasElement,
   corners: Corners,
-  clip: boolean,
+  { warp = false, clip = false }: BakeOptions = {},
 ): string {
   const [west, north] = corners[0];
   const [east, south] = corners[2];
@@ -271,7 +293,7 @@ export function bakeOverlayImage(
   }
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
-  if (clip) {
+  if (warp) {
     // Linear-lat source → Mercator dest, in two seamless passes. Warping the
     // small source directly in strips leaves dark seams: fractional-y strip
     // edges anti-alias against the transparent canvas. Instead:
