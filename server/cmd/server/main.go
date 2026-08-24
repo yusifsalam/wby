@@ -42,7 +42,7 @@ func main() {
 	svc.SetPrecipitationLayers(cfg.FMIPrecipObsLayer, cfg.FMIPrecipFcstLayer)
 	svc.SetPrecipitationStyle(cfg.FMIPrecipStyle)
 	svc.SetGribTemperatureSource(grib.New(cfg.GribsvcURL, cfg.GribFilename, cfg.GribTempParam, cfg.GribStep))
-	svc.SetGribPrecipitationSource(grib.NewPrecipitation(cfg.GribsvcURL, cfg.GribFilename, cfg.GribPrecipParam, cfg.GribStep))
+	svc.SetGribPrecipitationSource(grib.NewPrecipitation(cfg.GribsvcURL, cfg.GribFilename, cfg.GribPrecipParam, cfg.GribPrecipStep))
 
 	f := fetcher.New(fmiClient, db)
 	go f.RunObservationLoop(ctx, 10*time.Minute)
