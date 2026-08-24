@@ -6,7 +6,7 @@ import UIKit
 private let maxSampleCount = 2048
 private let coverageInner: Float = 0.35
 private let coverageOuter: Float = 1.10
-private let baseAlpha: Float = 195.0 / 255.0
+private let baseAlpha: Float = 217.0 / 255.0
 
 private struct ShaderUniforms {
     var topMercY: Float
