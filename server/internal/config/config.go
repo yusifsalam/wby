@@ -57,7 +57,9 @@ func Load() Config {
 		GribTempParam:   getEnv("GRIB_TEMP_PARAM", "2t"),
 		GribPrecipParam: getEnv("GRIB_PRECIP_PARAM", "prate"),
 		GribStep:        getEnvInt("GRIB_STEP", 8),
-		GribBBox:        getEnv("GRIB_BBOX", "19,59,32,71"),
+		// Slightly padded past the fixed map render extent (FINLAND in the web
+		// client) so GRIB overlays span the same canvas as the radar PNGs.
+		GribBBox:        getEnv("GRIB_BBOX", "10,56.5,37.6,71.5"),
 		GribInterval:    time.Duration(getEnvInt("GRIB_INTERVAL_MINUTES", 60)) * time.Minute,
 		GribFetchEnable: getEnv("GRIB_FETCH_ENABLE", "") == "1",
 	}
