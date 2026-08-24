@@ -57,10 +57,8 @@ func Load() Config {
 		GribParams:      getEnv("GRIB_PARAMS", "temperature,precipitation1h"),
 		GribTempParam:   getEnv("GRIB_TEMP_PARAM", "2t"),
 		GribPrecipParam: getEnv("GRIB_PRECIP_PARAM", "prate"),
-		GribStep:        getEnvInt("GRIB_STEP", 8),
-		// Precipitation extracts denser than temperature: showers are
-		// high-frequency, and the step-8 (~20km) grid blurs to mush on the map.
-		GribPrecipStep: getEnvInt("GRIB_PRECIP_STEP", 2),
+		GribStep:        getEnvInt("GRIB_STEP", 2),
+		GribPrecipStep:  getEnvInt("GRIB_PRECIP_STEP", 2),
 		// Slightly padded past the fixed map render extent (FINLAND in the web
 		// client) so GRIB overlays span the same canvas as the radar PNGs.
 		GribBBox:        getEnv("GRIB_BBOX", "10,56.5,37.6,71.5"),
