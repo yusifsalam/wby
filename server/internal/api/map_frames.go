@@ -19,6 +19,9 @@ const (
 
 	precipitationFrameStep = 5 * time.Minute
 	precipitationFrameSpan = time.Hour // ± around now, matching the official FMI app's radar window
+
+	precipitation12hFrameStep  = time.Hour
+	precipitation12hFrameHours = 12 // future hours offered, backed by the Harmonie GRIB field
 )
 
 type frameSetJSON struct {
@@ -31,9 +34,10 @@ type frameSetJSON struct {
 }
 
 type mapFramesJSON struct {
-	GeneratedAt   string       `json:"generated_at"`
-	Temperature   frameSetJSON `json:"temperature"`
-	Precipitation frameSetJSON `json:"precipitation"`
+	GeneratedAt      string       `json:"generated_at"`
+	Temperature      frameSetJSON `json:"temperature"`
+	Precipitation    frameSetJSON `json:"precipitation"`
+	Precipitation12h frameSetJSON `json:"precipitation12h"`
 }
 
 func (h *Handler) getMapFrames(w http.ResponseWriter, r *http.Request) {
@@ -58,6 +62,12 @@ func buildMapFrames(now time.Time) mapFramesJSON {
 		precipTimes = append(precipTimes, precipBase.Add(time.Duration(i)*precipitationFrameStep).Format(time.RFC3339))
 	}
 
+	precip12hBase := nowUTC.Truncate(precipitation12hFrameStep)
+	precip12hTimes := make([]string, 0, precipitation12hFrameHours+1)
+	for i := 0; i <= precipitation12hFrameHours; i++ {
+		precip12hTimes = append(precip12hTimes, precip12hBase.Add(time.Duration(i)*precipitation12hFrameStep).Format(time.RFC3339))
+	}
+
 	return mapFramesJSON{
 		GeneratedAt: nowUTC.Format(time.RFC3339),
 		Temperature: frameSetJSON{
@@ -69,6 +79,11 @@ func buildMapFrames(now time.Time) mapFramesJSON {
 			Times:       precipTimes,
 			NowIndex:    precipSteps,
 			StepSeconds: int(precipitationFrameStep.Seconds()),
+		},
+		Precipitation12h: frameSetJSON{
+			Times:       precip12hTimes,
+			NowIndex:    0,
+			StepSeconds: int(precipitation12hFrameStep.Seconds()),
 		},
 	}
 }

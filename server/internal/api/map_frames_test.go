@@ -42,6 +42,22 @@ func TestBuildMapFrames(t *testing.T) {
 	if frames.Precipitation.Times[24] != "2026-07-02T06:35:00Z" {
 		t.Fatalf("expected last precipitation frame 06:35Z, got %s", frames.Precipitation.Times[24])
 	}
+
+	if got := len(frames.Precipitation12h.Times); got != precipitation12hFrameHours+1 {
+		t.Fatalf("expected %d precipitation12h frames, got %d", precipitation12hFrameHours+1, got)
+	}
+	if frames.Precipitation12h.NowIndex != 0 {
+		t.Fatalf("expected precipitation12h now_index 0, got %d", frames.Precipitation12h.NowIndex)
+	}
+	if frames.Precipitation12h.StepSeconds != 3600 {
+		t.Fatalf("expected precipitation12h step 3600s, got %d", frames.Precipitation12h.StepSeconds)
+	}
+	if frames.Precipitation12h.Times[0] != "2026-07-02T05:00:00Z" {
+		t.Fatalf("expected first precipitation12h frame 05:00Z, got %s", frames.Precipitation12h.Times[0])
+	}
+	if frames.Precipitation12h.Times[12] != "2026-07-02T17:00:00Z" {
+		t.Fatalf("expected last precipitation12h frame 17:00Z, got %s", frames.Precipitation12h.Times[12])
+	}
 }
 
 func TestGetMapFrames(t *testing.T) {
