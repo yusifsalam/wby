@@ -192,18 +192,18 @@ fragment float4 temperature_grid_fragment(
     return float4(rgb * alpha, alpha);
 }
 
-constant float3 kPrecipStops[8] = {
-    float3(120.0, 180.0, 235.0) / 255.0,
-    float3( 70.0, 110.0, 220.0) / 255.0,
-    float3( 60.0, 180.0, 160.0) / 255.0,
-    float3( 90.0, 200.0,  90.0) / 255.0,
-    float3(235.0, 210.0,  70.0) / 255.0,
-    float3(235.0, 150.0,  60.0) / 255.0,
-    float3(210.0,  50.0,  40.0) / 255.0,
-    float3(180.0,  40.0, 150.0) / 255.0
+// Approximates the FMI WMS radar palette of the 1h precipitation frames (and
+// matches the web's PRECIP_STOPS in map.astro), so the 1h and 12h layers read
+// as one scheme.
+constant float3 kPrecipStops[5] = {
+    float3(168.0, 224.0, 255.0) / 255.0,
+    float3( 63.0, 160.0, 255.0) / 255.0,
+    float3( 20.0,  54.0, 255.0) / 255.0,
+    float3(139.0,   0.0, 255.0) / 255.0,
+    float3(255.0,   0.0, 170.0) / 255.0
 };
 
-constant float kPrecipRates[8] = { 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0 };
+constant float kPrecipRates[5] = { 0.1, 1.0, 5.0, 20.0, 50.0 };
 
 // Below this mm/h a pixel is dry (transparent); alpha ramps from
 // kPrecipMinAlphaFrac of base up to full at kPrecipOpaque.
@@ -213,7 +213,7 @@ constant float kPrecipMinAlphaFrac = 0.45;
 
 static float3 precipRampColor(float rate) {
     if (rate <= kPrecipRates[0]) { return kPrecipStops[0]; }
-    for (int i = 0; i < 7; ++i) {
+    for (int i = 0; i < 4; ++i) {
         float a = kPrecipRates[i];
         float b = kPrecipRates[i + 1];
         if (rate <= b) {
@@ -221,7 +221,7 @@ static float3 precipRampColor(float rate) {
             return mix(kPrecipStops[i], kPrecipStops[i + 1], t);
         }
     }
-    return kPrecipStops[7];
+    return kPrecipStops[4];
 }
 
 fragment float4 precipitation_grid_fragment(
