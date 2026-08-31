@@ -6,6 +6,13 @@
 #
 # `edge` is created out of band: `docker network create edge`.
 services:
+  # Cap gribsvc so a runaway extract burst is OOM-killed in its cgroup (and
+  # restarted via `restart: unless-stopped`) instead of thrashing the whole VPS.
+  # memswap_limit == mem_limit keeps it out of swap if the host ever gains one.
+  gribsvc:
+    mem_limit: 1g
+    memswap_limit: 1g
+
   server:
     networks:
       # Keep the default network (to reach db + gribsvc privately)...
