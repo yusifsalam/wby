@@ -58,14 +58,19 @@ type WMSTileFetcher interface {
 // station source. Optional.
 type GribTemperatureSource interface {
 	Grid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) (*FieldGrid, time.Time, error)
+	// GridSeries fetches all requested hours in one pass over the GRIB file
+	// (used by cache warming). Hours the file lacks are absent from the result;
+	// a soft miss returns an empty slice and nil error.
+	GridSeries(ctx context.Context, minLon, minLat, maxLon, maxLat float64, times []time.Time) ([]*FieldGrid, error)
 }
 
 // GribPrecipitationSource reads a gridded precipitation-rate field (as a mm/h
-// FieldGrid) over a bbox from the gribsvc service, for the 12h precipitation
+// FieldGrid) over a bbox from the gribsvc service, for the precipitation
 // forecast overlay. Same `at` and soft-miss semantics as GribTemperatureSource.
 // Optional.
 type GribPrecipitationSource interface {
 	Grid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) (*FieldGrid, time.Time, error)
+	GridSeries(ctx context.Context, minLon, minLat, maxLon, maxLat float64, times []time.Time) ([]*FieldGrid, error)
 }
 
 // WMSTileRequest is the request shape passed to a WMSTileFetcher.
@@ -139,7 +144,7 @@ func (s *Service) SetGribTemperatureSource(src GribTemperatureSource) {
 }
 
 // SetGribPrecipitationSource configures the GRIB-backed precipitation-rate
-// field used for the 12h forecast overlay. A nil source (the default) makes
+// field used for the precipitation forecast overlay. A nil source (the default) makes
 // GetPrecipitationForecastOverlay report the feature as disabled.
 func (s *Service) SetGribPrecipitationSource(src GribPrecipitationSource) {
 	s.gribPrecip = src
@@ -577,7 +582,7 @@ func (s *Service) gribTemperatureGrid(ctx context.Context, minLon, minLat, maxLo
 	}
 
 	hour := at.UTC().Truncate(time.Hour)
-	cacheKey := fmt.Sprintf("gribgrid:%s", hour.Format(time.RFC3339))
+	cacheKey := gribTempGridKey(hour)
 	if cached, ok := s.gribGridCache.Get(cacheKey); ok {
 		return cached
 	}
@@ -599,12 +604,13 @@ func (s *Service) gribTemperatureGrid(ctx context.Context, minLon, minLat, maxLo
 // hourly map frame (the current hour through MapForecastHorizon), over the same
 // fixed Finland extent GetTemperatureSamplesAt uses. Intended to run once per
 // GRIB refresh cycle so the first client request for each scrubber frame is a
-// cache hit rather than a ~10s cold gribsvc extract. The cache key is hour-only,
-// so warming here satisfies every client bbox. Best-effort and idempotent:
-// gribTemperatureGrid skips hours already cached, and per-frame misses (field
-// not published yet) are simply left for a client to fill lazily.
+// cache hit rather than a cold gribsvc extract. All frames come from a single
+// GridSeries call (one pass over the GRIB file); if that fails or returns
+// nothing, warming falls back to one extract per hour. The cache key is
+// hour-only, so warming here satisfies every client bbox. Best-effort: frames
+// the file lacks are left for a client to fill lazily.
 func (s *Service) WarmTemperatureGrids(ctx context.Context) {
-	if s.gribTemp == nil {
+	if s.gribTemp == nil || ctx.Err() != nil {
 		return
 	}
 
@@ -615,15 +621,29 @@ func (s *Service) WarmTemperatureGrids(ctx context.Context) {
 	maxLat := finlandMaxLat + margin
 
 	start := time.Now()
-	base := time.Now().UTC().Truncate(time.Hour)
+	hours := warmHours(time.Now().UTC().Truncate(time.Hour), MapForecastHorizon)
+
 	warmed := 0
-	for i := 0; i <= MapForecastHorizon; i++ {
-		if ctx.Err() != nil {
-			return
-		}
-		at := base.Add(time.Duration(i) * time.Hour)
-		if grid := s.gribTemperatureGrid(ctx, minLon, minLat, maxLon, maxLat, at); grid != nil {
+	grids, err := s.gribTemp.GridSeries(ctx, minLon, minLat, maxLon, maxLat, hours)
+	if err != nil {
+		slog.Warn("grib temperature series failed, warming per hour", "err", err)
+	}
+	if len(grids) > 0 {
+		for _, grid := range grids {
+			if grid == nil || len(grid.Values) == 0 {
+				continue
+			}
+			s.gribGridCache.Set(gribTempGridKey(grid.ObservedAt.UTC().Truncate(time.Hour)), grid)
 			warmed++
+		}
+	} else {
+		for _, at := range hours {
+			if ctx.Err() != nil {
+				return
+			}
+			if grid := s.gribTemperatureGrid(ctx, minLon, minLat, maxLon, maxLat, at); grid != nil {
+				warmed++
+			}
 		}
 	}
 	slog.Info("warmed grib temperature grids",
@@ -631,6 +651,19 @@ func (s *Service) WarmTemperatureGrids(ctx context.Context) {
 		"horizon_hours", MapForecastHorizon,
 		"duration", time.Since(start),
 	)
+}
+
+func gribTempGridKey(hour time.Time) string {
+	return "gribgrid:" + hour.Format(time.RFC3339)
+}
+
+// warmHours lists the hourly frame times from base through base+horizon inclusive.
+func warmHours(base time.Time, horizon int) []time.Time {
+	hours := make([]time.Time, 0, horizon+1)
+	for i := 0; i <= horizon; i++ {
+		hours = append(hours, base.Add(time.Duration(i)*time.Hour))
+	}
+	return hours
 }
 
 // temperatureGridResponse builds a samples response carrying the dense GRIB

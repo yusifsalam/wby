@@ -17,6 +17,13 @@ func (f fakePrecipSource) Grid(ctx context.Context, minLon, minLat, maxLon, maxL
 	return f.grid, f.validTime, f.err
 }
 
+func (f fakePrecipSource) GridSeries(ctx context.Context, minLon, minLat, maxLon, maxLat float64, times []time.Time) ([]*FieldGrid, error) {
+	if f.err != nil || f.grid == nil {
+		return nil, f.err
+	}
+	return []*FieldGrid{f.grid}, nil
+}
+
 func newPrecipTestService(src GribPrecipitationSource) *Service {
 	return &Service{
 		gribPrecip:      src,

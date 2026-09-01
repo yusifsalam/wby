@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -59,8 +60,10 @@ func main() {
 			Params:   cfg.GribParams,
 			BBox:     cfg.GribBBox,
 		}, cfg.GribInterval, func(ctx context.Context) {
-			svc.WarmTemperatureGrids(ctx)
-			svc.WarmPrecipitationGrids(ctx)
+			var wg sync.WaitGroup
+			wg.Go(func() { svc.WarmTemperatureGrids(ctx) })
+			wg.Go(func() { svc.WarmPrecipitationGrids(ctx) })
+			wg.Wait()
 		})
 	}
 	if cfg.RadarFetchEnable {

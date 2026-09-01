@@ -160,6 +160,78 @@ func TestGridFlipsConvertsAndMasks(t *testing.T) {
 	}
 }
 
+func TestGridSeriesReturnsFrameGrids(t *testing.T) {
+	// Two hourly frames sharing one lat/lon lattice (south-to-north rows). Each
+	// frame must become its own flipped, Kelvin->Celsius FieldGrid.
+	const body = `{
+		"param":"2t","units":"K","rows":2,"cols":2,
+		"lats":[[60.0,60.0],[60.1,60.1]],
+		"lons":[[24.0,24.1],[24.0,24.1]],
+		"frames":[
+			{"valid_time":"2026-06-24T16:00:00Z","values":[[293.15,283.15],[283.15,300.65]]},
+			{"valid_time":"2026-06-24T17:00:00Z","values":[[294.15,9999.0],[284.15,301.65]]}
+		]
+	}`
+
+	var gotPath string
+	var gotBody seriesRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	hours := []time.Time{
+		time.Date(2026, 6, 24, 16, 0, 0, 0, time.UTC),
+		time.Date(2026, 6, 24, 17, 0, 0, 0, time.UTC),
+	}
+	grids, err := New(srv.URL, "f.grib2", "2t", 1).
+		GridSeries(context.Background(), 19, 59, 32, 71, hours)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != "/grib/extract_series" {
+		t.Fatalf("unexpected path %q", gotPath)
+	}
+	if len(gotBody.Times) != 2 || gotBody.Times[0] != "2026-06-24T16:00:00Z" {
+		t.Fatalf("unexpected times in request: %v", gotBody.Times)
+	}
+	if len(grids) != 2 {
+		t.Fatalf("expected 2 grids, got %d", len(grids))
+	}
+	if !grids[0].ObservedAt.Equal(hours[0]) || !grids[1].ObservedAt.Equal(hours[1]) {
+		t.Fatalf("unexpected valid times: %v, %v", grids[0].ObservedAt, grids[1].ObservedAt)
+	}
+	// Frame 1, row 0 must be the northern row: 284.15K -> 11C.
+	if got := grids[1].Values[0]; got == nil || math.Abs(*got-11.0) > 1e-6 {
+		t.Fatalf("expected north-west cell 11.0C, got %v", got)
+	}
+	// Frame 1's fill sentinel (southern row after the flip) must be nil.
+	if got := grids[1].Values[3]; got != nil {
+		t.Fatalf("expected fill cell to be nil, got %v", *got)
+	}
+}
+
+func TestGridSeriesSoftMiss(t *testing.T) {
+	for _, status := range []int{http.StatusNotFound, http.StatusUnprocessableEntity} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(`{"detail":"not available"}`))
+		}))
+
+		grids, err := New(srv.URL, "f.grib2", "2t", 1).
+			GridSeries(context.Background(), 19, 59, 32, 71, []time.Time{time.Now()})
+		srv.Close()
+		if err != nil {
+			t.Fatalf("status %d: expected soft miss (nil error), got %v", status, err)
+		}
+		if len(grids) != 0 {
+			t.Fatalf("status %d: expected no grids, got %d", status, len(grids))
+		}
+	}
+}
+
 func TestPrecipitationSamplesConvertsRateAndDropsFill(t *testing.T) {
 	// prate is kg m^-2 s^-1; one cell is the FMI fill sentinel (the analysis
 	// step), one is masked. Expect mm/h conversion (x3600) and both gaps gone.

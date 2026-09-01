@@ -227,37 +227,44 @@ func (c *Client) fetchBBoxFile(ctx context.Context, file string, minLon, minLat,
 		reqBody.Time = at.UTC().Format(time.RFC3339)
 	}
 
-	payload, err := json.Marshal(reqBody)
+	var out bboxResponse
+	ok, err := c.postJSON(ctx, "/grib/extract", reqBody, &out)
+	return out, ok, err
+}
+
+// postJSON posts a JSON body to a gribsvc path and decodes the response into
+// out. ok is false with a nil error on a soft miss — gribsvc answered 404/422
+// because the file or field isn't available yet.
+func (c *Client) postJSON(ctx context.Context, path string, in, out any) (bool, error) {
+	payload, err := json.Marshal(in)
 	if err != nil {
-		return bboxResponse{}, false, fmt.Errorf("marshal extract request: %w", err)
+		return false, fmt.Errorf("marshal extract request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/grib/extract", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(payload))
 	if err != nil {
-		return bboxResponse{}, false, fmt.Errorf("build extract request: %w", err)
+		return false, fmt.Errorf("build extract request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return bboxResponse{}, false, fmt.Errorf("call gribsvc extract: %w", err)
+		return false, fmt.Errorf("call gribsvc extract: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// File or field not available yet — a soft miss, let the caller fall back.
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusUnprocessableEntity {
-		return bboxResponse{}, false, nil
+		return false, nil
 	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return bboxResponse{}, false, fmt.Errorf("gribsvc extract returned %d: %s", resp.StatusCode, string(body))
+		return false, fmt.Errorf("gribsvc extract returned %d: %s", resp.StatusCode, string(body))
 	}
 
-	var out bboxResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return bboxResponse{}, false, fmt.Errorf("decode extract response: %w", err)
+	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+		return false, fmt.Errorf("decode extract response: %w", err)
 	}
-	return out, true, nil
+	return true, nil
 }
 
 // Grid extracts the configured field over the bbox as a regular lat/lon raster
@@ -278,19 +285,75 @@ func (c *Client) GridForFile(ctx context.Context, file string, minLon, minLat, m
 	}
 
 	validTime, _ := time.Parse(time.RFC3339, out.ValidTime)
+	return c.buildGrid(out.Values, out.Lats, out.Lons, validTime), validTime, nil
+}
 
-	rows := len(out.Values)
+type seriesRequest struct {
+	File  string   `json:"file"`
+	Param string   `json:"param"`
+	BBox  bbox     `json:"bbox"`
+	Step  int      `json:"step"`
+	Times []string `json:"times,omitempty"`
+}
+
+type seriesFrame struct {
+	ValidTime string       `json:"valid_time"`
+	Values    [][]*float64 `json:"values"`
+}
+
+type seriesResponse struct {
+	Lats   [][]float64   `json:"lats"`
+	Lons   [][]float64   `json:"lons"`
+	Frames []seriesFrame `json:"frames"`
+}
+
+// GridSeries extracts the configured field over the bbox for every requested
+// hour in a single gribsvc pass over the file, returning one FieldGrid per hour
+// present (ObservedAt carries the frame's valid time). Hours the file lacks are
+// simply absent from the result. Soft misses (file not downloaded yet, or no
+// matching fields at all) return an empty slice and nil error.
+func (c *Client) GridSeries(ctx context.Context, minLon, minLat, maxLon, maxLat float64, times []time.Time) ([]*weather.FieldGrid, error) {
+	reqBody := seriesRequest{
+		File:  c.file,
+		Param: c.field.param,
+		BBox:  bbox{MinLon: minLon, MinLat: minLat, MaxLon: maxLon, MaxLat: maxLat},
+		Step:  c.step,
+	}
+	for _, t := range times {
+		reqBody.Times = append(reqBody.Times, t.UTC().Format(time.RFC3339))
+	}
+
+	var out seriesResponse
+	ok, err := c.postJSON(ctx, "/grib/extract_series", reqBody, &out)
+	if err != nil || !ok {
+		return nil, err
+	}
+
+	grids := make([]*weather.FieldGrid, 0, len(out.Frames))
+	for _, frame := range out.Frames {
+		validTime, _ := time.Parse(time.RFC3339, frame.ValidTime)
+		if grid := c.buildGrid(frame.Values, out.Lats, out.Lons, validTime); grid != nil {
+			grids = append(grids, grid)
+		}
+	}
+	return grids, nil
+}
+
+// buildGrid converts one gribsvc values raster plus its lat/lon lattice into a
+// FieldGrid in consumer units. gribsvc returns rows south-to-north; the order
+// is detected from the corner latitudes and flipped if needed so row 0 is the
+// northernmost. Returns nil when the shapes are inconsistent.
+func (c *Client) buildGrid(gridValues [][]*float64, lats, lons [][]float64, validTime time.Time) *weather.FieldGrid {
+	rows := len(gridValues)
 	if rows == 0 {
-		return nil, validTime, nil
+		return nil
 	}
-	cols := len(out.Values[0])
-	if cols == 0 || len(out.Lats) != rows || len(out.Lons) != rows {
-		return nil, validTime, nil
+	cols := len(gridValues[0])
+	if cols == 0 || len(lats) != rows || len(lons) != rows {
+		return nil
 	}
 
-	// gribsvc returns rows south-to-north; detect the order from the corner
-	// latitudes and flip if needed so row 0 is the northernmost.
-	northToSouth := out.Lats[0][0] >= out.Lats[rows-1][0]
+	northToSouth := lats[0][0] >= lats[rows-1][0]
 
 	values := make([]*float64, 0, rows*cols)
 	for r := 0; r < rows; r++ {
@@ -298,7 +361,7 @@ func (c *Client) GridForFile(ctx context.Context, file string, minLon, minLat, m
 		if !northToSouth {
 			src = rows - 1 - r
 		}
-		row := out.Values[src]
+		row := gridValues[src]
 		for j := 0; j < cols; j++ {
 			var cell *float64
 			if j < len(row) {
@@ -311,11 +374,11 @@ func (c *Client) GridForFile(ctx context.Context, file string, minLon, minLat, m
 		}
 	}
 
-	minLatV, maxLatV := out.Lats[0][0], out.Lats[0][0]
-	minLonV, maxLonV := out.Lons[0][0], out.Lons[0][0]
+	minLatV, maxLatV := lats[0][0], lats[0][0]
+	minLonV, maxLonV := lons[0][0], lons[0][0]
 	for r := 0; r < rows; r++ {
-		for j := 0; j < cols && j < len(out.Lats[r]) && j < len(out.Lons[r]); j++ {
-			lat, lon := out.Lats[r][j], out.Lons[r][j]
+		for j := 0; j < cols && j < len(lats[r]) && j < len(lons[r]); j++ {
+			lat, lon := lats[r][j], lons[r][j]
 			minLatV, maxLatV = math.Min(minLatV, lat), math.Max(maxLatV, lat)
 			minLonV, maxLonV = math.Min(minLonV, lon), math.Max(maxLonV, lon)
 		}
@@ -330,7 +393,7 @@ func (c *Client) GridForFile(ctx context.Context, file string, minLon, minLat, m
 		MaxLon:     maxLonV,
 		Values:     values,
 		ObservedAt: validTime,
-	}, validTime, nil
+	}
 }
 
 // TemperatureSamples is a typed view of Samples for the temperature overlay,

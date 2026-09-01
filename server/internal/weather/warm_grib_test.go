@@ -2,17 +2,21 @@ package weather
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
 )
 
-// countingTempSource records the hours requested and returns a fresh grid each
-// call, counting how often it is hit so tests can assert cache warming reaches
-// gribsvc exactly once per frame.
+// countingTempSource records per-hour and series requests separately so tests
+// can assert warming reaches gribsvc in one batch call, and falls back to the
+// per-hour path only when the series fails.
 type countingTempSource struct {
-	mu    sync.Mutex
-	hours []time.Time
+	mu          sync.Mutex
+	hours       []time.Time
+	seriesCalls int
+	seriesErr   error
+	seriesEmpty bool
 }
 
 func (c *countingTempSource) Grid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) (*FieldGrid, time.Time, error) {
@@ -26,10 +30,31 @@ func (c *countingTempSource) Grid(ctx context.Context, minLon, minLat, maxLon, m
 	}, at, nil
 }
 
-func (c *countingTempSource) count() int {
+func (c *countingTempSource) GridSeries(ctx context.Context, minLon, minLat, maxLon, maxLat float64, times []time.Time) ([]*FieldGrid, error) {
+	c.mu.Lock()
+	c.seriesCalls++
+	c.mu.Unlock()
+	if c.seriesErr != nil {
+		return nil, c.seriesErr
+	}
+	if c.seriesEmpty {
+		return nil, nil
+	}
+	grids := make([]*FieldGrid, 0, len(times))
+	for _, at := range times {
+		grids = append(grids, &FieldGrid{
+			Rows: 1, Cols: 1,
+			Values:     []*float64{ptr(1.0)},
+			ObservedAt: at,
+		})
+	}
+	return grids, nil
+}
+
+func (c *countingTempSource) counts() (grid, series int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return len(c.hours)
+	return len(c.hours), c.seriesCalls
 }
 
 func newWarmTestService(src GribTemperatureSource) *Service {
@@ -39,26 +64,42 @@ func newWarmTestService(src GribTemperatureSource) *Service {
 	}
 }
 
-func TestWarmTemperatureGrids_PopulatesEveryFrame(t *testing.T) {
+func TestWarmTemperatureGrids_PopulatesEveryFrameInOneCall(t *testing.T) {
 	src := &countingTempSource{}
 	svc := newWarmTestService(src)
 
 	svc.WarmTemperatureGrids(context.Background())
 
-	// One extract per hourly frame from now through the horizon (inclusive).
-	want := MapForecastHorizon + 1
-	if got := src.count(); got != want {
-		t.Fatalf("expected %d gribsvc calls, got %d", want, got)
+	if grid, series := src.counts(); series != 1 || grid != 0 {
+		t.Fatalf("expected 1 series call and 0 per-hour calls, got %d/%d", series, grid)
 	}
 
-	// After warming, a client request for any of those hours must be a cache hit
-	// (no additional upstream call).
+	// After warming, a client request for any hour through the horizon must be
+	// a cache hit (no additional upstream call).
+	base := time.Now().UTC().Truncate(time.Hour)
+	for _, offset := range []int{0, 3, MapForecastHorizon} {
+		if grid := svc.gribTemperatureGrid(context.Background(), 19, 59, 32, 71, base.Add(time.Duration(offset)*time.Hour)); grid == nil {
+			t.Fatalf("expected warmed grid for +%dh, got nil", offset)
+		}
+	}
+	if grid, series := src.counts(); series != 1 || grid != 0 {
+		t.Fatalf("expected no extra upstream call after warm, got %d/%d", series, grid)
+	}
+}
+
+func TestWarmTemperatureGrids_FallsBackWhenSeriesFails(t *testing.T) {
+	src := &countingTempSource{seriesErr: errors.New("boom")}
+	svc := newWarmTestService(src)
+
+	svc.WarmTemperatureGrids(context.Background())
+
+	// One extract per hourly frame from now through the horizon (inclusive).
+	if grid, _ := src.counts(); grid != MapForecastHorizon+1 {
+		t.Fatalf("expected %d per-hour fallback calls, got %d", MapForecastHorizon+1, grid)
+	}
 	base := time.Now().UTC().Truncate(time.Hour)
 	if grid := svc.gribTemperatureGrid(context.Background(), 19, 59, 32, 71, base.Add(3*time.Hour)); grid == nil {
 		t.Fatal("expected warmed grid for +3h, got nil")
-	}
-	if got := src.count(); got != want {
-		t.Fatalf("expected no extra upstream call after warm, calls went %d -> %d", want, src.count())
 	}
 }
 
@@ -76,17 +117,19 @@ func TestWarmTemperatureGrids_StopsOnCancel(t *testing.T) {
 	cancel()
 	svc.WarmTemperatureGrids(ctx)
 
-	if got := src.count(); got != 0 {
-		t.Fatalf("expected no calls after cancel, got %d", got)
+	if grid, series := src.counts(); grid != 0 || series != 0 {
+		t.Fatalf("expected no calls after cancel, got %d/%d", grid, series)
 	}
 }
 
 // countingPrecipSource records the bboxes requested alongside the hours, so the
 // precipitation warm tests can assert the fixed full-Finland extraction extent.
 type countingPrecipSource struct {
-	mu     sync.Mutex
-	hours  []time.Time
-	bboxes [][4]float64
+	mu          sync.Mutex
+	hours       []time.Time
+	bboxes      [][4]float64
+	seriesCalls int
+	seriesEmpty bool
 }
 
 func (c *countingPrecipSource) Grid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) (*FieldGrid, time.Time, error) {
@@ -101,13 +144,32 @@ func (c *countingPrecipSource) Grid(ctx context.Context, minLon, minLat, maxLon,
 	}, at, nil
 }
 
-func (c *countingPrecipSource) count() int {
+func (c *countingPrecipSource) GridSeries(ctx context.Context, minLon, minLat, maxLon, maxLat float64, times []time.Time) ([]*FieldGrid, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	return len(c.hours)
+	c.seriesCalls++
+	c.bboxes = append(c.bboxes, [4]float64{minLon, minLat, maxLon, maxLat})
+	c.mu.Unlock()
+	if c.seriesEmpty {
+		return nil, nil
+	}
+	grids := make([]*FieldGrid, 0, len(times))
+	for _, at := range times {
+		grids = append(grids, &FieldGrid{
+			Rows: 1, Cols: 1,
+			Values:     []*float64{ptr(0.5)},
+			ObservedAt: at,
+		})
+	}
+	return grids, nil
 }
 
-func TestWarmPrecipitationGrids_PopulatesEveryFrame(t *testing.T) {
+func (c *countingPrecipSource) counts() (grid, series int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.hours), c.seriesCalls
+}
+
+func TestWarmPrecipitationGrids_PopulatesEveryFrameInOneCall(t *testing.T) {
 	src := &countingPrecipSource{}
 	svc := &Service{
 		gribPrecip:      src,
@@ -116,13 +178,11 @@ func TestWarmPrecipitationGrids_PopulatesEveryFrame(t *testing.T) {
 
 	svc.WarmPrecipitationGrids(context.Background())
 
-	// One extract per hourly frame from now through the horizon (inclusive).
-	want := PrecipForecastHorizon + 1
-	if got := src.count(); got != want {
-		t.Fatalf("expected %d gribsvc calls, got %d", want, got)
+	if grid, series := src.counts(); series != 1 || grid != 0 {
+		t.Fatalf("expected 1 series call and 0 per-hour calls, got %d/%d", series, grid)
 	}
 
-	// Every extract must use the fixed full-Finland extent.
+	// The series extract must use the fixed full-Finland extent.
 	for _, b := range src.bboxes {
 		if b != [4]float64{precipGridMinLon, precipGridMinLat, precipGridMaxLon, precipGridMaxLat} {
 			t.Fatalf("expected fixed extraction extent, got %v", b)
@@ -139,8 +199,23 @@ func TestWarmPrecipitationGrids_PopulatesEveryFrame(t *testing.T) {
 	if err != nil || got == nil {
 		t.Fatalf("expected warmed grid for +3h, got %v (err %v)", got, err)
 	}
-	if got := src.count(); got != want {
-		t.Fatalf("expected no extra upstream call after warm, calls went %d -> %d", want, src.count())
+	if grid, series := src.counts(); series != 1 || grid != 0 {
+		t.Fatalf("expected no extra upstream call after warm, got %d/%d", series, grid)
+	}
+}
+
+func TestWarmPrecipitationGrids_FallsBackWhenSeriesEmpty(t *testing.T) {
+	src := &countingPrecipSource{seriesEmpty: true}
+	svc := &Service{
+		gribPrecip:      src,
+		gribPrecipCache: NewCache[*PrecipitationForecastGrid](gribGridCacheTTL),
+	}
+
+	svc.WarmPrecipitationGrids(context.Background())
+
+	// One extract per hourly frame from now through the horizon (inclusive).
+	if grid, _ := src.counts(); grid != PrecipForecastHorizon+1 {
+		t.Fatalf("expected %d per-hour fallback calls, got %d", PrecipForecastHorizon+1, grid)
 	}
 }
 
@@ -161,7 +236,7 @@ func TestWarmPrecipitationGrids_StopsOnCancel(t *testing.T) {
 	cancel()
 	svc.WarmPrecipitationGrids(ctx)
 
-	if got := src.count(); got != 0 {
-		t.Fatalf("expected no calls after cancel, got %d", got)
+	if grid, series := src.counts(); grid != 0 || series != 0 {
+		t.Fatalf("expected no calls after cancel, got %d/%d", grid, series)
 	}
 }

@@ -8,10 +8,11 @@ import (
 	"time"
 )
 
-// PrecipForecastHorizon is the furthest-future hour the 12h precipitation
-// forecast exposes. Both the frame manifest window and WarmPrecipitationGrids
-// derive from it.
-const PrecipForecastHorizon = 12
+// PrecipForecastHorizon is the furthest-future hour the precipitation forecast
+// map exposes (the layer keeps its original `precipitation12h` API name for
+// client compatibility). Both the frame manifest window and
+// WarmPrecipitationGrids derive from it.
+const PrecipForecastHorizon = 24
 
 // precipGrid* is the fixed extraction extent for the precipitation forecast
 // grid: the full GRIB download extent (GRIB_BBOX), a superset of every client's
@@ -55,7 +56,7 @@ func (s *Service) GetPrecipitationForecastGrid(ctx context.Context, req Precipit
 		target = time.Now().UTC().Truncate(time.Hour)
 	}
 
-	cacheKey := fmt.Sprintf("gribprecipgrid:%s", target.Format(time.RFC3339))
+	cacheKey := gribPrecipGridKey(target)
 	if cached, ok := s.gribPrecipCache.Get(cacheKey); ok {
 		return cached, nil
 	}
@@ -91,24 +92,46 @@ func (s *Service) GetPrecipitationForecastGrid(ctx context.Context, req Precipit
 // for every hourly frame (the current hour through PrecipForecastHorizon).
 // Intended to run once per GRIB refresh cycle, alongside WarmTemperatureGrids,
 // so the first client request for each scrubber frame is a cache hit rather
-// than a cold gribsvc extract. Best-effort and idempotent: hours already cached
-// are skipped, and per-frame misses (field not published yet) are left for a
-// client to fill lazily.
+// than a cold gribsvc extract. All frames come from a single GridSeries call
+// (one pass over the GRIB file); if that fails or returns nothing, warming
+// falls back to one extract per hour. Best-effort: frames the file lacks are
+// left for a client to fill lazily.
 func (s *Service) WarmPrecipitationGrids(ctx context.Context) {
-	if s.gribPrecip == nil {
+	if s.gribPrecip == nil || ctx.Err() != nil {
 		return
 	}
 
 	start := time.Now()
-	base := time.Now().UTC().Truncate(time.Hour)
+	hours := warmHours(time.Now().UTC().Truncate(time.Hour), PrecipForecastHorizon)
+
 	warmed := 0
-	for i := 0; i <= PrecipForecastHorizon; i++ {
-		if ctx.Err() != nil {
-			return
-		}
-		at := base.Add(time.Duration(i) * time.Hour)
-		if _, err := s.GetPrecipitationForecastGrid(ctx, PrecipitationOverlayRequest{Time: at}); err == nil {
+	grids, err := s.gribPrecip.GridSeries(ctx, precipGridMinLon, precipGridMinLat, precipGridMaxLon, precipGridMaxLat, hours)
+	if err != nil {
+		slog.Warn("grib precipitation series failed, warming per hour", "err", err)
+	}
+	if len(grids) > 0 {
+		for _, grid := range grids {
+			if grid == nil || len(grid.Values) == 0 {
+				continue
+			}
+			minV, maxV := fieldGridRange(grid)
+			validTime := grid.ObservedAt.UTC()
+			s.gribPrecipCache.Set(gribPrecipGridKey(validTime.Truncate(time.Hour)), &PrecipitationForecastGrid{
+				DataTime: validTime.Truncate(time.Second),
+				Min:      minV,
+				Max:      maxV,
+				Grid:     grid,
+			})
 			warmed++
+		}
+	} else {
+		for _, at := range hours {
+			if ctx.Err() != nil {
+				return
+			}
+			if _, err := s.GetPrecipitationForecastGrid(ctx, PrecipitationOverlayRequest{Time: at}); err == nil {
+				warmed++
+			}
 		}
 	}
 	slog.Info("warmed grib precipitation grids",
@@ -116,6 +139,10 @@ func (s *Service) WarmPrecipitationGrids(ctx context.Context) {
 		"horizon_hours", PrecipForecastHorizon,
 		"duration", time.Since(start),
 	)
+}
+
+func gribPrecipGridKey(hour time.Time) string {
+	return "gribprecipgrid:" + hour.Format(time.RFC3339)
 }
 
 // fieldGridRange returns the min and max over the grid's valid (non-nil) cells,
