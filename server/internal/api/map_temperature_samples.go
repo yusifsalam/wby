@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -59,8 +60,7 @@ func (h *Handler) getTemperatureSamples(w http.ResponseWriter, r *http.Request) 
 		atProvided = true
 
 		// Cap future requests at the map forecast horizon (backed by the GRIB
-		// field). Beyond it there's no data, so reject up-front instead of
-		// spinning useless backfills on every retry.
+		// field). Beyond it there's no data, so reject up-front.
 		horizon := time.Duration(weather.MapForecastHorizon) * time.Hour
 		if at.After(time.Now().Add(horizon)) {
 			writeJSONError(w, "at exceeds forecast horizon", http.StatusBadRequest)
@@ -81,6 +81,11 @@ func (h *Handler) getTemperatureSamples(w http.ResponseWriter, r *http.Request) 
 		if isClientCanceled(err) {
 			return
 		}
+		if errors.Is(err, weather.ErrForecastGridUnavailable) {
+			w.Header().Set("Cache-Control", "public, max-age=30")
+			writeJSONError(w, "forecast frame not available", http.StatusNotFound)
+			return
+		}
 		slog.Error("get temperature samples failed", "err", err, "at", at)
 		writeJSONError(w, "samples unavailable", http.StatusBadGateway)
 		return
@@ -97,16 +102,9 @@ func (h *Handler) getTemperatureSamples(w http.ResponseWriter, r *http.Request) 
 	digest := sha256.Sum256(body)
 	etag := fmt.Sprintf(`"%x"`, digest)
 	w.Header().Set("ETag", etag)
-	switch {
-	case atProvided && at.After(time.Now()) && resp.Grid == nil && len(resp.Samples) < weather.ForecastBackfillThreshold:
-		// Sparse future response (station fallback) just scheduled a backfill.
-		// Keep the cache window tight so the next request picks up the denser
-		// refill instead of clients/proxies pinning the sparse payload. The dense
-		// GRIB grid is never sparse, so it takes the normal future cache below.
-		w.Header().Set("Cache-Control", "public, max-age=15, stale-while-revalidate=60")
-	case atProvided:
+	if atProvided {
 		w.Header().Set("Cache-Control", "public, max-age=300, stale-while-revalidate=900")
-	default:
+	} else {
 		w.Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
 	}
 	if match := r.Header.Get("If-None-Match"); match != "" && match == etag {

@@ -102,6 +102,9 @@ func (f fakeWeatherService) GetTemperatureSamples(ctx context.Context) (*weather
 }
 
 func (f fakeWeatherService) GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*weather.TemperatureSamplesResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
 	if f.samples != nil {
 		return f.samples, nil
 	}

@@ -86,6 +86,9 @@ type GribJob struct {
 func (f *Fetcher) RunGribLoop(ctx context.Context, job GribJob, interval time.Duration, onRefresh func(context.Context)) {
 	slog.Info("grib fetcher starting", "interval", interval, "dir", job.DataDir, "file", job.Filename)
 
+	if onRefresh != nil {
+		onRefresh(ctx)
+	}
 	f.fetchGrib(ctx, job, onRefresh)
 
 	ticker := time.NewTicker(interval)
@@ -106,11 +109,11 @@ func (f *Fetcher) fetchGrib(ctx context.Context, job GribJob, onRefresh func(con
 	start := time.Now()
 	if err := f.downloadGrib(ctx, job); err != nil {
 		slog.Error("failed to fetch grib from FMI", "err", err, "producer", job.Producer)
-		return
+	} else {
+		slog.Info("grib fetched", "producer", job.Producer, "file", job.Filename, "duration", time.Since(start))
 	}
-	slog.Info("grib fetched", "producer", job.Producer, "file", job.Filename, "duration", time.Since(start))
 
-	if onRefresh != nil {
+	if onRefresh != nil && ctx.Err() == nil {
 		onRefresh(ctx)
 	}
 }

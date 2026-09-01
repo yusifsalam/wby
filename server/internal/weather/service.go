@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"math"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -22,13 +21,15 @@ const (
 
 var ErrOutOfCoverage = errors.New("location outside coverage area")
 
+// ErrForecastGridUnavailable is returned for a future-time temperature request
+// whose hourly GRIB frame isn't in the warmed cache.
+var ErrForecastGridUnavailable = errors.New("forecast grid not available")
+
 type WeatherStore interface {
 	NearestStation(ctx context.Context, lat, lon float64) (Station, float64, error)
 	LatestObservation(ctx context.Context, fmisid int) (Observation, error)
 	GetLatestTemperatureSamplesInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, limit int) ([]TemperatureSample, error)
 	GetObservationSamplesAtTimeInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time, limit int) ([]TemperatureSample, error)
-	GetHourlyForecastSamplesAtTimeInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time, limit int) ([]TemperatureSample, error)
-	StationsInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64) ([]Station, error)
 	GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]DailyForecast, error)
 	UpsertForecasts(ctx context.Context, forecasts []DailyForecast) error
 	GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64, limit int) ([]HourlyForecast, error)
@@ -112,10 +113,6 @@ type Service struct {
 
 	radarPrecip      RadarPrecipitationSource
 	radarPrecipCache *Cache[*PrecipitationForecastGrid]
-
-	gridBackfillMu         sync.Mutex
-	gridBackfillInProgress bool
-	gridBackfillLastRun    time.Time
 }
 
 func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL time.Duration) *Service {
@@ -218,8 +215,10 @@ func (s *Service) GetTemperatureSamples(ctx context.Context) (*TemperatureSample
 
 // GetTemperatureSamplesAt returns temperature samples for the given instant.
 // A zero `at` yields the latest available observations (live "now" path).
-// A past `at` queries observations near that instant; a future `at` queries
-// the hourly forecast snapped to the nearest hour.
+// A past `at` queries observations near that instant. Any instant from the
+// start of the current hour forward is served from the warmed GRIB grid
+// cache; a future `at` whose frame isn't cached returns
+// ErrForecastGridUnavailable rather than extracting on demand.
 func (s *Service) GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*TemperatureSamplesResponse, error) {
 	const margin = 0.2
 	minLon := finlandMinLon - margin
@@ -231,10 +230,14 @@ func (s *Service) GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*T
 	// instant from the start of the current hour forward: it carries grid topology,
 	// letting the client interpolate with hardware bilinear rather than point IDW,
 	// so the "now" overlay is gridded like the forecast frames. Earlier (past)
-	// instants, and a GRIB miss, fall through to station observations below.
-	if !at.Before(time.Now().UTC().Truncate(time.Hour)) {
-		if grid := s.gribTemperatureGrid(ctx, minLon, minLat, maxLon, maxLat, at); grid != nil {
+	// instants fall through to station observations below.
+	now := time.Now()
+	if !at.Before(now.UTC().Truncate(time.Hour)) {
+		if grid := s.gribTemperatureGrid(at); grid != nil {
 			return temperatureGridResponse(grid), nil
+		}
+		if at.After(now) {
+			return nil, ErrForecastGridUnavailable
 		}
 	}
 
@@ -242,37 +245,13 @@ func (s *Service) GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*T
 		samples []TemperatureSample
 		err     error
 	)
-	switch {
-	case at.IsZero():
-		// Live "now": latest station observations.
+	if at.IsZero() {
 		samples, err = s.store.GetLatestTemperatureSamplesInBBox(ctx, minLon, minLat, maxLon, maxLat, 350)
-	case !at.After(time.Now()):
-		// Past: observations near that instant.
+	} else {
 		samples, err = s.store.GetObservationSamplesAtTimeInBBox(ctx, minLon, minLat, maxLon, maxLat, at, 350)
-	default:
-		// Future GRIB miss — fall back to hourly forecasts.
-		samples, err = s.store.GetHourlyForecastSamplesAtTimeInBBox(ctx, minLon, minLat, maxLon, maxLat, at, 350)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("temperature samples: %w", err)
-	}
-
-	// TODO(grib): remove this station forecast fan-out once the GRIB overlay is
-	// validated end to end. GRIB now supplies the dense future field directly,
-	// so this only fires when GRIB is unavailable and is the ~200-request burst
-	// we built the GRIB service to eliminate. Removing it means dropping
-	// triggerForecastGridBackfill / runForecastGridFetch / PrewarmForecastGrid /
-	// RunForecastGridPrewarmLoop and the future station fallback below.
-	//
-	// Trigger backfill before the min-samples gate so the empty/sparse case
-	// (0-2 forecast rows) still kicks off a fan-out instead of returning 502
-	// with no recovery scheduled. Skip when `at` is beyond the horizon — the
-	// fan-out only fetches the next ForecastBackfillHorizon hours, so refilling
-	// for a request farther out can never satisfy it.
-	now := time.Now()
-	horizonLimit := now.Add(time.Duration(ForecastBackfillHorizon) * time.Hour)
-	if !at.IsZero() && at.After(now) && !at.After(horizonLimit) && len(samples) < ForecastBackfillThreshold {
-		s.triggerForecastGridBackfill(minLon, minLat, maxLon, maxLat)
 	}
 
 	if len(samples) < overlayMinSamples {
@@ -302,176 +281,22 @@ func (s *Service) GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*T
 	}, nil
 }
 
-// ForecastBackfillThreshold is the sample count below which a future-time
-// request schedules a background grid refill. Exported so the API layer can
-// match the predicate when deciding cache policy on sparse responses.
-const ForecastBackfillThreshold = 30
-
-// ForecastBackfillHorizon is the maximum number of hours into the future for
-// which the (legacy station) backfill prefetches hourly forecasts.
-const ForecastBackfillHorizon = 24
-
 // MapForecastHorizon is the furthest-future hour the map forecast exposes and
 // accepts. Backed by the GRIB temperature field (Harmonie surface run covers
-// ~60h ahead); comfortably beyond the 24h station-backfill horizon. Both the
-// frame manifest window and the samples handler's `at` cap derive from it.
+// ~60h ahead). Both the frame manifest window and the samples handler's `at`
+// cap derive from it.
 const MapForecastHorizon = 48
+
+// warmHorizonSlack is how many hours past a layer's horizon the warm passes
+// extract, covering the hour rollover between passes.
+const warmHorizonSlack = 2
 
 // gribGridCacheTTL bounds how long a decoded GRIB grid (temperature or
 // precipitation) is served from memory. It must exceed the GRIB refresh
 // interval (default 60m) so that grids warmed right after a refresh
 // (WarmTemperatureGrids / WarmPrecipitationGrids) stay hot until the next cycle
-// re-warms them, rather than expiring mid-cycle and forcing the next client to
-// eat a cold gribsvc extract.
+// re-warms them.
 const gribGridCacheTTL = 75 * time.Minute
-
-const (
-	forecastBackfillCooldown = 5 * time.Minute
-	forecastBackfillTimeout  = 2 * time.Minute
-	forecastBackfillWorkers  = 6
-)
-
-// triggerForecastGridBackfill kicks off a one-shot background fan-out that
-// refreshes hourly forecasts for every station in the bbox so that future-time
-// scrubbing has a dense sample field. Deduped by an in-process cooldown.
-func (s *Service) triggerForecastGridBackfill(minLon, minLat, maxLon, maxLat float64) {
-	s.gridBackfillMu.Lock()
-	if s.gridBackfillInProgress {
-		s.gridBackfillMu.Unlock()
-		return
-	}
-	if time.Since(s.gridBackfillLastRun) < forecastBackfillCooldown {
-		s.gridBackfillMu.Unlock()
-		return
-	}
-	s.gridBackfillInProgress = true
-	s.gridBackfillMu.Unlock()
-
-	go func() {
-		defer s.markBackfillDone()
-		ctx, cancel := context.WithTimeout(context.Background(), forecastBackfillTimeout)
-		defer cancel()
-		s.runForecastGridFetch(ctx, minLon, minLat, maxLon, maxLat)
-	}()
-}
-
-// PrewarmForecastGrid runs a synchronous Finland-wide forecast fetch for all
-// known stations. Intended to be invoked at startup and on a periodic loop so
-// the time-scrubber always has a dense field. Skips if a backfill is already
-// running. Returns true if stations were found (whether the fetch succeeded
-// per-station or not); false when the station table is empty or another
-// backfill is already in flight.
-func (s *Service) PrewarmForecastGrid(ctx context.Context) bool {
-	s.gridBackfillMu.Lock()
-	if s.gridBackfillInProgress {
-		s.gridBackfillMu.Unlock()
-		return false
-	}
-	s.gridBackfillInProgress = true
-	s.gridBackfillMu.Unlock()
-	defer s.markBackfillDone()
-
-	const margin = 0.2
-	return s.runForecastGridFetch(
-		ctx,
-		finlandMinLon-margin,
-		finlandMinLat-margin,
-		finlandMaxLon+margin,
-		finlandMaxLat+margin,
-	)
-}
-
-// RunForecastGridPrewarmLoop runs PrewarmForecastGrid immediately, then on
-// `interval`. On a fresh DB the station table may still be empty when the
-// loop first runs, so we retry on a short cadence until stations are present.
-// Returns when ctx is cancelled.
-func (s *Service) RunForecastGridPrewarmLoop(ctx context.Context, interval time.Duration) {
-	const emptyRetryInterval = 30 * time.Second
-	slog.Info("forecast grid prewarm loop starting", "interval", interval)
-
-	for {
-		if s.PrewarmForecastGrid(ctx) {
-			break
-		}
-		select {
-		case <-ctx.Done():
-			slog.Info("forecast grid prewarm loop stopped")
-			return
-		case <-time.After(emptyRetryInterval):
-		}
-	}
-
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			slog.Info("forecast grid prewarm loop stopped")
-			return
-		case <-ticker.C:
-			s.PrewarmForecastGrid(ctx)
-		}
-	}
-}
-
-func (s *Service) markBackfillDone() {
-	s.gridBackfillMu.Lock()
-	s.gridBackfillInProgress = false
-	s.gridBackfillLastRun = time.Now()
-	s.gridBackfillMu.Unlock()
-}
-
-func (s *Service) runForecastGridFetch(ctx context.Context, minLon, minLat, maxLon, maxLat float64) bool {
-	stations, err := s.store.StationsInBBox(ctx, minLon, minLat, maxLon, maxLat)
-	if err != nil {
-		slog.Warn("forecast grid fetch: stations lookup failed", "err", err)
-		return false
-	}
-	if len(stations) == 0 {
-		return false
-	}
-
-	slog.Info("forecast grid fetch: starting", "stations", len(stations))
-	start := time.Now()
-	sem := make(chan struct{}, forecastBackfillWorkers)
-	var wg sync.WaitGroup
-	var fetched int64
-	var failed int64
-	var mu sync.Mutex
-
-	for _, station := range stations {
-		sem <- struct{}{}
-		wg.Add(1)
-		go func(st Station) {
-			defer wg.Done()
-			defer func() { <-sem }()
-			gridLat, gridLon := snapToGrid(st.Lat, st.Lon)
-			hourly, err := s.fmi.FetchHourlyForecast(ctx, gridLat, gridLon, ForecastBackfillHorizon)
-			if err != nil {
-				mu.Lock()
-				failed++
-				mu.Unlock()
-				return
-			}
-			fetchedAt := time.Now()
-			for i := range hourly {
-				hourly[i].FetchedAt = fetchedAt
-			}
-			if err := s.store.UpsertHourlyForecasts(ctx, gridLat, gridLon, hourly); err != nil {
-				mu.Lock()
-				failed++
-				mu.Unlock()
-				return
-			}
-			mu.Lock()
-			fetched++
-			mu.Unlock()
-		}(station)
-	}
-	wg.Wait()
-	slog.Info("forecast grid fetch: done", "fetched", fetched, "failed", failed, "duration", time.Since(start))
-	return true
-}
 
 func (s *Service) GetTemperatureOverlay(ctx context.Context, req MapOverlayRequest) (*TemperatureOverlay, error) {
 	// Add a small margin so the interpolation near viewport edges has enough support points.
@@ -572,21 +397,22 @@ func (s *Service) getHourlyForecast(ctx context.Context, gridLat, gridLon float6
 	return hourly, nil
 }
 
-// gribTemperatureGrid returns the GRIB temperature raster over the bbox at the
-// hour containing `at`, as a Celsius FieldGrid. Results are cached per hour.
-// Returns nil when GRIB is unconfigured, the field isn't available yet, or the
-// call fails — callers fall back to their station-based source.
-func (s *Service) gribTemperatureGrid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) *FieldGrid {
+// gribTemperatureGrid returns the cached GRIB temperature raster (Celsius
+// FieldGrid) for the hour containing `at`, or nil when GRIB is unconfigured or
+// the hour hasn't been warmed.
+func (s *Service) gribTemperatureGrid(at time.Time) *FieldGrid {
 	if s.gribTemp == nil {
 		return nil
 	}
-
-	hour := at.UTC().Truncate(time.Hour)
-	cacheKey := gribTempGridKey(hour)
-	if cached, ok := s.gribGridCache.Get(cacheKey); ok {
+	if cached, ok := s.gribGridCache.Get(gribTempGridKey(at.UTC().Truncate(time.Hour))); ok {
 		return cached
 	}
+	return nil
+}
 
+// fetchTemperatureGrid extracts one hour over the bbox from gribsvc and caches
+// it. A nil result is a soft miss or a failure.
+func (s *Service) fetchTemperatureGrid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, hour time.Time) *FieldGrid {
 	grid, _, err := s.gribTemp.Grid(ctx, minLon, minLat, maxLon, maxLat, hour)
 	if err != nil {
 		slog.Warn("grib temperature grid failed", "err", err, "at", hour)
@@ -595,20 +421,18 @@ func (s *Service) gribTemperatureGrid(ctx context.Context, minLon, minLat, maxLo
 	if grid == nil || len(grid.Values) == 0 {
 		return nil
 	}
-
-	s.gribGridCache.Set(cacheKey, grid)
+	s.gribGridCache.Set(gribTempGridKey(hour), grid)
 	return grid
 }
 
 // WarmTemperatureGrids pre-populates the GRIB temperature grid cache for every
-// hourly map frame (the current hour through MapForecastHorizon), over the same
-// fixed Finland extent GetTemperatureSamplesAt uses. Intended to run once per
-// GRIB refresh cycle so the first client request for each scrubber frame is a
-// cache hit rather than a cold gribsvc extract. All frames come from a single
-// GridSeries call (one pass over the GRIB file); if that fails or returns
-// nothing, warming falls back to one extract per hour. The cache key is
-// hour-only, so warming here satisfies every client bbox. Best-effort: frames
-// the file lacks are left for a client to fill lazily.
+// hourly map frame (the current hour through MapForecastHorizon plus
+// warmHorizonSlack), over the same fixed Finland extent GetTemperatureSamplesAt
+// uses. It is the only path that extracts from gribsvc; it runs at startup and
+// after each GRIB download attempt. All frames come from a single GridSeries
+// call (one pass over the GRIB file); if that fails or returns nothing,
+// warming falls back to one extract per hour. The cache key is hour-only, so
+// warming here satisfies every client bbox.
 func (s *Service) WarmTemperatureGrids(ctx context.Context) {
 	if s.gribTemp == nil || ctx.Err() != nil {
 		return
@@ -621,7 +445,7 @@ func (s *Service) WarmTemperatureGrids(ctx context.Context) {
 	maxLat := finlandMaxLat + margin
 
 	start := time.Now()
-	hours := warmHours(time.Now().UTC().Truncate(time.Hour), MapForecastHorizon)
+	hours := warmHours(time.Now().UTC().Truncate(time.Hour), MapForecastHorizon+warmHorizonSlack)
 
 	warmed := 0
 	grids, err := s.gribTemp.GridSeries(ctx, minLon, minLat, maxLon, maxLat, hours)
@@ -641,7 +465,7 @@ func (s *Service) WarmTemperatureGrids(ctx context.Context) {
 			if ctx.Err() != nil {
 				return
 			}
-			if grid := s.gribTemperatureGrid(ctx, minLon, minLat, maxLon, maxLat, at); grid != nil {
+			if grid := s.fetchTemperatureGrid(ctx, minLon, minLat, maxLon, maxLat, at); grid != nil {
 				warmed++
 			}
 		}

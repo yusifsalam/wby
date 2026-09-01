@@ -77,8 +77,8 @@ func TestWarmTemperatureGrids_PopulatesEveryFrameInOneCall(t *testing.T) {
 	// After warming, a client request for any hour through the horizon must be
 	// a cache hit (no additional upstream call).
 	base := time.Now().UTC().Truncate(time.Hour)
-	for _, offset := range []int{0, 3, MapForecastHorizon} {
-		if grid := svc.gribTemperatureGrid(context.Background(), 19, 59, 32, 71, base.Add(time.Duration(offset)*time.Hour)); grid == nil {
+	for _, offset := range []int{0, 3, MapForecastHorizon, MapForecastHorizon + warmHorizonSlack} {
+		if grid := svc.gribTemperatureGrid(base.Add(time.Duration(offset) * time.Hour)); grid == nil {
 			t.Fatalf("expected warmed grid for +%dh, got nil", offset)
 		}
 	}
@@ -93,13 +93,35 @@ func TestWarmTemperatureGrids_FallsBackWhenSeriesFails(t *testing.T) {
 
 	svc.WarmTemperatureGrids(context.Background())
 
-	// One extract per hourly frame from now through the horizon (inclusive).
-	if grid, _ := src.counts(); grid != MapForecastHorizon+1 {
-		t.Fatalf("expected %d per-hour fallback calls, got %d", MapForecastHorizon+1, grid)
+	// One extract per hourly frame from now through the horizon plus slack (inclusive).
+	want := MapForecastHorizon + warmHorizonSlack + 1
+	if grid, _ := src.counts(); grid != want {
+		t.Fatalf("expected %d per-hour fallback calls, got %d", want, grid)
 	}
 	base := time.Now().UTC().Truncate(time.Hour)
-	if grid := svc.gribTemperatureGrid(context.Background(), 19, 59, 32, 71, base.Add(3*time.Hour)); grid == nil {
+	if grid := svc.gribTemperatureGrid(base.Add(3 * time.Hour)); grid == nil {
 		t.Fatal("expected warmed grid for +3h, got nil")
+	}
+}
+
+func TestGribTemperatureGrid_NeverExtractsOnMiss(t *testing.T) {
+	src := &countingTempSource{}
+	svc := newWarmTestService(src)
+
+	at := time.Now().UTC().Truncate(time.Hour).Add(3 * time.Hour)
+	if grid := svc.gribTemperatureGrid(at); grid != nil {
+		t.Fatalf("expected nil for unwarmed hour, got %+v", grid)
+	}
+	if grid, series := src.counts(); grid != 0 || series != 0 {
+		t.Fatalf("expected no upstream call on miss, got %d/%d", grid, series)
+	}
+
+	_, err := svc.GetTemperatureSamplesAt(context.Background(), at)
+	if !errors.Is(err, ErrForecastGridUnavailable) {
+		t.Fatalf("expected ErrForecastGridUnavailable, got %v", err)
+	}
+	if grid, series := src.counts(); grid != 0 || series != 0 {
+		t.Fatalf("expected no upstream call from samples path, got %d/%d", grid, series)
 	}
 }
 
@@ -213,9 +235,27 @@ func TestWarmPrecipitationGrids_FallsBackWhenSeriesEmpty(t *testing.T) {
 
 	svc.WarmPrecipitationGrids(context.Background())
 
-	// One extract per hourly frame from now through the horizon (inclusive).
-	if grid, _ := src.counts(); grid != PrecipForecastHorizon+1 {
-		t.Fatalf("expected %d per-hour fallback calls, got %d", PrecipForecastHorizon+1, grid)
+	// One extract per hourly frame from now through the horizon plus slack (inclusive).
+	want := PrecipForecastHorizon + warmHorizonSlack + 1
+	if grid, _ := src.counts(); grid != want {
+		t.Fatalf("expected %d per-hour fallback calls, got %d", want, grid)
+	}
+}
+
+func TestGetPrecipitationForecastGrid_NeverExtractsOnMiss(t *testing.T) {
+	src := &countingPrecipSource{}
+	svc := &Service{
+		gribPrecip:      src,
+		gribPrecipCache: NewCache[*PrecipitationForecastGrid](gribGridCacheTTL),
+	}
+
+	at := time.Now().UTC().Truncate(time.Hour).Add(3 * time.Hour)
+	_, err := svc.GetPrecipitationForecastGrid(context.Background(), PrecipitationOverlayRequest{Time: at})
+	if !errors.Is(err, ErrPrecipitationDisabled) {
+		t.Fatalf("expected ErrPrecipitationDisabled for unwarmed hour, got %v", err)
+	}
+	if grid, series := src.counts(); grid != 0 || series != 0 {
+		t.Fatalf("expected no upstream call on miss, got %d/%d", grid, series)
 	}
 }
 

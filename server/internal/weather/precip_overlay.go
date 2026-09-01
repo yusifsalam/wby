@@ -42,10 +42,9 @@ type PrecipitationForecastGrid struct {
 // the requested hour, always over the fixed full-Finland extent (the request
 // bbox selects nothing; clients position the raster by the extent in the
 // response). Time snaps to the hour; a zero time means the current hour.
-// Results are cached per hour, so a grid warmed after a GRIB refresh satisfies
-// every client. Returns ErrPrecipitationDisabled when the GRIB source is
-// unconfigured or the field isn't available yet, so the handler can answer 404
-// and the client keeps its previous frame.
+// Grids are served from the per-hour cache populated by WarmPrecipitationGrids.
+// Returns ErrPrecipitationDisabled when the GRIB source is unconfigured or the
+// hour isn't cached, so the handler can answer 404.
 func (s *Service) GetPrecipitationForecastGrid(ctx context.Context, req PrecipitationOverlayRequest) (*PrecipitationForecastGrid, error) {
 	if s.gribPrecip == nil {
 		return nil, ErrPrecipitationDisabled
@@ -56,17 +55,21 @@ func (s *Service) GetPrecipitationForecastGrid(ctx context.Context, req Precipit
 		target = time.Now().UTC().Truncate(time.Hour)
 	}
 
-	cacheKey := gribPrecipGridKey(target)
-	if cached, ok := s.gribPrecipCache.Get(cacheKey); ok {
+	if cached, ok := s.gribPrecipCache.Get(gribPrecipGridKey(target)); ok {
 		return cached, nil
 	}
+	return nil, ErrPrecipitationDisabled
+}
 
+// fetchPrecipitationGrid extracts one hour from gribsvc and caches it. A nil
+// result with a nil error is a soft miss.
+func (s *Service) fetchPrecipitationGrid(ctx context.Context, target time.Time) (*PrecipitationForecastGrid, error) {
 	grid, validTime, err := s.gribPrecip.Grid(ctx, precipGridMinLon, precipGridMinLat, precipGridMaxLon, precipGridMaxLat, target)
 	if err != nil {
 		return nil, fmt.Errorf("fetch precipitation grid: %w", err)
 	}
 	if grid == nil || len(grid.Values) == 0 {
-		return nil, ErrPrecipitationDisabled
+		return nil, nil
 	}
 	if validTime.IsZero() {
 		validTime = target
@@ -79,30 +82,24 @@ func (s *Service) GetPrecipitationForecastGrid(ctx context.Context, req Precipit
 		Max:      maxV,
 		Grid:     grid,
 	}
-	s.gribPrecipCache.Set(cacheKey, out)
-	slog.Info("precipitation forecast grid",
-		"target", target.UTC().Format(time.RFC3339),
-		"valid_time", validTime.UTC().Format(time.RFC3339),
-		"cells", len(grid.Values),
-	)
+	s.gribPrecipCache.Set(gribPrecipGridKey(target), out)
 	return out, nil
 }
 
 // WarmPrecipitationGrids pre-populates the precipitation forecast grid cache
-// for every hourly frame (the current hour through PrecipForecastHorizon).
-// Intended to run once per GRIB refresh cycle, alongside WarmTemperatureGrids,
-// so the first client request for each scrubber frame is a cache hit rather
-// than a cold gribsvc extract. All frames come from a single GridSeries call
-// (one pass over the GRIB file); if that fails or returns nothing, warming
-// falls back to one extract per hour. Best-effort: frames the file lacks are
-// left for a client to fill lazily.
+// for every hourly frame (the current hour through PrecipForecastHorizon plus
+// warmHorizonSlack). It is the only path that extracts from gribsvc; it runs
+// at startup and after each GRIB download attempt, alongside
+// WarmTemperatureGrids. All frames come from a single GridSeries call (one
+// pass over the GRIB file); if that fails or returns nothing, warming falls
+// back to one extract per hour.
 func (s *Service) WarmPrecipitationGrids(ctx context.Context) {
 	if s.gribPrecip == nil || ctx.Err() != nil {
 		return
 	}
 
 	start := time.Now()
-	hours := warmHours(time.Now().UTC().Truncate(time.Hour), PrecipForecastHorizon)
+	hours := warmHours(time.Now().UTC().Truncate(time.Hour), PrecipForecastHorizon+warmHorizonSlack)
 
 	warmed := 0
 	grids, err := s.gribPrecip.GridSeries(ctx, precipGridMinLon, precipGridMinLat, precipGridMaxLon, precipGridMaxLat, hours)
@@ -129,7 +126,7 @@ func (s *Service) WarmPrecipitationGrids(ctx context.Context) {
 			if ctx.Err() != nil {
 				return
 			}
-			if _, err := s.GetPrecipitationForecastGrid(ctx, PrecipitationOverlayRequest{Time: at}); err == nil {
+			if grid, err := s.fetchPrecipitationGrid(ctx, at); err == nil && grid != nil {
 				warmed++
 			}
 		}

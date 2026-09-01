@@ -110,6 +110,22 @@ func TestGetTemperatureSamples_AtParam_Invalid(t *testing.T) {
 	}
 }
 
+func TestGetTemperatureSamples_AtParam_FrameMissingIs404(t *testing.T) {
+	h := NewHandler(fakeWeatherService{err: weather.ErrForecastGridUnavailable})
+
+	rr := httptest.NewRecorder()
+	at := time.Now().UTC().Add(3 * time.Hour).Format(time.RFC3339)
+	req := httptest.NewRequest(http.MethodGet, "/v1/map/temperature/samples?at="+at, nil)
+	h.getTemperatureSamples(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unwarmed frame, got %d", rr.Code)
+	}
+	if got := rr.Header().Get("Cache-Control"); got != "public, max-age=30" {
+		t.Fatalf("expected short cache on miss, got %q", got)
+	}
+}
+
 func TestGetTemperatureSamples_AtParam_LongerCache(t *testing.T) {
 	h := NewHandler(fakeWeatherService{
 		samples: &weather.TemperatureSamplesResponse{

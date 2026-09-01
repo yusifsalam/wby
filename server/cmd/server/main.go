@@ -79,11 +79,6 @@ func main() {
 			svc.WarmNowcastGrids(ctx)
 		})
 	}
-	// Disabled: bursts ~200 FMI WFS requests every 30min and on every restart,
-	// which gets the server's IP rate-limited and starves the observation fetcher.
-	// Re-enable only with bounded concurrency, jitter, and FMI error backoff.
-	// go svc.RunForecastGridPrewarmLoop(ctx, 30*time.Minute)
-
 	mux := http.NewServeMux()
 	handler := api.NewHandler(svc)
 	handler.RegisterRoutes(mux)

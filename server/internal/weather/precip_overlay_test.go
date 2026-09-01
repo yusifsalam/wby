@@ -43,6 +43,7 @@ func TestGetPrecipitationForecastGrid_Disabled(t *testing.T) {
 
 func TestGetPrecipitationForecastGrid_SoftMissOnEmpty(t *testing.T) {
 	svc := newPrecipTestService(fakePrecipSource{grid: nil})
+	svc.WarmPrecipitationGrids(context.Background())
 	_, err := svc.GetPrecipitationForecastGrid(context.Background(), PrecipitationOverlayRequest{
 		MapOverlayRequest: MapOverlayRequest{MinLon: 24, MinLat: 60, MaxLon: 25, MaxLat: 61, Width: 100, Height: 100},
 	})
@@ -63,6 +64,7 @@ func TestGetPrecipitationForecastGrid_RangeAndCache(t *testing.T) {
 		validTime: at,
 	}
 	svc := newPrecipTestService(src)
+	svc.WarmPrecipitationGrids(context.Background())
 	req := PrecipitationOverlayRequest{
 		MapOverlayRequest: MapOverlayRequest{MinLon: 24, MinLat: 60, MaxLon: 25.5, MaxLat: 61, Width: 120, Height: 120},
 		Time:              at,
