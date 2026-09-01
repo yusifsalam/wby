@@ -387,15 +387,19 @@ import "maplibre-gl/dist/maplibre-gl.css";
   // share the map under a "precipitation-obs" key prefix.
   const gridFrameCache = new Map<string, Frame | null>();
 
-  // Keyless radar observation grid for one past/now instant of the ±1h layer,
-  // rendered client-side with the shared precip ramp. 404 = frame not on the
-  // server (radar disabled, or a gap) — a known miss the caller falls back on.
-  async function fetchObservedGridFrame(at: string): Promise<Frame | null> {
+  // Radar-derived grid (observation composite or extrapolation nowcast) for
+  // one instant of the ±1h layer, rendered client-side with the shared precip
+  // ramp. 404 = frame not on the server (radar disabled, or a gap) — a known
+  // miss the caller falls back on.
+  async function fetchRadarGridFrame(
+    endpoint: "precipitation-observed" | "precipitation-nowcast",
+    at: string,
+  ): Promise<Frame | null> {
     const res = await fetch(
-      `/api/map/precipitation-observed?${PRECIP_GRID_QUERY}&time=${encodeURIComponent(at)}`,
+      `/api/map/${endpoint}?${PRECIP_GRID_QUERY}&time=${encodeURIComponent(at)}`,
     );
     if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`observed grid fetch failed: ${res.status}`);
+    if (!res.ok) throw new Error(`${endpoint} grid fetch failed: ${res.status}`);
     const data = (await res.json()) as { grid?: FieldGrid | null };
     if (!data.grid || data.grid.values.length === 0) return null;
     return {
@@ -405,16 +409,48 @@ import "maplibre-gl/dist/maplibre-gl.css";
     };
   }
 
-  // Past/now frames of the ±1h radar layer come from the observation grid;
-  // future frames (the WMS nowcast) return null and stay on the server PNG.
-  async function observedFrame(): Promise<Frame | null> {
+  const fetchObservedGridFrame = (at: string) =>
+    fetchRadarGridFrame("precipitation-observed", at);
+  const fetchNowcastGridFrame = (at: string) =>
+    fetchRadarGridFrame("precipitation-nowcast", at);
+
+  // Nowcast frames are re-predicted every run (~5 min), so unlike observation
+  // frames they can't be memoized for the page lifetime; entries expire after
+  // the proxy's cache window and re-rasterize from the browser HTTP cache.
+  const NOWCAST_FRAME_TTL_MS = 60_000;
+  const nowcastFrameCache = new Map<
+    string,
+    { frame: Frame | null; fetchedAt: number }
+  >();
+  function cachedNowcastFrame(key: string): Frame | null | undefined {
+    const entry = nowcastFrameCache.get(key);
+    if (!entry) return undefined;
+    if (Date.now() - entry.fetchedAt > NOWCAST_FRAME_TTL_MS) {
+      nowcastFrameCache.delete(key);
+      return undefined;
+    }
+    return entry.frame;
+  }
+
+  // Past/now frames of the ±1h radar layer come from the observation grid,
+  // future frames from the extrapolation nowcast grid. null = miss, the
+  // caller falls back to the server PNG.
+  async function radarFrame(): Promise<Frame | null> {
     const at = manifest.precipitation.times[frameIndex];
-    if (!at || Date.parse(at) > Date.now()) return null;
-    const key = observedFrameKey(at);
-    const cached = gridFrameCache.get(key);
+    if (!at) return null;
+    if (Date.parse(at) <= Date.now()) {
+      const key = observedFrameKey(at);
+      const cached = gridFrameCache.get(key);
+      if (cached !== undefined) return cached;
+      const frame = await fetchObservedGridFrame(at);
+      gridFrameCache.set(key, frame);
+      return frame;
+    }
+    const key = nowcastFrameKey(at);
+    const cached = cachedNowcastFrame(key);
     if (cached !== undefined) return cached;
-    const frame = await fetchObservedGridFrame(at);
-    gridFrameCache.set(key, frame);
+    const frame = await fetchNowcastGridFrame(at);
+    nowcastFrameCache.set(key, { frame, fetchedAt: Date.now() });
     return frame;
   }
 
@@ -436,6 +472,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
     return l === "temperature" ? `${l}|${at}` : `${l}|${at}|${precipRamp}`;
   }
   const observedFrameKey = (at: string) => `precipitation-obs|${at}|${precipRamp}`;
+  const nowcastFrameKey = (at: string) =>
+    `precipitation-nowcast|${at}|${precipRamp}`;
 
   // Fetch the GRIB grid JSON for the active frame and render it client-side —
   // for every frame including "now" (the server serves GRIB from the current
@@ -487,9 +525,10 @@ import "maplibre-gl/dist/maplibre-gl.css";
         continue;
       }
       // ±1h layer: past frames warm the observation grid cache; future frames
-      // warm the browser HTTP cache for the PNG nowcast.
+      // warm the nowcast grid cache, preloading the fallback PNG on a miss.
       const at = frames.times[idx];
-      if (at && Date.parse(at) <= Date.now()) {
+      if (!at) continue;
+      if (Date.parse(at) <= Date.now()) {
         const key = observedFrameKey(at);
         if (gridFrameCache.has(key)) continue;
         fetchObservedGridFrame(at)
@@ -497,11 +536,19 @@ import "maplibre-gl/dist/maplibre-gl.css";
           .catch(() => {});
         continue;
       }
-      const { url } = fixedView(timeParamAt(idx));
-      if (precipPreloads.has(url)) continue;
-      const img = new Image();
-      img.src = url;
-      precipPreloads.set(url, img);
+      const key = nowcastFrameKey(at);
+      if (cachedNowcastFrame(key) !== undefined) continue;
+      fetchNowcastGridFrame(at)
+        .then((frame) => {
+          nowcastFrameCache.set(key, { frame, fetchedAt: Date.now() });
+          if (frame) return;
+          const { url } = fixedView(timeParamAt(idx));
+          if (precipPreloads.has(url)) return;
+          const img = new Image();
+          img.src = url;
+          precipPreloads.set(url, img);
+        })
+        .catch(() => {});
     }
   }
 
@@ -509,8 +556,9 @@ import "maplibre-gl/dist/maplibre-gl.css";
     // The grid layers render the dense GRIB grid directly (every frame, now
     // included); the 12h layer has no PNG fallback, so a miss shows an empty
     // frame rather than leaving another layer's raster on screen. The ±1h
-    // layer renders past/now frames from the keyless radar observation grid
-    // and falls back to the server PNG (which also serves its future frames).
+    // layer renders past/now frames from the radar observation grid and
+    // future frames from the extrapolation nowcast grid, falling back to the
+    // server PNG on a miss.
     if (layer !== "precipitation") {
       const grid = await gridFrame(layer);
       if (grid) return grid;
@@ -519,10 +567,10 @@ import "maplibre-gl/dist/maplibre-gl.css";
       }
     } else {
       try {
-        const obs = await observedFrame();
-        if (obs) return obs;
+        const radar = await radarFrame();
+        if (radar) return radar;
       } catch (err) {
-        console.error("observed grid fetch failed, using PNG", err);
+        console.error("radar grid fetch failed, using PNG", err);
       }
     }
     return fixedView();
