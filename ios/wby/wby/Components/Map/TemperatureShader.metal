@@ -246,3 +246,46 @@ fragment float4 precipitation_grid_fragment(
     }
     return float4(rgb * alpha, alpha);
 }
+
+// Stepped radar classes: 8 discrete bands at a constant alpha, colors and
+// thresholds lifted from FMI's Mobile_dark WMS legend (and matching the web's
+// STEPPED_CLASS_* in map.astro), so this style is indistinguishable from the
+// official radar tiles.
+constant float3 kPrecipClassColors[8] = {
+    float3(173.0, 243.0, 250.0) / 255.0,
+    float3(134.0, 190.0, 243.0) / 255.0,
+    float3( 95.0, 138.0, 236.0) / 255.0,
+    float3( 57.0,  85.0, 229.0) / 255.0,
+    float3( 20.0,  33.0, 222.0) / 255.0,
+    float3(130.0,  56.0, 236.0) / 255.0,
+    float3(185.0,  67.0, 244.0) / 255.0,
+    float3(241.0,  78.0, 251.0) / 255.0
+};
+
+constant float kPrecipClassEdges[8] = { 0.1, 0.3, 0.5, 1.0, 2.5, 5.0, 10.0, 15.0 };
+
+// The tiles hold a constant ~70% alpha (179/255); expressed here as a fraction
+// of the renderer's baseAlpha (217/255) so the uniform pipeline stays shared.
+constant float kPrecipClassAlphaFrac = 179.0 / 217.0;
+
+fragment float4 precipitation_stepped_grid_fragment(
+    VertexOut in [[stage_in]],
+    constant Uniforms& uniforms [[buffer(0)]],
+    texture2d<float> field      [[texture(0)]]
+) {
+    float2 vw = sampleField(in.uv, uniforms, field);
+    float weight = vw.y;
+    float rate = vw.x;
+    if (weight <= 0.0 || rate < kPrecipClassEdges[0]) {
+        return float4(0.0);
+    }
+    int cls = 7;
+    for (int i = 1; i < 8; ++i) {
+        if (rate < kPrecipClassEdges[i]) {
+            cls = i - 1;
+            break;
+        }
+    }
+    float alpha = uniforms.baseAlpha * clamp(weight, 0.0, 1.0) * kPrecipClassAlphaFrac;
+    return float4(kPrecipClassColors[cls] * alpha, alpha);
+}

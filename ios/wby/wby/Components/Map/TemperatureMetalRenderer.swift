@@ -60,6 +60,7 @@ private enum RenderMode {
 enum GridField {
     case temperature
     case precipitation
+    case precipitationStepped
 }
 
 final class TemperatureMetalRenderer {
@@ -68,6 +69,7 @@ final class TemperatureMetalRenderer {
     private let pipeline: MTLRenderPipelineState
     private let gridPipeline: MTLRenderPipelineState
     private let gridPrecipPipeline: MTLRenderPipelineState
+    private let gridPrecipSteppedPipeline: MTLRenderPipelineState
     private let samplesBuffer: MTLBuffer
     private var uniforms: ShaderUniforms
     private var sampleCount: Int = 0
@@ -90,7 +92,8 @@ final class TemperatureMetalRenderer {
         guard let vertexFn = library.makeFunction(name: "temperature_vertex"),
               let fragmentFn = library.makeFunction(name: "temperature_fragment"),
               let gridFragmentFn = library.makeFunction(name: "temperature_grid_fragment"),
-              let gridPrecipFragmentFn = library.makeFunction(name: "precipitation_grid_fragment")
+              let gridPrecipFragmentFn = library.makeFunction(name: "precipitation_grid_fragment"),
+              let gridPrecipSteppedFragmentFn = library.makeFunction(name: "precipitation_stepped_grid_fragment")
         else { return nil }
 
         func makePipeline(fragment: MTLFunction) -> MTLRenderPipelineState? {
@@ -111,6 +114,7 @@ final class TemperatureMetalRenderer {
         guard let pipeline = makePipeline(fragment: fragmentFn),
               let gridPipeline = makePipeline(fragment: gridFragmentFn),
               let gridPrecipPipeline = makePipeline(fragment: gridPrecipFragmentFn),
+              let gridPrecipSteppedPipeline = makePipeline(fragment: gridPrecipSteppedFragmentFn),
               let samplesBuffer = device.makeBuffer(
                   length: MemoryLayout<ShaderSample>.stride * maxSampleCount,
                   options: .storageModeShared
@@ -122,6 +126,7 @@ final class TemperatureMetalRenderer {
         self.pipeline = pipeline
         self.gridPipeline = gridPipeline
         self.gridPrecipPipeline = gridPrecipPipeline
+        self.gridPrecipSteppedPipeline = gridPrecipSteppedPipeline
         self.samplesBuffer = samplesBuffer
         self.uniforms = ShaderUniforms(
             topMercY: Float(MercatorBounds.finland.topMercY),
@@ -240,7 +245,13 @@ final class TemperatureMetalRenderer {
             encoder.setFragmentBytes(&uniformsCopy, length: MemoryLayout<ShaderUniforms>.stride, index: 0)
             encoder.setFragmentBuffer(samplesBuffer, offset: 0, index: 1)
         case .grid:
-            encoder.setRenderPipelineState(gridField == .precipitation ? gridPrecipPipeline : gridPipeline)
+            let gridState: MTLRenderPipelineState
+            switch gridField {
+            case .temperature: gridState = gridPipeline
+            case .precipitation: gridState = gridPrecipPipeline
+            case .precipitationStepped: gridState = gridPrecipSteppedPipeline
+            }
+            encoder.setRenderPipelineState(gridState)
             encoder.setFragmentBytes(&uniformsCopy, length: MemoryLayout<ShaderUniforms>.stride, index: 0)
             encoder.setFragmentTexture(fieldTexture, index: 0)
         }
