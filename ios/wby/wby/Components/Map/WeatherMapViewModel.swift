@@ -120,13 +120,6 @@ final class WeatherMapViewModel {
     @ObservationIgnored private var cachedSamples: TemperatureSamplesResponse?
     @ObservationIgnored private var samplesByHour: [Date: TemperatureSamplesResponse] = [:]
     @ObservationIgnored private var inflightSampleHours: Set<Date> = []
-    @ObservationIgnored private var sparseRetriedHours: Set<Date> = []
-    // Matches server's ForecastBackfillThreshold (weather/service.go).
-    // Below this, the server triggers backfill and shortens its cache window;
-    // a retry above this just hits the server's 5 min cache and gets the same
-    // payload back.
-    private let sparseSampleThreshold: Int = 30
-    private let sparseRetryDelay: TimeInterval = 15
     @ObservationIgnored private var prefetchTask: Task<Void, Never>?
     @ObservationIgnored private var playbackTask: Task<Void, Never>?
     @ObservationIgnored private var cachedOverlayImage: TemperatureOverlayImage?
@@ -524,30 +517,8 @@ final class WeatherMapViewModel {
             if snapToStep(selectedTime) == hour {
                 applyMetalFrame(from: resp)
             }
-            // The dense GRIB grid is never sparse; only the station-sample
-            // fallback (grid == nil) can trip the backfill retry.
-            if resp.grid == nil && resp.samples.count < sparseSampleThreshold && !sparseRetriedHours.contains(hour) {
-                scheduleSparseRetry(for: hour)
-            }
         } catch {
             // Keep previous frames on fetch errors; user can retry by scrubbing.
-        }
-    }
-
-    private func scheduleSparseRetry(for hour: Date) {
-        sparseRetriedHours.insert(hour)
-        let delayNs = UInt64(sparseRetryDelay * 1_000_000_000)
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: delayNs)
-            if Task.isCancelled { return }
-            guard let self else { return }
-            // Evict all sparse cache entries so future scrubs re-fetch from
-            // the server (which by now should have completed its forecast
-            // grid backfill).
-            self.samplesByHour = self.samplesByHour.filter {
-                $0.value.grid != nil || $0.value.samples.count >= self.sparseSampleThreshold
-            }
-            await self.fetchSamples(for: hour)
         }
     }
 
