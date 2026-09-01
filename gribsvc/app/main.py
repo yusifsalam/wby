@@ -13,9 +13,14 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, model_validator
 
-from . import grib, render, sources
+from . import geotiff, grib, render, sources
 
 app = FastAPI(title="gribsvc", version="0.1.0")
+
+
+def _backend(path):
+    """Pick the parser module by file type: radar GeoTIFFs vs GRIB."""
+    return geotiff if geotiff.is_geotiff(path) else grib
 
 
 class Point(BaseModel):
@@ -71,7 +76,7 @@ def datasets():
     for name in sources.list_files():
         path = sources.resolve(name)
         try:
-            params = grib.list_params(path)
+            params = _backend(path).list_params(path)
         except grib.GribError as exc:
             out.append({"file": name, "error": str(exc)})
             continue
@@ -84,10 +89,11 @@ def extract(req: ExtractRequest):
     try:
         path = sources.resolve(req.file)
         at = grib.parse_time(req.time)
+        backend = _backend(path)
         if req.points:
             pts = [(p.lat, p.lon) for p in req.points]
-            return grib.extract_points(path, req.param, pts, at)
-        return grib.extract_bbox(path, req.param, req.bbox.as_tuple(), req.step, at)
+            return backend.extract_points(path, req.param, pts, at)
+        return backend.extract_bbox(path, req.param, req.bbox.as_tuple(), req.step, at)
     except sources.SourceError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except grib.GribError as exc:
@@ -101,7 +107,7 @@ def render_tile(req: RenderRequest):
     try:
         path = sources.resolve(req.file)
         at = grib.parse_time(req.time)
-        values, lats, lons, meta = grib.field_grid(path, req.param, at)
+        values, lats, lons, meta = _backend(path).field_grid(path, req.param, at)
         png = render.render_png(
             values, lats, lons, req.bbox.as_tuple(),
             req.width, req.height, req.colormap, req.vmin, req.vmax,

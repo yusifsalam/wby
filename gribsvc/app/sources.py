@@ -11,6 +11,7 @@ from pathlib import Path
 from .config import config
 
 GRIB_SUFFIXES = (".grib2", ".grib", ".grb", ".grb2")
+TIFF_SUFFIXES = (".tif", ".tiff")
 
 
 class SourceError(Exception):
@@ -34,12 +35,13 @@ def resolve(file: str) -> Path:
 
 
 def list_files() -> list[str]:
-    """List GRIB files available in the data dir (names only)."""
+    """List GRIB and radar GeoTIFF files available in the data dir (names only)."""
     base = config.grib_data_dir
     if not base.is_dir():
         return []
+    suffixes = GRIB_SUFFIXES + TIFF_SUFFIXES
     return sorted(
-        p.name for p in base.iterdir() if p.is_file() and p.suffix.lower() in GRIB_SUFFIXES
+        p.name for p in base.iterdir() if p.is_file() and p.suffix.lower() in suffixes
     )
 
 
