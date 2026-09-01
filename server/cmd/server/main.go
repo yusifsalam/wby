@@ -58,10 +58,7 @@ func main() {
 			Producer: cfg.GribProducer,
 			Params:   cfg.GribParams,
 			BBox:     cfg.GribBBox,
-		}, cfg.GribInterval, func(ctx context.Context) {
-			svc.WarmTemperatureGrids(ctx)
-			svc.WarmPrecipitationGrids(ctx)
-		})
+		}, cfg.GribInterval, svc.WarmGribGrids)
 	}
 	if cfg.RadarFetchEnable {
 		go f.RunRadarLoop(ctx, fmi.NewRadarClient(cfg.RadarWMSURL, cfg.RadarLayer), fetcher.RadarJob{

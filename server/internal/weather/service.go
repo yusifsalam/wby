@@ -438,6 +438,21 @@ func (s *Service) WarmTemperatureGrids(ctx context.Context) {
 	if s.gribTemp == nil || ctx.Err() != nil {
 		return
 	}
+	start := time.Now()
+	hours := warmHours(time.Now().UTC().Truncate(time.Hour), MapForecastHorizon+warmHorizonSlack)
+	warmed := s.warmTemperatureHours(ctx, hours)
+	pruneWarmCache(s.gribGridCache, gribTempGridKey, hours)
+	slog.Info("warmed grib temperature grids",
+		"frames", warmed,
+		"horizon_hours", MapForecastHorizon,
+		"duration", time.Since(start),
+	)
+}
+
+func (s *Service) warmTemperatureHours(ctx context.Context, hours []time.Time) int {
+	if s.gribTemp == nil || len(hours) == 0 {
+		return 0
+	}
 
 	const margin = 0.2
 	minLon := finlandMinLon - margin
@@ -445,10 +460,7 @@ func (s *Service) WarmTemperatureGrids(ctx context.Context) {
 	maxLon := finlandMaxLon + margin
 	maxLat := finlandMaxLat + margin
 
-	start := time.Now()
-	hours := warmHours(time.Now().UTC().Truncate(time.Hour), MapForecastHorizon+warmHorizonSlack)
-
-	warmed := warmGridSeries(ctx, "temperature", hours,
+	return warmGridSeries(ctx, "temperature", hours,
 		func(ctx context.Context, times []time.Time) ([]*FieldGrid, error) {
 			return s.gribTemp.GridSeries(ctx, minLon, minLat, maxLon, maxLat, times)
 		},
@@ -459,10 +471,37 @@ func (s *Service) WarmTemperatureGrids(ctx context.Context) {
 			return s.fetchTemperatureGrid(ctx, minLon, minLat, maxLon, maxLat, at) != nil
 		},
 	)
-	pruneWarmCache(s.gribGridCache, gribTempGridKey, hours)
-	slog.Info("warmed grib temperature grids",
-		"frames", warmed,
-		"horizon_hours", MapForecastHorizon,
+}
+
+// WarmGribGrids warms both GRIB layers for one refresh cycle. The first chunk
+// of each layer goes first, precipitation ahead of temperature, so the frames a
+// scrubber opens on are live within one series call per layer while the rest
+// of the horizon fills in behind them.
+func (s *Service) WarmGribGrids(ctx context.Context) {
+	if ctx.Err() != nil {
+		return
+	}
+	start := time.Now()
+	base := time.Now().UTC().Truncate(time.Hour)
+	precipHours := warmHours(base, PrecipForecastHorizon+warmHorizonSlack)
+	tempHours := warmHours(base, MapForecastHorizon+warmHorizonSlack)
+	head := func(hours []time.Time) []time.Time { return hours[:min(warmSeriesChunkHours, len(hours))] }
+	tail := func(hours []time.Time) []time.Time { return hours[min(warmSeriesChunkHours, len(hours)):] }
+
+	precip := s.warmPrecipitationHours(ctx, head(precipHours))
+	temp := s.warmTemperatureHours(ctx, head(tempHours))
+	precip += s.warmPrecipitationHours(ctx, tail(precipHours))
+	temp += s.warmTemperatureHours(ctx, tail(tempHours))
+
+	if s.gribPrecip != nil {
+		pruneWarmCache(s.gribPrecipCache, gribPrecipGridKey, precipHours)
+	}
+	if s.gribTemp != nil {
+		pruneWarmCache(s.gribGridCache, gribTempGridKey, tempHours)
+	}
+	slog.Info("warmed grib grids",
+		"precipitation_frames", precip,
+		"temperature_frames", temp,
 		"duration", time.Since(start),
 	)
 }

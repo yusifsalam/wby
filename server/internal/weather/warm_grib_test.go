@@ -163,6 +163,65 @@ func TestGribTemperatureGrid_NeverExtractsOnMiss(t *testing.T) {
 	}
 }
 
+// orderedSource logs each series call under a layer name into a shared log,
+// so a test can assert the order in which layers and chunks are warmed.
+type orderedSource struct {
+	name string
+	log  *[]string
+}
+
+func (o orderedSource) Grid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) (*FieldGrid, time.Time, error) {
+	return nil, time.Time{}, errors.New("per-hour path not expected")
+}
+
+func (o orderedSource) GridSeries(ctx context.Context, minLon, minLat, maxLon, maxLat float64, times []time.Time) ([]*FieldGrid, error) {
+	*o.log = append(*o.log, o.name)
+	grids := make([]*FieldGrid, 0, len(times))
+	for _, at := range times {
+		grids = append(grids, &FieldGrid{Rows: 1, Cols: 1, Values: []*float64{ptr(1.0)}, ObservedAt: at})
+	}
+	return grids, nil
+}
+
+func TestWarmGribGrids_FirstChunksFirstPrecipAheadOfTemperature(t *testing.T) {
+	var log []string
+	svc := &Service{
+		gribTemp:        orderedSource{"temperature", &log},
+		gribGridCache:   NewCache[*FieldGrid](0),
+		gribPrecip:      orderedSource{"precipitation", &log},
+		gribPrecipCache: NewCache[*PrecipitationForecastGrid](0),
+	}
+
+	svc.WarmGribGrids(context.Background())
+
+	precipCalls := seriesCalls(PrecipForecastHorizon + warmHorizonSlack + 1)
+	tempCalls := seriesCalls(MapForecastHorizon + warmHorizonSlack + 1)
+	if len(log) != precipCalls+tempCalls {
+		t.Fatalf("expected %d series calls, got %d: %v", precipCalls+tempCalls, len(log), log)
+	}
+	if log[0] != "precipitation" || log[1] != "temperature" {
+		t.Fatalf("expected first chunks of precipitation then temperature, got %v", log[:2])
+	}
+	for i := 2; i < 1+precipCalls; i++ {
+		if log[i] != "precipitation" {
+			t.Fatalf("expected remaining precipitation chunks before temperature, got %v", log)
+		}
+	}
+	for i := 1 + precipCalls; i < len(log); i++ {
+		if log[i] != "temperature" {
+			t.Fatalf("expected temperature chunks last, got %v", log)
+		}
+	}
+
+	base := time.Now().UTC().Truncate(time.Hour)
+	if svc.gribTemperatureGrid(base.Add(time.Duration(MapForecastHorizon)*time.Hour)) == nil {
+		t.Fatal("expected temperature horizon warmed")
+	}
+	if _, err := svc.GetPrecipitationForecastGrid(context.Background(), PrecipitationOverlayRequest{Time: base.Add(time.Duration(PrecipForecastHorizon) * time.Hour)}); err != nil {
+		t.Fatalf("expected precipitation horizon warmed, got %v", err)
+	}
+}
+
 func TestWarmTemperatureGrids_NoSourceIsNoop(t *testing.T) {
 	svc := &Service{gribGridCache: NewCache[*FieldGrid](0)}
 	// Must not panic when the GRIB source is unconfigured.

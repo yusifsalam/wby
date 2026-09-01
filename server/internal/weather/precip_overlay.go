@@ -100,8 +100,20 @@ func (s *Service) WarmPrecipitationGrids(ctx context.Context) {
 
 	start := time.Now()
 	hours := warmHours(time.Now().UTC().Truncate(time.Hour), PrecipForecastHorizon+warmHorizonSlack)
+	warmed := s.warmPrecipitationHours(ctx, hours)
+	pruneWarmCache(s.gribPrecipCache, gribPrecipGridKey, hours)
+	slog.Info("warmed grib precipitation grids",
+		"frames", warmed,
+		"horizon_hours", PrecipForecastHorizon,
+		"duration", time.Since(start),
+	)
+}
 
-	warmed := warmGridSeries(ctx, "precipitation", hours,
+func (s *Service) warmPrecipitationHours(ctx context.Context, hours []time.Time) int {
+	if s.gribPrecip == nil || len(hours) == 0 {
+		return 0
+	}
+	return warmGridSeries(ctx, "precipitation", hours,
 		func(ctx context.Context, times []time.Time) ([]*FieldGrid, error) {
 			return s.gribPrecip.GridSeries(ctx, precipGridMinLon, precipGridMinLat, precipGridMaxLon, precipGridMaxLat, times)
 		},
@@ -119,12 +131,6 @@ func (s *Service) WarmPrecipitationGrids(ctx context.Context) {
 			grid, err := s.fetchPrecipitationGrid(ctx, at)
 			return err == nil && grid != nil
 		},
-	)
-	pruneWarmCache(s.gribPrecipCache, gribPrecipGridKey, hours)
-	slog.Info("warmed grib precipitation grids",
-		"frames", warmed,
-		"horizon_hours", PrecipForecastHorizon,
-		"duration", time.Since(start),
 	)
 }
 
