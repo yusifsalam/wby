@@ -29,7 +29,9 @@ export type Corners = [
   [number, number],
   [number, number],
 ];
-export type Frame = { url: string; corners: Corners };
+// warp marks a frame rasterized linear-in-latitude (grid renders) that needs
+// the Mercator warp at bake time; absent means the layer's default applies.
+export type Frame = { url: string; corners: Corners; warp?: boolean };
 
 // Frame manifest: the server publishes the discrete scrubbable instants per
 // layer (index of "now", step). Snapping the scrubber to these instants keeps
