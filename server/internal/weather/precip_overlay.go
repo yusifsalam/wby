@@ -101,16 +101,11 @@ func (s *Service) WarmPrecipitationGrids(ctx context.Context) {
 	start := time.Now()
 	hours := warmHours(time.Now().UTC().Truncate(time.Hour), PrecipForecastHorizon+warmHorizonSlack)
 
-	warmed := 0
-	grids, err := s.gribPrecip.GridSeries(ctx, precipGridMinLon, precipGridMinLat, precipGridMaxLon, precipGridMaxLat, hours)
-	if err != nil {
-		slog.Warn("grib precipitation series failed, warming per hour", "err", err)
-	}
-	if len(grids) > 0 {
-		for _, grid := range grids {
-			if grid == nil || len(grid.Values) == 0 {
-				continue
-			}
+	warmed := warmGridSeries(ctx, "precipitation", hours,
+		func(ctx context.Context, times []time.Time) ([]*FieldGrid, error) {
+			return s.gribPrecip.GridSeries(ctx, precipGridMinLon, precipGridMinLat, precipGridMaxLon, precipGridMaxLat, times)
+		},
+		func(grid *FieldGrid) {
 			minV, maxV := fieldGridRange(grid)
 			validTime := grid.ObservedAt.UTC()
 			s.gribPrecipCache.Set(gribPrecipGridKey(validTime.Truncate(time.Hour)), &PrecipitationForecastGrid{
@@ -119,18 +114,13 @@ func (s *Service) WarmPrecipitationGrids(ctx context.Context) {
 				Max:      maxV,
 				Grid:     grid,
 			})
-			warmed++
-		}
-	} else {
-		for _, at := range hours {
-			if ctx.Err() != nil {
-				return
-			}
-			if grid, err := s.fetchPrecipitationGrid(ctx, at); err == nil && grid != nil {
-				warmed++
-			}
-		}
-	}
+		},
+		func(ctx context.Context, at time.Time) bool {
+			grid, err := s.fetchPrecipitationGrid(ctx, at)
+			return err == nil && grid != nil
+		},
+	)
+	pruneWarmCache(s.gribPrecipCache, gribPrecipGridKey, hours)
 	slog.Info("warmed grib precipitation grids",
 		"frames", warmed,
 		"horizon_hours", PrecipForecastHorizon,

@@ -10,6 +10,8 @@ type cacheEntry[V any] struct {
 	expiresAt time.Time
 }
 
+// Cache is a TTL map. A ttl of zero or less disables expiry; callers then
+// evict explicitly with DeleteIf.
 type Cache[V any] struct {
 	mu  sync.RWMutex
 	ttl time.Duration
@@ -27,7 +29,7 @@ func (c *Cache[V]) Get(key string) (V, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	entry, ok := c.m[key]
-	if !ok || time.Now().After(entry.expiresAt) {
+	if !ok || (c.ttl > 0 && time.Now().After(entry.expiresAt)) {
 		var zero V
 		return zero, false
 	}
@@ -37,5 +39,20 @@ func (c *Cache[V]) Get(key string) (V, bool) {
 func (c *Cache[V]) Set(key string, value V) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.m[key] = cacheEntry[V]{value: value, expiresAt: time.Now().Add(c.ttl)}
+	entry := cacheEntry[V]{value: value}
+	if c.ttl > 0 {
+		entry.expiresAt = time.Now().Add(c.ttl)
+	}
+	c.m[key] = entry
+}
+
+// DeleteIf removes every entry whose key satisfies pred.
+func (c *Cache[V]) DeleteIf(pred func(key string) bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key := range c.m {
+		if pred(key) {
+			delete(c.m, key)
+		}
+	}
 }

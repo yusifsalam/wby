@@ -60,18 +60,25 @@ func (c *countingTempSource) counts() (grid, series int) {
 func newWarmTestService(src GribTemperatureSource) *Service {
 	return &Service{
 		gribTemp:      src,
-		gribGridCache: NewCache[*FieldGrid](gribGridCacheTTL),
+		gribGridCache: NewCache[*FieldGrid](0),
 	}
 }
 
-func TestWarmTemperatureGrids_PopulatesEveryFrameInOneCall(t *testing.T) {
+// seriesCalls is how many chunked GridSeries calls warming a window of n
+// hourly frames takes.
+func seriesCalls(frames int) int {
+	return (frames + warmSeriesChunkHours - 1) / warmSeriesChunkHours
+}
+
+func TestWarmTemperatureGrids_PopulatesEveryFrameInChunkedCalls(t *testing.T) {
 	src := &countingTempSource{}
 	svc := newWarmTestService(src)
 
 	svc.WarmTemperatureGrids(context.Background())
 
-	if grid, series := src.counts(); series != 1 || grid != 0 {
-		t.Fatalf("expected 1 series call and 0 per-hour calls, got %d/%d", series, grid)
+	want := seriesCalls(MapForecastHorizon + warmHorizonSlack + 1)
+	if grid, series := src.counts(); series != want || grid != 0 {
+		t.Fatalf("expected %d series calls and 0 per-hour calls, got %d/%d", want, series, grid)
 	}
 
 	// After warming, a client request for any hour through the horizon must be
@@ -82,8 +89,39 @@ func TestWarmTemperatureGrids_PopulatesEveryFrameInOneCall(t *testing.T) {
 			t.Fatalf("expected warmed grid for +%dh, got nil", offset)
 		}
 	}
-	if grid, series := src.counts(); series != 1 || grid != 0 {
+	if grid, series := src.counts(); series != want || grid != 0 {
 		t.Fatalf("expected no extra upstream call after warm, got %d/%d", series, grid)
+	}
+}
+
+func TestWarmTemperatureGrids_SkipsPerHourWhenSeriesTimesOut(t *testing.T) {
+	src := &countingTempSource{seriesErr: context.DeadlineExceeded}
+	svc := newWarmTestService(src)
+
+	svc.WarmTemperatureGrids(context.Background())
+
+	if grid, _ := src.counts(); grid != 0 {
+		t.Fatalf("expected no per-hour fallback after a series timeout, got %d", grid)
+	}
+}
+
+func TestWarmTemperatureGrids_PrunesHoursOutsideWindowAndKeepsCurrent(t *testing.T) {
+	src := &countingTempSource{}
+	svc := newWarmTestService(src)
+	base := time.Now().UTC().Truncate(time.Hour)
+	stale := base.Add(-2 * time.Hour)
+	svc.gribGridCache.Set(gribTempGridKey(stale), &FieldGrid{Rows: 1, Cols: 1, Values: []*float64{ptr(9.0)}})
+
+	svc.WarmTemperatureGrids(context.Background())
+	if grid := svc.gribTemperatureGrid(stale); grid != nil {
+		t.Fatal("expected hour before the window to be pruned")
+	}
+
+	// A failed refresh must keep serving the previous grids.
+	src.seriesErr = context.DeadlineExceeded
+	svc.WarmTemperatureGrids(context.Background())
+	if grid := svc.gribTemperatureGrid(base.Add(3 * time.Hour)); grid == nil {
+		t.Fatal("expected previously warmed grid to survive a failed warm")
 	}
 }
 
@@ -126,7 +164,7 @@ func TestGribTemperatureGrid_NeverExtractsOnMiss(t *testing.T) {
 }
 
 func TestWarmTemperatureGrids_NoSourceIsNoop(t *testing.T) {
-	svc := &Service{gribGridCache: NewCache[*FieldGrid](gribGridCacheTTL)}
+	svc := &Service{gribGridCache: NewCache[*FieldGrid](0)}
 	// Must not panic when the GRIB source is unconfigured.
 	svc.WarmTemperatureGrids(context.Background())
 }
@@ -191,17 +229,18 @@ func (c *countingPrecipSource) counts() (grid, series int) {
 	return len(c.hours), c.seriesCalls
 }
 
-func TestWarmPrecipitationGrids_PopulatesEveryFrameInOneCall(t *testing.T) {
+func TestWarmPrecipitationGrids_PopulatesEveryFrameInChunkedCalls(t *testing.T) {
 	src := &countingPrecipSource{}
 	svc := &Service{
 		gribPrecip:      src,
-		gribPrecipCache: NewCache[*PrecipitationForecastGrid](gribGridCacheTTL),
+		gribPrecipCache: NewCache[*PrecipitationForecastGrid](0),
 	}
 
 	svc.WarmPrecipitationGrids(context.Background())
 
-	if grid, series := src.counts(); series != 1 || grid != 0 {
-		t.Fatalf("expected 1 series call and 0 per-hour calls, got %d/%d", series, grid)
+	want := seriesCalls(PrecipForecastHorizon + warmHorizonSlack + 1)
+	if grid, series := src.counts(); series != want || grid != 0 {
+		t.Fatalf("expected %d series calls and 0 per-hour calls, got %d/%d", want, series, grid)
 	}
 
 	// The series extract must use the fixed full-Finland extent.
@@ -221,7 +260,7 @@ func TestWarmPrecipitationGrids_PopulatesEveryFrameInOneCall(t *testing.T) {
 	if err != nil || got == nil {
 		t.Fatalf("expected warmed grid for +3h, got %v (err %v)", got, err)
 	}
-	if grid, series := src.counts(); series != 1 || grid != 0 {
+	if grid, series := src.counts(); series != want || grid != 0 {
 		t.Fatalf("expected no extra upstream call after warm, got %d/%d", series, grid)
 	}
 }
@@ -230,7 +269,7 @@ func TestWarmPrecipitationGrids_FallsBackWhenSeriesEmpty(t *testing.T) {
 	src := &countingPrecipSource{seriesEmpty: true}
 	svc := &Service{
 		gribPrecip:      src,
-		gribPrecipCache: NewCache[*PrecipitationForecastGrid](gribGridCacheTTL),
+		gribPrecipCache: NewCache[*PrecipitationForecastGrid](0),
 	}
 
 	svc.WarmPrecipitationGrids(context.Background())
@@ -246,7 +285,7 @@ func TestGetPrecipitationForecastGrid_NeverExtractsOnMiss(t *testing.T) {
 	src := &countingPrecipSource{}
 	svc := &Service{
 		gribPrecip:      src,
-		gribPrecipCache: NewCache[*PrecipitationForecastGrid](gribGridCacheTTL),
+		gribPrecipCache: NewCache[*PrecipitationForecastGrid](0),
 	}
 
 	at := time.Now().UTC().Truncate(time.Hour).Add(3 * time.Hour)
@@ -260,7 +299,7 @@ func TestGetPrecipitationForecastGrid_NeverExtractsOnMiss(t *testing.T) {
 }
 
 func TestWarmPrecipitationGrids_NoSourceIsNoop(t *testing.T) {
-	svc := &Service{gribPrecipCache: NewCache[*PrecipitationForecastGrid](gribGridCacheTTL)}
+	svc := &Service{gribPrecipCache: NewCache[*PrecipitationForecastGrid](0)}
 	// Must not panic when the GRIB source is unconfigured.
 	svc.WarmPrecipitationGrids(context.Background())
 }
@@ -269,7 +308,7 @@ func TestWarmPrecipitationGrids_StopsOnCancel(t *testing.T) {
 	src := &countingPrecipSource{}
 	svc := &Service{
 		gribPrecip:      src,
-		gribPrecipCache: NewCache[*PrecipitationForecastGrid](gribGridCacheTTL),
+		gribPrecipCache: NewCache[*PrecipitationForecastGrid](0),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

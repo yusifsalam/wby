@@ -47,7 +47,7 @@ type NowcastRunner interface {
 func (f *Fetcher) RunRadarLoop(ctx context.Context, radar *fmi.RadarClient, job RadarJob, onRefresh func(context.Context)) {
 	slog.Info("radar fetcher starting", "dir", job.DataDir, "span", job.Span)
 
-	f.fetchRadarWindow(ctx, radar, job, onRefresh)
+	f.fetchRadarWindow(ctx, radar, job, onRefresh, true)
 
 	ticker := time.NewTicker(radarFrameStep)
 	defer ticker.Stop()
@@ -58,12 +58,15 @@ func (f *Fetcher) RunRadarLoop(ctx context.Context, radar *fmi.RadarClient, job 
 			slog.Info("radar fetcher stopped")
 			return
 		case <-ticker.C:
-			f.fetchRadarWindow(ctx, radar, job, onRefresh)
+			f.fetchRadarWindow(ctx, radar, job, onRefresh, false)
 		}
 	}
 }
 
-func (f *Fetcher) fetchRadarWindow(ctx context.Context, radar *fmi.RadarClient, job RadarJob, onRefresh func(context.Context)) {
+// fetchRadarWindow fills missing frames in the window. onRefresh runs when new
+// frames landed, or always when warm is set (startup, when the frames on disk
+// are already complete but the caches are empty).
+func (f *Fetcher) fetchRadarWindow(ctx context.Context, radar *fmi.RadarClient, job RadarJob, onRefresh func(context.Context), warm bool) {
 	start := time.Now()
 	latest := start.UTC().Truncate(radarFrameStep)
 	fetched := 0
@@ -99,9 +102,9 @@ func (f *Fetcher) fetchRadarWindow(ctx context.Context, radar *fmi.RadarClient, 
 				slog.Error("nowcast run failed", "err", err)
 			}
 		}
-		if onRefresh != nil {
-			onRefresh(ctx)
-		}
+	}
+	if (fetched > 0 || warm) && onRefresh != nil && ctx.Err() == nil {
+		onRefresh(ctx)
 	}
 }
 

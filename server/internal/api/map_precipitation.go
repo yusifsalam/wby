@@ -77,15 +77,15 @@ func (h *Handler) getPrecipitationOverlay(w http.ResponseWriter, r *http.Request
 			writeJSONError(w, "precipitation overlay not configured", http.StatusNotFound)
 			return
 		}
-		if isClientCanceled(err) {
+		if isClientCanceled(r, err) {
 			status = 499
 			errText = err.Error()
 			return
 		}
-		status = http.StatusBadGateway
+		status = upstreamStatus(err)
 		errText = err.Error()
 		slog.Error("get precipitation overlay failed", "err", err, "time", target)
-		writeJSONError(w, "overlay unavailable", http.StatusBadGateway)
+		writeJSONError(w, "overlay unavailable", status)
 		return
 	}
 	layer = overlay.Layer
@@ -152,15 +152,15 @@ func (h *Handler) getPrecipitationForecastGrid(w http.ResponseWriter, r *http.Re
 			writeJSONError(w, "precipitation forecast not available", http.StatusNotFound)
 			return
 		}
-		if isClientCanceled(err) {
+		if isClientCanceled(r, err) {
 			status = 499
 			errText = err.Error()
 			return
 		}
-		status = http.StatusBadGateway
+		status = upstreamStatus(err)
 		errText = err.Error()
 		slog.Error("get precipitation forecast grid failed", "err", err, "time", target)
-		writeJSONError(w, "grid unavailable", http.StatusBadGateway)
+		writeJSONError(w, "grid unavailable", status)
 		return
 	}
 
@@ -255,15 +255,15 @@ func (h *Handler) servePrecipitationRadarGrid(
 			writeJSONError(w, errText, http.StatusNotFound)
 			return
 		}
-		if isClientCanceled(err) {
+		if isClientCanceled(r, err) {
 			status = 499
 			errText = err.Error()
 			return
 		}
-		status = http.StatusBadGateway
+		status = upstreamStatus(err)
 		errText = err.Error()
 		slog.Error("get precipitation "+kind+" grid failed", "err", err, "time", target)
-		writeJSONError(w, "grid unavailable", http.StatusBadGateway)
+		writeJSONError(w, "grid unavailable", status)
 		return
 	}
 

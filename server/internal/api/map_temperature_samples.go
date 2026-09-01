@@ -78,7 +78,7 @@ func (h *Handler) getTemperatureSamples(w http.ResponseWriter, r *http.Request) 
 		resp, err = h.service.GetTemperatureSamples(r.Context())
 	}
 	if err != nil {
-		if isClientCanceled(err) {
+		if isClientCanceled(r, err) {
 			return
 		}
 		if errors.Is(err, weather.ErrForecastGridUnavailable) {
@@ -87,7 +87,7 @@ func (h *Handler) getTemperatureSamples(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		slog.Error("get temperature samples failed", "err", err, "at", at)
-		writeJSONError(w, "samples unavailable", http.StatusBadGateway)
+		writeJSONError(w, "samples unavailable", upstreamStatus(err))
 		return
 	}
 

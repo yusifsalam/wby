@@ -53,7 +53,7 @@ func TestGetPrecipitationForecastGrid_SoftMissOnEmpty(t *testing.T) {
 }
 
 func TestGetPrecipitationForecastGrid_RangeAndCache(t *testing.T) {
-	at := time.Date(2026, 6, 27, 14, 0, 0, 0, time.UTC)
+	at := time.Now().UTC().Truncate(time.Hour).Add(3 * time.Hour)
 	src := fakePrecipSource{
 		grid: &FieldGrid{
 			Rows: 2, Cols: 2,

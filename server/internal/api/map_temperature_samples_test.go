@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -123,6 +125,35 @@ func TestGetTemperatureSamples_AtParam_FrameMissingIs404(t *testing.T) {
 	}
 	if got := rr.Header().Get("Cache-Control"); got != "public, max-age=30" {
 		t.Fatalf("expected short cache on miss, got %q", got)
+	}
+}
+
+func TestGetTemperatureSamples_UpstreamTimeoutIs504(t *testing.T) {
+	h := NewHandler(fakeWeatherService{err: fmt.Errorf("call gribsvc: %w", context.DeadlineExceeded)})
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/map/temperature/samples?at=2026-05-03T08:00:00Z", nil)
+	h.getTemperatureSamples(rr, req)
+
+	if rr.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected 504 for upstream timeout with a live client, got %d", rr.Code)
+	}
+	if rr.Body.Len() == 0 {
+		t.Fatal("expected an error body")
+	}
+}
+
+func TestGetTemperatureSamples_ClientCanceled_NoBody(t *testing.T) {
+	h := NewHandler(fakeWeatherService{err: context.Canceled})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/map/temperature/samples?at=2026-05-03T08:00:00Z", nil).WithContext(ctx)
+	h.getTemperatureSamples(rr, req)
+
+	if rr.Body.Len() != 0 {
+		t.Fatalf("expected no body for a canceled client, got %q", rr.Body.String())
 	}
 }
 

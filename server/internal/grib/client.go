@@ -41,6 +41,14 @@ const fmiMissingValue = 9000.0
 // kMaxSamples constants.
 const maxRenderSamples = 2048
 
+// Per-call deadlines: a series call decodes every requested frame before
+// answering, so it gets a longer budget than a single-hour extract.
+const (
+	extractTimeout = 15 * time.Second
+	seriesTimeout  = 120 * time.Second
+	nowcastTimeout = 60 * time.Second
+)
+
 // Client talks to a gribsvc instance over HTTP for one configured field.
 type Client struct {
 	baseURL    string
@@ -102,13 +110,11 @@ func newClient(baseURL, file string, step int, f field) *Client {
 		step = 1
 	}
 	return &Client{
-		baseURL: baseURL,
-		file:    file,
-		field:   f,
-		step:    step,
-		httpClient: &http.Client{
-			Timeout: 15 * time.Second,
-		},
+		baseURL:    baseURL,
+		file:       file,
+		field:      f,
+		step:       step,
+		httpClient: &http.Client{},
 	}
 }
 
@@ -116,6 +122,8 @@ func newClient(baseURL, file string, step int, f field) *Client {
 // frames from the observed frames on disk. Blocking but cheap (~seconds);
 // callers warm grids after it returns.
 func (c *Client) RunNowcast(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, nowcastTimeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/nowcast/run", nil)
 	if err != nil {
 		return fmt.Errorf("build nowcast request: %w", err)
@@ -228,19 +236,21 @@ func (c *Client) fetchBBoxFile(ctx context.Context, file string, minLon, minLat,
 	}
 
 	var out bboxResponse
-	ok, err := c.postJSON(ctx, "/grib/extract", reqBody, &out)
+	ok, err := c.postJSON(ctx, "/grib/extract", extractTimeout, reqBody, &out)
 	return out, ok, err
 }
 
 // postJSON posts a JSON body to a gribsvc path and decodes the response into
-// out. ok is false with a nil error on a soft miss — gribsvc answered 404/422
-// because the file or field isn't available yet.
-func (c *Client) postJSON(ctx context.Context, path string, in, out any) (bool, error) {
+// out, within timeout. ok is false with a nil error on a soft miss — gribsvc
+// answered 404/422 because the file or field isn't available yet.
+func (c *Client) postJSON(ctx context.Context, path string, timeout time.Duration, in, out any) (bool, error) {
 	payload, err := json.Marshal(in)
 	if err != nil {
 		return false, fmt.Errorf("marshal extract request: %w", err)
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(payload))
 	if err != nil {
 		return false, fmt.Errorf("build extract request: %w", err)
@@ -324,7 +334,7 @@ func (c *Client) GridSeries(ctx context.Context, minLon, minLat, maxLon, maxLat 
 	}
 
 	var out seriesResponse
-	ok, err := c.postJSON(ctx, "/grib/extract_series", reqBody, &out)
+	ok, err := c.postJSON(ctx, "/grib/extract_series", seriesTimeout, reqBody, &out)
 	if err != nil || !ok {
 		return nil, err
 	}

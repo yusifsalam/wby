@@ -55,7 +55,7 @@ func (h *Handler) getLeaderboard(w http.ResponseWriter, r *http.Request) {
 
 	entries, err := h.service.GetLeaderboard(r.Context(), lat, lon, timeframe)
 	if err != nil {
-		if isClientCanceled(err) {
+		if isClientCanceled(r, err) {
 			return
 		}
 		slog.Error("get leaderboard failed", "err", err, "lat", lat, "lon", lon)

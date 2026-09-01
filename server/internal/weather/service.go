@@ -127,9 +127,9 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 		uvCache:          NewCache[[]UVDataPoint](forecastCacheTTL),
 		precipCache:      NewCache[*PrecipitationOverlay](30 * time.Minute),
 		leaderboardCache: NewCache[[]LeaderboardEntry](5 * time.Minute),
-		gribGridCache:    NewCache[*FieldGrid](gribGridCacheTTL),
-		gribPrecipCache:  NewCache[*PrecipitationForecastGrid](gribGridCacheTTL),
-		radarPrecipCache: NewCache[*PrecipitationForecastGrid](gribGridCacheTTL),
+		gribGridCache:    NewCache[*FieldGrid](0),
+		gribPrecipCache:  NewCache[*PrecipitationForecastGrid](0),
+		radarPrecipCache: NewCache[*PrecipitationForecastGrid](radarGridCacheTTL),
 	}
 }
 
@@ -291,12 +291,13 @@ const MapForecastHorizon = 48
 // extract, covering the hour rollover between passes.
 const warmHorizonSlack = 2
 
-// gribGridCacheTTL bounds how long a decoded GRIB grid (temperature or
-// precipitation) is served from memory. It must exceed the GRIB refresh
-// interval (default 60m) so that grids warmed right after a refresh
-// (WarmTemperatureGrids / WarmPrecipitationGrids) stay hot until the next cycle
-// re-warms them.
-const gribGridCacheTTL = 75 * time.Minute
+// warmSeriesChunkHours caps the frames per GridSeries call; gribsvc holds every
+// requested frame in memory before answering.
+const warmSeriesChunkHours = 12
+
+// radarGridCacheTTL bounds the radar and nowcast frame caches, which gain a key
+// every 5 minutes. GRIB grid caches never expire; the warm pass prunes them.
+const radarGridCacheTTL = 75 * time.Minute
 
 func (s *Service) GetTemperatureOverlay(ctx context.Context, req MapOverlayRequest) (*TemperatureOverlay, error) {
 	// Add a small margin so the interpolation near viewport edges has enough support points.
@@ -447,29 +448,18 @@ func (s *Service) WarmTemperatureGrids(ctx context.Context) {
 	start := time.Now()
 	hours := warmHours(time.Now().UTC().Truncate(time.Hour), MapForecastHorizon+warmHorizonSlack)
 
-	warmed := 0
-	grids, err := s.gribTemp.GridSeries(ctx, minLon, minLat, maxLon, maxLat, hours)
-	if err != nil {
-		slog.Warn("grib temperature series failed, warming per hour", "err", err)
-	}
-	if len(grids) > 0 {
-		for _, grid := range grids {
-			if grid == nil || len(grid.Values) == 0 {
-				continue
-			}
+	warmed := warmGridSeries(ctx, "temperature", hours,
+		func(ctx context.Context, times []time.Time) ([]*FieldGrid, error) {
+			return s.gribTemp.GridSeries(ctx, minLon, minLat, maxLon, maxLat, times)
+		},
+		func(grid *FieldGrid) {
 			s.gribGridCache.Set(gribTempGridKey(grid.ObservedAt.UTC().Truncate(time.Hour)), grid)
-			warmed++
-		}
-	} else {
-		for _, at := range hours {
-			if ctx.Err() != nil {
-				return
-			}
-			if grid := s.fetchTemperatureGrid(ctx, minLon, minLat, maxLon, maxLat, at); grid != nil {
-				warmed++
-			}
-		}
-	}
+		},
+		func(ctx context.Context, at time.Time) bool {
+			return s.fetchTemperatureGrid(ctx, minLon, minLat, maxLon, maxLat, at) != nil
+		},
+	)
+	pruneWarmCache(s.gribGridCache, gribTempGridKey, hours)
 	slog.Info("warmed grib temperature grids",
 		"frames", warmed,
 		"horizon_hours", MapForecastHorizon,
@@ -488,6 +478,67 @@ func warmHours(base time.Time, horizon int) []time.Time {
 		hours = append(hours, base.Add(time.Duration(i)*time.Hour))
 	}
 	return hours
+}
+
+// warmGridSeries fills a grid cache for hours in chunks of warmSeriesChunkHours,
+// one GridSeries call per chunk. A chunk whose series call fails or returns
+// nothing is fetched hour by hour, except after a timeout: gribsvc is still
+// working on the abandoned request. Returns the number of frames stored.
+func warmGridSeries(
+	ctx context.Context,
+	name string,
+	hours []time.Time,
+	series func(context.Context, []time.Time) ([]*FieldGrid, error),
+	store func(*FieldGrid),
+	fetch func(context.Context, time.Time) bool,
+) int {
+	warmed := 0
+	for start := 0; start < len(hours); start += warmSeriesChunkHours {
+		if ctx.Err() != nil {
+			return warmed
+		}
+		chunk := hours[start:min(start+warmSeriesChunkHours, len(hours))]
+
+		grids, err := series(ctx, chunk)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				slog.Warn("grib "+name+" series timed out, skipping chunk", "err", err, "from", chunk[0])
+				continue
+			}
+			slog.Warn("grib "+name+" series failed, warming per hour", "err", err, "from", chunk[0])
+		}
+		if len(grids) > 0 {
+			for _, grid := range grids {
+				if grid == nil || len(grid.Values) == 0 {
+					continue
+				}
+				store(grid)
+				warmed++
+			}
+			continue
+		}
+		for _, at := range chunk {
+			if ctx.Err() != nil {
+				return warmed
+			}
+			if fetch(ctx, at) {
+				warmed++
+			}
+		}
+	}
+	return warmed
+}
+
+// pruneWarmCache drops cache entries for hours outside the warmed window.
+func pruneWarmCache[V any](cache *Cache[V], key func(time.Time) string, hours []time.Time) {
+	keep := make(map[string]struct{}, len(hours))
+	for _, at := range hours {
+		keep[key(at)] = struct{}{}
+	}
+	cache.DeleteIf(func(k string) bool {
+		_, ok := keep[k]
+		return !ok
+	})
 }
 
 // temperatureGridResponse builds a samples response carrying the dense GRIB

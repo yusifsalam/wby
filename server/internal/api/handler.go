@@ -154,7 +154,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			writeJSONError(w, "no weather coverage for this location", http.StatusNotFound)
 			return
 		}
-		if isClientCanceled(err) {
+		if isClientCanceled(r, err) {
 			return
 		}
 		slog.Error("get weather failed", "err", err, "lat", lat, "lon", lon)
@@ -271,12 +271,20 @@ func writeJSONError(w http.ResponseWriter, msg string, status int) {
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
-// isClientCanceled reports whether err originated from the client closing the
-// connection (context.Canceled) or the request deadline elapsing
-// (context.DeadlineExceeded). These are normal control-flow signals, not
-// server faults, and should not be logged at ERROR.
-func isClientCanceled(err error) bool {
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+// isClientCanceled reports whether the request's own context is done, i.e. the
+// client closed the connection. A context error from an upstream call whose
+// deadline elapsed while the client is still waiting is not a cancel.
+func isClientCanceled(r *http.Request, err error) bool {
+	return r.Context().Err() != nil
+}
+
+// upstreamStatus maps an upstream failure to a response status: 504 when the
+// upstream call timed out, 502 otherwise.
+func upstreamStatus(err error) int {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return http.StatusGatewayTimeout
+	}
+	return http.StatusBadGateway
 }
 
 type climateNormalsJSON struct {
