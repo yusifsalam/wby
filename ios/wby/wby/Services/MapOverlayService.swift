@@ -42,4 +42,18 @@ actor MapOverlayService {
             time: time
         )
     }
+
+    func fetchPrecipitationObservedGrid(
+        bbox: MapBBox,
+        width: Int,
+        height: Int,
+        time: Date?
+    ) async throws -> PrecipitationForecastResponse {
+        try await weatherService.fetchPrecipitationObservedGrid(
+            bbox: bbox,
+            width: width,
+            height: height,
+            time: time
+        )
+    }
 }

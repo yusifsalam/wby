@@ -499,6 +499,7 @@ final class WeatherMapViewModel {
                 await fetchSamples(for: snapped)
             }
         case .precipitation, .precipitation12h:
+            invalidatePrecipFramesIfRampChanged()
             if let cached = precipImagesByHour[snapped] {
                 applyPrecipFrame(cached)
                 return
@@ -550,7 +551,26 @@ final class WeatherMapViewModel {
         }
     }
 
+    // Rendered precip frames bake the ramp in; when the Settings style changes,
+    // drop them so scrubbing re-renders instead of mixing styles.
+    @ObservationIgnored private var renderedPrecipRamp = PrecipRampStyle.load()
+
+    private func invalidatePrecipFramesIfRampChanged() {
+        let ramp = PrecipRampStyle.load()
+        guard ramp != renderedPrecipRamp else { return }
+        renderedPrecipRamp = ramp
+        precipPrefetchTask?.cancel()
+        precipImagesByHour.removeAll()
+    }
+
+    // The grid field for the active precipitation ramp, selecting the Metal
+    // fragment (smooth gradient vs stepped radar classes).
+    private var precipGridField: GridField {
+        PrecipRampStyle.load() == .stepped ? .precipitationStepped : .precipitation
+    }
+
     private func fetchPrecipFrame(for hour: Date) async {
+        invalidatePrecipFramesIfRampChanged()
         if inflightPrecipHours.contains(hour) { return }
         inflightPrecipHours.insert(hour)
         defer { inflightPrecipHours.remove(hour) }
@@ -561,7 +581,7 @@ final class WeatherMapViewModel {
             case .precipitation12h:
                 frame = try await loadPrecipForecastFrame(time: target)
             default:
-                frame = try await loadPrecipNowcastFrame(time: target)
+                frame = try await loadNearTermPrecipFrame(time: target)
             }
             guard !Task.isCancelled, let frame else { return }
             precipImagesByHour[hour] = frame
@@ -578,6 +598,44 @@ final class WeatherMapViewModel {
         } catch {
             // Keep previous frames; user can retry by scrubbing.
         }
+    }
+
+    // Near-term scrubber frame: past/now frames come from the keyless radar
+    // observation grid and render client-side like the 12h forecast; future
+    // frames stay on the WMS nowcast tiles. A radar miss (frame gap, older
+    // server) falls back to the WMS path so the scrubber never goes blank.
+    private func loadNearTermPrecipFrame(time: Date?) async throws -> PrecipFrame? {
+        if time == nil || time! <= Date() {
+            do {
+                if let frame = try await loadPrecipObservedFrame(time: time) {
+                    return frame
+                }
+            } catch {
+                // Fall through to the WMS tiles.
+            }
+        }
+        return try await loadPrecipNowcastFrame(time: time)
+    }
+
+    // Radar observation grid (5-min frames): fetch and render via texture
+    // bilinear, the same path as the 12h forecast grid.
+    private func loadPrecipObservedFrame(time: Date?) async throws -> PrecipFrame? {
+        guard let renderer = metalRenderer else { return nil }
+        let response = try await overlayService.fetchPrecipitationObservedGrid(
+            bbox: precipGridBBox,
+            width: overlaySize,
+            height: overlaySize,
+            time: time
+        )
+        guard let grid = response.grid,
+              renderer.setGrid(grid, field: precipGridField),
+              let image = renderer.renderImage(
+                  bounds: MercatorBounds.finland,
+                  width: overlaySize,
+                  height: overlaySize
+              )
+        else { return nil }
+        return PrecipFrame(image: image, dataTime: response.dataTime, bbox: .finland)
     }
 
     // 1h (WMS) nowcast: decode the server PNG into an overlay image.
@@ -603,7 +661,7 @@ final class WeatherMapViewModel {
             time: time
         )
         guard let grid = response.grid,
-              renderer.setGrid(grid, field: .precipitation),
+              renderer.setGrid(grid, field: precipGridField),
               let image = renderer.renderImage(
                   bounds: MercatorBounds.finland,
                   width: overlaySize,

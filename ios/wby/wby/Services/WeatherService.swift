@@ -136,6 +136,36 @@ actor WeatherService {
         )
     }
 
+    /// Keyless radar-composite rain-rate raster (5-min frames, mm/h) for past
+    /// scrubber frames. Same response shape as the forecast grid so both render
+    /// through the texture path.
+    func fetchPrecipitationObservedGrid(
+        bbox: MapBBox,
+        width: Int,
+        height: Int,
+        time: Date?
+    ) async throws -> PrecipitationForecastResponse {
+        let bboxValue = [
+            Self.coordinateString(bbox.minLon),
+            Self.coordinateString(bbox.minLat),
+            Self.coordinateString(bbox.maxLon),
+            Self.coordinateString(bbox.maxLat),
+        ].joined(separator: ",")
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "bbox", value: bboxValue),
+            URLQueryItem(name: "width", value: String(width)),
+            URLQueryItem(name: "height", value: String(height)),
+        ]
+        if let time {
+            queryItems.append(URLQueryItem(name: "time", value: Self.iso8601String(time)))
+        }
+        return try await fetchJSON(
+            path: "v1/map/precipitation/observed",
+            queryItems: queryItems,
+            dateDecodingStrategy: .iso8601
+        )
+    }
+
     // MARK: - Climate Normals
 
     func fetchClimateNormals(lat: Double, lon: Double) async throws -> ClimateNormalsResponse {
