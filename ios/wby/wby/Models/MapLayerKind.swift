@@ -11,7 +11,7 @@ enum MapLayerKind: String, CaseIterable {
         switch self {
         case .temperature: return "Temperature"
         case .precipitation: return "Precipitation 1h"
-        case .precipitation12h: return "Precipitation 12h"
+        case .precipitation12h: return "Precipitation 24h"
         }
     }
 
@@ -47,7 +47,7 @@ enum MapLayerKind: String, CaseIterable {
         switch self {
         case .temperature: return 48
         case .precipitation: return 12
-        case .precipitation12h: return 12
+        case .precipitation12h: return 24
         }
     }
 
