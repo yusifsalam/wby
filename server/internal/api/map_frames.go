@@ -21,7 +21,7 @@ const (
 	precipitationFrameSpan = time.Hour // ± around now, matching the official FMI app's radar window
 
 	precipitation12hFrameStep  = time.Hour
-	precipitation12hFrameHours = 12 // future hours offered, backed by the Harmonie GRIB field
+	precipitation12hFrameHours = weather.PrecipForecastHorizon // future hours offered, backed by the Harmonie GRIB field
 )
 
 type frameSetJSON struct {

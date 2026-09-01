@@ -123,7 +123,7 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 		precipCache:      NewCache[*PrecipitationOverlay](30 * time.Minute),
 		leaderboardCache: NewCache[[]LeaderboardEntry](5 * time.Minute),
 		gribGridCache:    NewCache[*FieldGrid](gribGridCacheTTL),
-		gribPrecipCache:  NewCache[*PrecipitationForecastGrid](10 * time.Minute),
+		gribPrecipCache:  NewCache[*PrecipitationForecastGrid](gribGridCacheTTL),
 	}
 }
 
@@ -308,11 +308,12 @@ const ForecastBackfillHorizon = 24
 // frame manifest window and the samples handler's `at` cap derive from it.
 const MapForecastHorizon = 48
 
-// gribGridCacheTTL bounds how long a decoded GRIB temperature grid is served
-// from memory. It must exceed the GRIB refresh interval (default 60m) so that
-// grids warmed right after a refresh (WarmTemperatureGrids) stay hot until the
-// next cycle re-warms them, rather than expiring mid-cycle and forcing the next
-// client to eat a cold gribsvc extract.
+// gribGridCacheTTL bounds how long a decoded GRIB grid (temperature or
+// precipitation) is served from memory. It must exceed the GRIB refresh
+// interval (default 60m) so that grids warmed right after a refresh
+// (WarmTemperatureGrids / WarmPrecipitationGrids) stay hot until the next cycle
+// re-warms them, rather than expiring mid-cycle and forcing the next client to
+// eat a cold gribsvc extract.
 const gribGridCacheTTL = 75 * time.Minute
 
 const (

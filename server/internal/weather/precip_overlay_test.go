@@ -78,4 +78,19 @@ func TestGetPrecipitationForecastGrid_RangeAndCache(t *testing.T) {
 	if got2 != got {
 		t.Fatal("expected cached pointer on second call")
 	}
+
+	// The cache is keyed by hour only, so a different bbox at the same hour
+	// must also hit (web and iOS request different extents; both are served
+	// the warmed full-Finland grid).
+	otherBBox := PrecipitationOverlayRequest{
+		MapOverlayRequest: MapOverlayRequest{MinLon: 18.8, MinLat: 58.8, MaxLon: 32.2, MaxLat: 71.7, Width: 120, Height: 120},
+		Time:              at,
+	}
+	got3, err := svc.GetPrecipitationForecastGrid(context.Background(), otherBBox)
+	if err != nil {
+		t.Fatalf("unexpected error on other-bbox call: %v", err)
+	}
+	if got3 != got {
+		t.Fatal("expected hour-only cache key to serve the same grid for a different bbox")
+	}
 }
