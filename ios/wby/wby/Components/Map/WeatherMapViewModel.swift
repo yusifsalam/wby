@@ -600,46 +600,49 @@ final class WeatherMapViewModel {
         }
     }
 
-    // Near-term scrubber frame: past/now frames come from the keyless radar
-    // observation grid and render client-side like the 12h forecast; future
-    // frames stay on the WMS nowcast tiles. A radar miss (frame gap, older
-    // server) falls back to the WMS path so the scrubber never goes blank.
+    // Near-term scrubber frame: past/now frames come from the radar
+    // observation grid, future frames from the extrapolation nowcast grid;
+    // both render client-side like the 12h forecast. A radar miss (frame gap,
+    // older server) falls back to the WMS tiles so the scrubber never goes
+    // blank.
     private func loadNearTermPrecipFrame(time: Date?) async throws -> PrecipFrame? {
-        if time == nil || time! <= Date() {
-            do {
-                if let frame = try await loadPrecipObservedFrame(time: time) {
-                    return frame
-                }
-            } catch {
-                // Fall through to the WMS tiles.
-            }
+        let isPastOrNow = time == nil || time! <= Date()
+        do {
+            let frame = try await (isPastOrNow
+                ? loadPrecipObservedFrame(time: time)
+                : loadPrecipNowcastFrame(time: time))
+            if let frame { return frame }
+        } catch {
+            // Fall through to the WMS tiles.
         }
-        return try await loadPrecipNowcastFrame(time: time)
+        return try await loadPrecipTileFrame(time: time)
     }
 
     // Radar observation grid (5-min frames): fetch and render via texture
     // bilinear, the same path as the 12h forecast grid.
     private func loadPrecipObservedFrame(time: Date?) async throws -> PrecipFrame? {
-        guard let renderer = metalRenderer else { return nil }
-        let response = try await overlayService.fetchPrecipitationObservedGrid(
-            bbox: precipGridBBox,
-            width: overlaySize,
-            height: overlaySize,
-            time: time
-        )
-        guard let grid = response.grid,
-              renderer.setGrid(grid, field: precipGridField),
-              let image = renderer.renderImage(
-                  bounds: MercatorBounds.finland,
-                  width: overlaySize,
-                  height: overlaySize
-              )
-        else { return nil }
-        return PrecipFrame(image: image, dataTime: response.dataTime, bbox: .finland)
+        renderPrecipGridFrame(
+            try await overlayService.fetchPrecipitationObservedGrid(
+                bbox: precipGridBBox,
+                width: overlaySize,
+                height: overlaySize,
+                time: time
+            ))
     }
 
-    // 1h (WMS) nowcast: decode the server PNG into an overlay image.
+    // Radar-extrapolation nowcast grid (5-min future frames).
     private func loadPrecipNowcastFrame(time: Date?) async throws -> PrecipFrame? {
+        renderPrecipGridFrame(
+            try await overlayService.fetchPrecipitationNowcastGrid(
+                bbox: precipGridBBox,
+                width: overlaySize,
+                height: overlaySize,
+                time: time
+            ))
+    }
+
+    // WMS tile fallback: decode the server PNG into an overlay image.
+    private func loadPrecipTileFrame(time: Date?) async throws -> PrecipFrame? {
         let response = try await overlayService.fetchPrecipitationOverlay(
             bbox: .finland,
             width: overlaySize,
@@ -653,14 +656,20 @@ final class WeatherMapViewModel {
     // 12h (Harmonie) forecast: fetch the GRIB raster and render it client-side
     // via texture bilinear, the same path as the temperature grid overlay.
     private func loadPrecipForecastFrame(time: Date?) async throws -> PrecipFrame? {
-        guard let renderer = metalRenderer else { return nil }
-        let response = try await overlayService.fetchPrecipitationForecastGrid(
-            bbox: precipGridBBox,
-            width: overlaySize,
-            height: overlaySize,
-            time: time
-        )
-        guard let grid = response.grid,
+        renderPrecipGridFrame(
+            try await overlayService.fetchPrecipitationForecastGrid(
+                bbox: precipGridBBox,
+                width: overlaySize,
+                height: overlaySize,
+                time: time
+            ))
+    }
+
+    // Renders a precipitation grid response through the Metal texture path with
+    // the active ramp.
+    private func renderPrecipGridFrame(_ response: PrecipitationForecastResponse) -> PrecipFrame? {
+        guard let renderer = metalRenderer,
+              let grid = response.grid,
               renderer.setGrid(grid, field: precipGridField),
               let image = renderer.renderImage(
                   bounds: MercatorBounds.finland,
