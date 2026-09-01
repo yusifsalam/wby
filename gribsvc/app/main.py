@@ -5,6 +5,7 @@ Endpoints:
   GET  /grib/datasets    list local files + their parameters/times
   POST /grib/extract     numeric values at points or over a bbox
   POST /grib/render      colormapped PNG tile of a field over a bbox
+  POST /nowcast/run      extrapolate radar frames into nowcast frames
 """
 
 from typing import Optional
@@ -13,7 +14,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, model_validator
 
-from . import geotiff, grib, render, sources
+from . import geotiff, grib, nowcast, render, sources
 
 app = FastAPI(title="gribsvc", version="0.1.0")
 
@@ -100,6 +101,19 @@ def extract(req: ExtractRequest):
         raise HTTPException(status_code=422, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+class NowcastRequest(BaseModel):
+    leads: int = nowcast.DEFAULT_LEADS
+
+
+@app.post("/nowcast/run")
+def nowcast_run(req: Optional[NowcastRequest] = None):
+    leads = req.leads if req else nowcast.DEFAULT_LEADS
+    try:
+        return nowcast.run(leads=leads)
+    except grib.GribError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @app.post("/grib/render")
