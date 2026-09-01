@@ -61,9 +61,9 @@ export function fallbackFrameSet(
   }
   if (layer === "precipitation12h") {
     const base = Math.floor(nowMs / 3_600_000) * 3_600_000;
-    // now + 12 forecast hours at the Harmonie field's hourly cadence.
+    // now + 24 forecast hours at the Harmonie field's hourly cadence.
     return {
-      times: Array.from({ length: 13 }, (_, i) =>
+      times: Array.from({ length: 25 }, (_, i) =>
         new Date(base + i * 3_600_000).toISOString(),
       ),
       nowIndex: 0,

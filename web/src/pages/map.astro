@@ -36,7 +36,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
             data-layer="precipitation12h"
             class="rounded-md px-3 py-1.5 text-[0.85rem] font-[650] text-muted hover:text-ink aria-current:bg-page aria-current:text-ink aria-current:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.75rem]"
             aria-current="false"
-          ><span class="max-[560px]:hidden">Precipitation 12h</span><span class="min-[561px]:hidden">Rain 12h</span></button>
+          ><span class="max-[560px]:hidden">Precipitation 24h</span><span class="min-[561px]:hidden">Rain 24h</span></button>
         </div>
 
         <div class="pointer-events-auto flex items-center gap-3">
@@ -158,15 +158,22 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
   // The active layer is mirrored to the ?layer= query param so a shared URL
   // reopens on the same map. Precipitation is the default and omits the param.
+  // The forecast layer keeps its precipitation12h internal/API id but reads and
+  // writes the param as precipitation24h; old precipitation12h URLs still work.
   const DEFAULT_LAYER: Layer = "precipitation";
   function layerFromURL(): Layer {
-    const raw = new URLSearchParams(window.location.search).get("layer") ?? "";
+    let raw = new URLSearchParams(window.location.search).get("layer") ?? "";
+    if (raw === "precipitation24h") raw = "precipitation12h";
     return isMapLayer(raw) ? raw : DEFAULT_LAYER;
   }
   function writeLayerToURL(next: Layer) {
     const url = new URL(window.location.href);
     if (next === DEFAULT_LAYER) url.searchParams.delete("layer");
-    else url.searchParams.set("layer", next);
+    else
+      url.searchParams.set(
+        "layer",
+        next === "precipitation12h" ? "precipitation24h" : next,
+      );
     history.replaceState(null, "", url);
   }
 

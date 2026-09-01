@@ -27,16 +27,16 @@ describe("fallbackFrameSet", () => {
     expect(set.times[0]).toBe("2026-08-22T12:00:00.000Z");
   });
 
-  it("builds a now→+12h forecast window at hourly steps", () => {
+  it("builds a now→+24h forecast window at hourly steps", () => {
     const set = fallbackFrameSet(
       "precipitation12h",
       Date.UTC(2026, 7, 22, 12, 30),
     );
-    expect(set.times).toHaveLength(13);
+    expect(set.times).toHaveLength(25);
     expect(set.nowIndex).toBe(0);
     expect(set.stepSeconds).toBe(3600);
     expect(set.times[0]).toBe("2026-08-22T12:00:00.000Z");
-    expect(set.times[12]).toBe("2026-08-23T00:00:00.000Z");
+    expect(set.times[24]).toBe("2026-08-23T12:00:00.000Z");
   });
 });
 
