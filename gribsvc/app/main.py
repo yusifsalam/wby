@@ -4,6 +4,7 @@ Endpoints:
   GET  /health           liveness
   GET  /grib/datasets    list local files + their parameters/times
   POST /grib/extract     numeric values at points or over a bbox
+  POST /grib/extract_series  one bbox grid per requested hour, in one file pass
   POST /grib/render      colormapped PNG tile of a field over a bbox
   POST /nowcast/run      extrapolate radar frames into nowcast frames
 """
@@ -95,6 +96,28 @@ def extract(req: ExtractRequest):
             pts = [(p.lat, p.lon) for p in req.points]
             return backend.extract_points(path, req.param, pts, at)
         return backend.extract_bbox(path, req.param, req.bbox.as_tuple(), req.step, at)
+    except sources.SourceError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except grib.GribError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+class ExtractSeriesRequest(BaseModel):
+    file: str
+    param: str
+    bbox: BBox
+    step: int = 1
+    times: Optional[list[str]] = None
+
+
+@app.post("/grib/extract_series")
+def extract_series(req: ExtractSeriesRequest):
+    try:
+        path = sources.resolve(req.file)
+        times = [grib.parse_time(t) for t in req.times] if req.times else None
+        return grib.extract_bbox_series(path, req.param, req.bbox.as_tuple(), req.step, times)
     except sources.SourceError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except grib.GribError as exc:

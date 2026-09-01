@@ -44,6 +44,7 @@ GRIB_DATA_DIR=./testdata uvicorn app.main:app --port 9090
 | GET    | `/health`        | `{"status":"ok"}` |
 | GET    | `/grib/datasets` | files + their parameters/times |
 | POST   | `/grib/extract`  | JSON values |
+| POST   | `/grib/extract_series` | one bbox grid per requested hour, in one file pass |
 | POST   | `/grib/render`   | `image/png` |
 
 ### Examples
@@ -65,6 +66,15 @@ curl -XPOST localhost:9090/grib/extract -H 'content-type: application/json' -d '
   "param": "2t",
   "bbox": {"min_lon": 19, "min_lat": 59, "max_lon": 32, "max_lat": 71},
   "step": 4
+}'
+
+# bbox extraction of several hours in one pass (cache warming)
+curl -XPOST localhost:9090/grib/extract_series -H 'content-type: application/json' -d '{
+  "file": "sample.grib2",
+  "param": "2t",
+  "bbox": {"min_lon": 19, "min_lat": 59, "max_lon": 32, "max_lat": 71},
+  "step": 4,
+  "times": ["2026-09-01T12:00:00Z", "2026-09-01T13:00:00Z"]
 }'
 
 # rendered tile

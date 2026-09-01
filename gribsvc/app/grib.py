@@ -161,6 +161,75 @@ def extract_bbox(
         grbs.close()
 
 
+def extract_bbox_series(
+    path: Path,
+    param: str,
+    bbox: tuple[float, float, float, float],
+    step: int,
+    times: Optional[list[datetime]],
+) -> dict:
+    """Subset every matching message to a bbox in one pass over the file.
+
+    Returns the shared lat/lon lattice once, plus one values frame per matching
+    message sorted by valid time. `times` (naive UTC datetimes) filters which
+    messages are kept; None keeps every message for the param. Duplicate valid
+    times keep the first message, mirroring extract_bbox's selection.
+    """
+    min_lon, min_lat, max_lon, max_lat = bbox
+    step = max(1, int(step))
+    wanted = None
+    if times is not None:
+        wanted = {t.replace(tzinfo=None) for t in times}
+
+    frames: list[dict] = []
+    seen: set[datetime] = set()
+    lats_out = lons_out = None
+    units = None
+    grbs = pygrib.open(str(path))
+    try:
+        for grb in grbs:
+            if not _matches_param(grb, param):
+                continue
+            valid = grb.validDate
+            key = valid.replace(tzinfo=None) if valid is not None else None
+            if wanted is not None and key not in wanted:
+                continue
+            if key in seen:
+                continue
+            seen.add(key)
+            data, lats, lons = grb.data(
+                lat1=min_lat, lat2=max_lat, lon1=min_lon, lon2=max_lon
+            )
+            data = np.asarray(data)[::step, ::step]
+            if lats_out is None:
+                lats_out = np.asarray(lats)[::step, ::step]
+                lons_out = np.asarray(lons)[::step, ::step]
+                units = getattr(grb, "units", None)
+            elif data.shape != lats_out.shape:
+                continue
+            masked = np.ma.getmaskarray(data) if np.ma.isMaskedArray(data) else np.isnan(data)
+            grid = np.where(masked, None, data.astype(object))
+            frames.append({"valid_time": _iso(valid), "values": grid.tolist()})
+    except Exception as exc:  # noqa: BLE001 - surface a clean parse error
+        raise GribError(f"failed to read {path.name}: {exc}") from exc
+    finally:
+        grbs.close()
+
+    if not frames:
+        raise GribError(f"no fields found: param={param!r}")
+
+    frames.sort(key=lambda f: f["valid_time"] or "")
+    return {
+        "param": param,
+        "units": units,
+        "rows": int(lats_out.shape[0]),
+        "cols": int(lats_out.shape[1]),
+        "lats": lats_out.tolist(),
+        "lons": lons_out.tolist(),
+        "frames": frames,
+    }
+
+
 def field_grid(path: Path, param: str, at: Optional[datetime]) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
     """Return (values, lats, lons, meta) for the whole field — used by rendering."""
     grb, grbs = _find_message(path, param, at)

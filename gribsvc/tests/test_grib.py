@@ -4,6 +4,8 @@ These need a real `.grib2` fixture in `testdata/` and auto-skip when none is
 present (see conftest.py).
 """
 
+import pytest
+
 from app import grib
 
 
@@ -38,6 +40,40 @@ def test_extract_bbox(sample_grib, first_param):
     if out["rows"]:
         assert out["cols"] == len(out["values"][0])
         assert len(out["lats"]) == out["rows"]
+
+
+def test_extract_bbox_series(sample_grib, first_param):
+    times = [
+        grib.parse_time(m["valid_time"])
+        for m in grib.list_params(sample_grib)
+        if m["param"] == first_param and m["valid_time"]
+    ]
+    if len(times) < 2:
+        pytest.skip("sample GRIB has fewer than 2 frames for the first param")
+    wanted = sorted(set(times))[:2]
+
+    out = grib.extract_bbox_series(
+        sample_grib, first_param, (19.0, 59.0, 32.0, 71.0), step=4, times=wanted
+    )
+    assert len(out["frames"]) == len(wanted)
+    assert len(out["lats"]) == out["rows"]
+    assert [grib.parse_time(f["valid_time"]) for f in out["frames"]] == wanted
+    for frame in out["frames"]:
+        assert len(frame["values"]) == out["rows"]
+        assert len(frame["values"][0]) == out["cols"]
+
+    # A one-frame extract of the same hour must agree with the series frame.
+    single = grib.extract_bbox(
+        sample_grib, first_param, (19.0, 59.0, 32.0, 71.0), step=4, at=wanted[0]
+    )
+    assert single["values"] == out["frames"][0]["values"]
+
+
+def test_extract_bbox_series_no_match(sample_grib, first_param):
+    with pytest.raises(grib.GribError):
+        grib.extract_bbox_series(
+            sample_grib, "nosuchparam", (19.0, 59.0, 32.0, 71.0), step=4, times=None
+        )
 
 
 def test_parse_time_roundtrip():
