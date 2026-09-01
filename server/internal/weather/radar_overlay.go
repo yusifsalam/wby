@@ -49,10 +49,11 @@ func (s *Service) SetRadarPrecipitationSource(src RadarPrecipitationSource) {
 // nearest at-or-before the requested instant, over the full radar extent (the
 // request bbox selects nothing; clients position the raster by the extent in
 // the response, like the forecast grid). Time snaps to the 5-min frame cadence;
-// a zero time means the newest available frame. Results are cached per frame,
-// so a grid warmed after a radar refresh satisfies every client. Returns
-// ErrPrecipitationDisabled when the source is unconfigured or no frame within
-// tolerance exists, so the handler can answer 404 and the client falls back.
+// a zero time means the newest available frame. Frames are served from the
+// per-frame cache populated by WarmRadarGrids after each radar fetch; a request
+// never reads gribsvc itself. Returns ErrPrecipitationDisabled when the source
+// is unconfigured or no cached frame within tolerance exists, so the handler
+// can answer 404 and the client falls back.
 func (s *Service) GetPrecipitationObservationGrid(ctx context.Context, req PrecipitationOverlayRequest) (*PrecipitationForecastGrid, error) {
 	if s.radarPrecip == nil {
 		return nil, ErrPrecipitationDisabled
@@ -73,51 +74,54 @@ func (s *Service) GetPrecipitationObservationGrid(ctx context.Context, req Preci
 	// by a couple of minutes, and individual frames can be missing.
 	for i := 0; i < 3; i++ {
 		at := target.Add(time.Duration(-i) * radarFrameStep)
-
-		cacheKey := fmt.Sprintf("radarprecipgrid:%s", at.Format(time.RFC3339))
-		if cached, ok := s.radarPrecipCache.Get(cacheKey); ok {
+		if cached, ok := s.radarPrecipCache.Get(radarGridKey(at)); ok {
 			return cached, nil
 		}
+	}
+	return nil, ErrPrecipitationDisabled
+}
 
-		grid, validTime, err := s.radarPrecip.GridForFile(ctx, RadarFrameFile(at),
-			precipGridMinLon, precipGridMinLat, precipGridMaxLon, precipGridMaxLat, time.Time{})
-		if err != nil {
-			return nil, fmt.Errorf("fetch radar grid: %w", err)
-		}
-		if grid == nil || len(grid.Values) == 0 {
-			continue
-		}
-		if validTime.IsZero() {
-			validTime = at
-		}
-
-		minV, maxV := fieldGridRange(grid)
-		out := &PrecipitationForecastGrid{
-			DataTime: validTime.UTC().Truncate(time.Second),
-			Min:      minV,
-			Max:      maxV,
-			Grid:     grid,
-		}
-		s.radarPrecipCache.Set(cacheKey, out)
-		slog.Info("precipitation observation grid",
-			"target", target.Format(time.RFC3339),
-			"frame", at.Format(time.RFC3339),
-			"cells", len(grid.Values),
-		)
-		return out, nil
+// fetchRadarGrid loads one radar frame from gribsvc and caches it. A nil
+// result with a nil error is a soft miss (frame not on disk).
+func (s *Service) fetchRadarGrid(ctx context.Context, at time.Time) (*PrecipitationForecastGrid, error) {
+	grid, validTime, err := s.radarPrecip.GridForFile(ctx, RadarFrameFile(at),
+		precipGridMinLon, precipGridMinLat, precipGridMaxLon, precipGridMaxLat, time.Time{})
+	if err != nil {
+		return nil, fmt.Errorf("fetch radar grid: %w", err)
+	}
+	if grid == nil || len(grid.Values) == 0 {
+		return nil, nil
+	}
+	if validTime.IsZero() {
+		validTime = at
 	}
 
-	return nil, ErrPrecipitationDisabled
+	minV, maxV := fieldGridRange(grid)
+	out := &PrecipitationForecastGrid{
+		DataTime: validTime.UTC().Truncate(time.Second),
+		Min:      minV,
+		Max:      maxV,
+		Grid:     grid,
+	}
+	s.radarPrecipCache.Set(radarGridKey(at), out)
+	return out, nil
+}
+
+func radarGridKey(at time.Time) string {
+	return "radarprecipgrid:" + at.Format(time.RFC3339)
+}
+
+func nowcastGridKey(at time.Time) string {
+	return "nowcastprecipgrid:" + at.Format(time.RFC3339)
 }
 
 // GetPrecipitationNowcastGrid returns the extrapolation-nowcast rain-rate
 // raster (mm/h) for the requested future instant, snapped to the 5-min frame
-// cadence; a zero time means the next frame. Frames come keyed by valid time
-// and each nowcast run overwrites them, so cache entries are refreshed by
-// WarmNowcastGrids after every run rather than trusted for their full TTL.
-// Returns ErrPrecipitationDisabled when the source is unconfigured, the target
-// is outside the served window, or the frame isn't on disk (run lag), so the
-// handler can answer 404.
+// cadence; a zero time means the next frame. Frames are served from the cache
+// WarmNowcastGrids refreshes after every nowcast run. Returns
+// ErrPrecipitationDisabled when the source is unconfigured, the target is
+// outside the served window, or the frame isn't cached, so the handler can
+// answer 404.
 func (s *Service) GetPrecipitationNowcastGrid(ctx context.Context, req PrecipitationOverlayRequest) (*PrecipitationForecastGrid, error) {
 	if s.radarPrecip == nil {
 		return nil, ErrPrecipitationDisabled
@@ -132,11 +136,10 @@ func (s *Service) GetPrecipitationNowcastGrid(ctx context.Context, req Precipita
 		return nil, ErrPrecipitationDisabled
 	}
 
-	cacheKey := "nowcastprecipgrid:" + target.Format(time.RFC3339)
-	if cached, ok := s.radarPrecipCache.Get(cacheKey); ok {
+	if cached, ok := s.radarPrecipCache.Get(nowcastGridKey(target)); ok {
 		return cached, nil
 	}
-	return s.fetchNowcastGrid(ctx, target)
+	return nil, ErrPrecipitationDisabled
 }
 
 // fetchNowcastGrid loads one nowcast frame from gribsvc and (re)sets its cache
@@ -162,7 +165,7 @@ func (s *Service) fetchNowcastGrid(ctx context.Context, at time.Time) (*Precipit
 		Max:      maxV,
 		Grid:     grid,
 	}
-	s.radarPrecipCache.Set("nowcastprecipgrid:"+at.Format(time.RFC3339), out)
+	s.radarPrecipCache.Set(nowcastGridKey(at), out)
 	return out, nil
 }
 
@@ -194,9 +197,9 @@ func (s *Service) WarmNowcastGrids(ctx context.Context) {
 }
 
 // WarmRadarGrids pre-populates the radar observation grid cache for every
-// frame in the served window. Intended to run after each radar fetch cycle so
-// scrubbing is cache hits. Best-effort: frames already cached are skipped via
-// the per-frame cache, and misses are left for clients to fill lazily.
+// frame in the served window. Runs at startup and after each radar fetch
+// cycle; it is the only path that reads radar frames from gribsvc. Frames
+// already cached are skipped.
 func (s *Service) WarmRadarGrids(ctx context.Context) {
 	if s.radarPrecip == nil {
 		return
@@ -211,7 +214,11 @@ func (s *Service) WarmRadarGrids(ctx context.Context) {
 			return
 		}
 		at := base.Add(time.Duration(-i) * radarFrameStep)
-		if _, err := s.GetPrecipitationObservationGrid(ctx, PrecipitationOverlayRequest{Time: at}); err == nil {
+		if _, ok := s.radarPrecipCache.Get(radarGridKey(at)); ok {
+			warmed++
+			continue
+		}
+		if grid, err := s.fetchRadarGrid(ctx, at); err == nil && grid != nil {
 			warmed++
 		}
 	}

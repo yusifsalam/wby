@@ -9,6 +9,8 @@ Endpoints:
   POST /nowcast/run      extrapolate radar frames into nowcast frames
 """
 
+import os
+import threading
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
@@ -18,6 +20,11 @@ from pydantic import BaseModel, model_validator
 from . import geotiff, grib, nowcast, render, sources
 
 app = FastAPI(title="gribsvc", version="0.1.0")
+
+# Extraction is CPU- and memory-bound Python; running requests forty-wide
+# under the GIL makes every one of them slow and lets memory stack up to the
+# container cap. Queue them instead.
+_work_slots = threading.BoundedSemaphore(int(os.environ.get("GRIBSVC_MAX_CONCURRENT", "2")))
 
 
 def _backend(path):
@@ -92,10 +99,11 @@ def extract(req: ExtractRequest):
         path = sources.resolve(req.file)
         at = grib.parse_time(req.time)
         backend = _backend(path)
-        if req.points:
-            pts = [(p.lat, p.lon) for p in req.points]
-            return backend.extract_points(path, req.param, pts, at)
-        return backend.extract_bbox(path, req.param, req.bbox.as_tuple(), req.step, at)
+        with _work_slots:
+            if req.points:
+                pts = [(p.lat, p.lon) for p in req.points]
+                return backend.extract_points(path, req.param, pts, at)
+            return backend.extract_bbox(path, req.param, req.bbox.as_tuple(), req.step, at)
     except sources.SourceError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except grib.GribError as exc:
@@ -117,7 +125,8 @@ def extract_series(req: ExtractSeriesRequest):
     try:
         path = sources.resolve(req.file)
         times = [grib.parse_time(t) for t in req.times] if req.times else None
-        return grib.extract_bbox_series(path, req.param, req.bbox.as_tuple(), req.step, times)
+        with _work_slots:
+            return grib.extract_bbox_series(path, req.param, req.bbox.as_tuple(), req.step, times)
     except sources.SourceError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except grib.GribError as exc:
@@ -134,7 +143,8 @@ class NowcastRequest(BaseModel):
 def nowcast_run(req: Optional[NowcastRequest] = None):
     leads = req.leads if req else nowcast.DEFAULT_LEADS
     try:
-        return nowcast.run(leads=leads)
+        with _work_slots:
+            return nowcast.run(leads=leads)
     except grib.GribError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
@@ -144,11 +154,12 @@ def render_tile(req: RenderRequest):
     try:
         path = sources.resolve(req.file)
         at = grib.parse_time(req.time)
-        values, lats, lons, meta = _backend(path).field_grid(path, req.param, at)
-        png = render.render_png(
-            values, lats, lons, req.bbox.as_tuple(),
-            req.width, req.height, req.colormap, req.vmin, req.vmax,
-        )
+        with _work_slots:
+            values, lats, lons, meta = _backend(path).field_grid(path, req.param, at)
+            png = render.render_png(
+                values, lats, lons, req.bbox.as_tuple(),
+                req.width, req.height, req.colormap, req.vmin, req.vmax,
+            )
     except sources.SourceError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except grib.GribError as exc:
