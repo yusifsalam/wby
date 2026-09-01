@@ -39,10 +39,31 @@ import "maplibre-gl/dist/maplibre-gl.css";
           ><span class="max-[560px]:hidden">Precipitation 12h</span><span class="min-[561px]:hidden">Rain 12h</span></button>
         </div>
 
-        <!-- Opacity -->
-        <div class="pointer-events-auto flex items-center gap-2 rounded-lg border border-line bg-surface/90 px-3 py-2 text-[0.8rem] font-[650] text-muted shadow-panel backdrop-blur max-[560px]:px-2 max-[560px]:py-1.5">
-          <span class="max-[560px]:hidden">Opacity</span>
-          <input id="opacity" type="range" min="0" max="100" value="80" class="w-24 accent-teal max-[560px]:w-16" aria-label="Overlay opacity" />
+        <div class="pointer-events-auto flex items-center gap-3">
+          <!-- Precipitation color style (hidden on the temperature layer) -->
+          <div
+            id="ramp-toggle"
+            class="inline-flex gap-1 rounded-lg border border-line bg-surface/90 p-1 shadow-panel backdrop-blur"
+          >
+            <button
+              type="button"
+              data-ramp="smooth"
+              class="rounded-md px-2.5 py-1.5 text-[0.8rem] font-[650] text-muted hover:text-ink aria-current:bg-page aria-current:text-ink aria-current:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.7rem]"
+              aria-current="true"
+            >Smooth</button>
+            <button
+              type="button"
+              data-ramp="stepped"
+              class="rounded-md px-2.5 py-1.5 text-[0.8rem] font-[650] text-muted hover:text-ink aria-current:bg-page aria-current:text-ink aria-current:shadow-panel max-[560px]:px-2 max-[560px]:py-1 max-[560px]:text-[0.7rem]"
+              aria-current="false"
+            >Stepped</button>
+          </div>
+
+          <!-- Opacity -->
+          <div class="flex items-center gap-2 rounded-lg border border-line bg-surface/90 px-3 py-2 text-[0.8rem] font-[650] text-muted shadow-panel backdrop-blur max-[560px]:px-2 max-[560px]:py-1.5">
+            <span class="max-[560px]:hidden">Opacity</span>
+            <input id="opacity" type="range" min="0" max="100" value="80" class="w-24 accent-teal max-[560px]:w-16" aria-label="Overlay opacity" />
+          </div>
         </div>
       </div>
     </div>
@@ -63,6 +84,24 @@ import "maplibre-gl/dist/maplibre-gl.css";
         <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#a8e0ff,#3fa0ff,#1436ff,#8b00ff,#ff00aa)"></div>
         <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
           <span>0.1</span><span>1</span><span>5</span><span>20+</span>
+        </div>
+      </div>
+      <!-- FMI stepped classes (Mobile_dark): swatch colors and thresholds from
+           the WMS legend, shown when the FMI ramp is active. -->
+      <div id="legend-precipitation-stepped" hidden>
+        <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain mm/h</p>
+        <div class="flex h-2 w-48 overflow-hidden rounded">
+          <span class="flex-1" style="background:#adf3fa"></span>
+          <span class="flex-1" style="background:#86bef3"></span>
+          <span class="flex-1" style="background:#5f8aec"></span>
+          <span class="flex-1" style="background:#3955e5"></span>
+          <span class="flex-1" style="background:#1421de"></span>
+          <span class="flex-1" style="background:#8238ec"></span>
+          <span class="flex-1" style="background:#b943f4"></span>
+          <span class="flex-1" style="background:#f14efb"></span>
+        </div>
+        <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
+          <span>0.1</span><span>0.5</span><span>2.5</span><span>10</span><span>15+</span>
         </div>
       </div>
     </div>
@@ -222,6 +261,52 @@ import "maplibre-gl/dist/maplibre-gl.css";
     ];
   }
 
+  // FMI's Mobile_dark radar classes: 8 discrete bands at a constant ~70%
+  // alpha, colors and thresholds lifted from the WMS legend so the grid render
+  // is indistinguishable from the official tiles.
+  const STEPPED_CLASS_EDGES = [0.1, 0.3, 0.5, 1, 2.5, 5, 10, 15];
+  const STEPPED_CLASS_COLORS: RGB[] = [
+    [173, 243, 250],
+    [134, 190, 243],
+    [95, 138, 236],
+    [57, 85, 229],
+    [20, 33, 222],
+    [130, 56, 236],
+    [185, 67, 244],
+    [241, 78, 251],
+  ];
+  const STEPPED_CLASS_ALPHA = 179;
+
+  function precipitationSteppedRGBA(v: number): RGBA {
+    if (v < STEPPED_CLASS_EDGES[0]) return [0, 0, 0, 0];
+    let cls = STEPPED_CLASS_EDGES.length - 1;
+    for (let i = 1; i < STEPPED_CLASS_EDGES.length; i++) {
+      if (v < STEPPED_CLASS_EDGES[i]) {
+        cls = i - 1;
+        break;
+      }
+    }
+    const [r, g, b] = STEPPED_CLASS_COLORS[cls];
+    return [r, g, b, STEPPED_CLASS_ALPHA];
+  }
+
+  // The active precipitation color style, mirrored to ?ramp= like the layer.
+  type PrecipRamp = "smooth" | "stepped";
+  function rampFromURL(): PrecipRamp {
+    return new URLSearchParams(window.location.search).get("ramp") === "stepped"
+      ? "stepped"
+      : "smooth";
+  }
+  function writeRampToURL(next: PrecipRamp) {
+    const url = new URL(window.location.href);
+    if (next === "smooth") url.searchParams.delete("ramp");
+    else url.searchParams.set("ramp", next);
+    history.replaceState(null, "", url);
+  }
+  let precipRamp: PrecipRamp = rampFromURL();
+  const activePrecipRGBA = () =>
+    precipRamp === "stepped" ? precipitationSteppedRGBA : precipitationRGBA;
+
   type FieldGrid = {
     rows: number;
     cols: number;
@@ -298,8 +383,40 @@ import "maplibre-gl/dist/maplibre-gl.css";
   // The GRIB grid is whole-Finland and independent of the viewport, so a given
   // (layer, instant) always rasterizes to the same texture. Memoize so panning
   // and re-scrubbing to a visited frame skip both the fetch and the synchronous
-  // PNG encode. `null` records a known GRIB miss.
+  // PNG encode. `null` records a known GRIB miss. Radar observation frames
+  // share the map under a "precipitation-obs" key prefix.
   const gridFrameCache = new Map<string, Frame | null>();
+
+  // Keyless radar observation grid for one past/now instant of the ±1h layer,
+  // rendered client-side with the shared precip ramp. 404 = frame not on the
+  // server (radar disabled, or a gap) — a known miss the caller falls back on.
+  async function fetchObservedGridFrame(at: string): Promise<Frame | null> {
+    const res = await fetch(
+      `/api/map/precipitation-observed?${PRECIP_GRID_QUERY}&time=${encodeURIComponent(at)}`,
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`observed grid fetch failed: ${res.status}`);
+    const data = (await res.json()) as { grid?: FieldGrid | null };
+    if (!data.grid || data.grid.values.length === 0) return null;
+    return {
+      url: rasterizeGrid(data.grid, activePrecipRGBA()),
+      corners: gridCorners(data.grid),
+      warp: true,
+    };
+  }
+
+  // Past/now frames of the ±1h radar layer come from the observation grid;
+  // future frames (the WMS nowcast) return null and stay on the server PNG.
+  async function observedFrame(): Promise<Frame | null> {
+    const at = manifest.precipitation.times[frameIndex];
+    if (!at || Date.parse(at) > Date.now()) return null;
+    const key = observedFrameKey(at);
+    const cached = gridFrameCache.get(key);
+    if (cached !== undefined) return cached;
+    const frame = await fetchObservedGridFrame(at);
+    gridFrameCache.set(key, frame);
+    return frame;
+  }
 
   async function fetchGridFrame(l: GridLayer, at: string): Promise<Frame | null> {
     const res = await fetch(gridFrameURL(l, at));
@@ -309,9 +426,16 @@ import "maplibre-gl/dist/maplibre-gl.css";
     if (!res.ok) throw new Error(`grid fetch failed: ${res.status}`);
     const data = (await res.json()) as { grid?: FieldGrid | null };
     if (!data.grid || data.grid.values.length === 0) return null;
-    const rgba = l === "temperature" ? temperatureRGBA : precipitationRGBA;
+    const rgba = l === "temperature" ? temperatureRGBA : activePrecipRGBA();
     return { url: rasterizeGrid(data.grid, rgba), corners: gridCorners(data.grid) };
   }
+
+  // Rasterized frames bake the ramp in, so precipitation cache keys carry the
+  // active ramp — switching styles re-rasterizes instead of serving stale colors.
+  function gridFrameKey(l: GridLayer, at: string): string {
+    return l === "temperature" ? `${l}|${at}` : `${l}|${at}|${precipRamp}`;
+  }
+  const observedFrameKey = (at: string) => `precipitation-obs|${at}|${precipRamp}`;
 
   // Fetch the GRIB grid JSON for the active frame and render it client-side —
   // for every frame including "now" (the server serves GRIB from the current
@@ -320,7 +444,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
   async function gridFrame(l: GridLayer): Promise<Frame | null> {
     const at = manifest[l].times[frameIndex];
     if (!at) return null;
-    const key = `${l}|${at}`;
+    const key = gridFrameKey(l, at);
     const cached = gridFrameCache.get(key);
     if (cached !== undefined) return cached;
     const frame = await fetchGridFrame(l, at);
@@ -355,9 +479,20 @@ import "maplibre-gl/dist/maplibre-gl.css";
       if (idx === center) continue;
       if (layer !== "precipitation") {
         const at = frames.times[idx];
-        const key = `${layer}|${at}`;
+        const key = gridFrameKey(layer, at);
         if (gridFrameCache.has(key)) continue;
         fetchGridFrame(layer, at)
+          .then((frame) => gridFrameCache.set(key, frame))
+          .catch(() => {});
+        continue;
+      }
+      // ±1h layer: past frames warm the observation grid cache; future frames
+      // warm the browser HTTP cache for the PNG nowcast.
+      const at = frames.times[idx];
+      if (at && Date.parse(at) <= Date.now()) {
+        const key = observedFrameKey(at);
+        if (gridFrameCache.has(key)) continue;
+        fetchObservedGridFrame(at)
           .then((frame) => gridFrameCache.set(key, frame))
           .catch(() => {});
         continue;
@@ -372,14 +507,22 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
   async function buildFrame(): Promise<Frame> {
     // The grid layers render the dense GRIB grid directly (every frame, now
-    // included); the ±1h radar layer — and a temperature GRIB miss — uses the
-    // server PNG. The 12h layer has no PNG fallback, so a miss shows an empty
-    // frame rather than leaving another layer's raster on screen.
+    // included); the 12h layer has no PNG fallback, so a miss shows an empty
+    // frame rather than leaving another layer's raster on screen. The ±1h
+    // layer renders past/now frames from the keyless radar observation grid
+    // and falls back to the server PNG (which also serves its future frames).
     if (layer !== "precipitation") {
       const grid = await gridFrame(layer);
       if (grid) return grid;
       if (layer === "precipitation12h") {
         return { url: TRANSPARENT_PNG, corners: FINLAND_CORNERS };
+      }
+    } else {
+      try {
+        const obs = await observedFrame();
+        if (obs) return obs;
+      } catch (err) {
+        console.error("observed grid fetch failed, using PNG", err);
       }
     }
     return fixedView();
@@ -452,12 +595,13 @@ import "maplibre-gl/dist/maplibre-gl.css";
     let imageUrl: string;
     try {
       view = await buildFrame();
-      // Grid layers rasterize linear in latitude and need the Mercator warp;
+      // Grid renders rasterize linear in latitude and need the Mercator warp
+      // (the frame says so itself where a layer mixes grid and PNG frames);
       // the radar PNG is already Mercator. Temperature is a land field, so clip
       // it to the Finland outline; rain is real over the sea, so both
       // precipitation layers bake unclipped over their full extent.
       imageUrl = await bakedFrameUrl(view.url, view.corners, {
-        warp: layer !== "precipitation",
+        warp: view.warp ?? layer !== "precipitation",
         clip: layer === "temperature",
       });
     } catch (err) {
@@ -492,19 +636,41 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
   // Layer toggle
   const toggle = document.getElementById("layer-toggle");
+  const rampToggle = document.getElementById("ramp-toggle") as HTMLElement;
   const legendTemp = document.getElementById("legend-temperature") as HTMLElement;
   const legendPrecip = document.getElementById("legend-precipitation") as HTMLElement;
+  const legendPrecipStepped = document.getElementById("legend-precipitation-stepped") as HTMLElement;
   // Mirror the active layer to the toggle buttons and legends. Called on load too,
   // so a ?layer= URL that opens on another layer flips the statically-rendered
-  // precipitation defaults. Both precipitation layers share one legend.
+  // precipitation defaults. Both precipitation layers share one legend and the
+  // ramp toggle; the active ramp picks which precipitation legend shows.
   function syncLayerUI() {
     for (const b of toggle?.querySelectorAll<HTMLButtonElement>("button[data-layer]") ?? []) {
       b.setAttribute("aria-current", String(b.dataset.layer === layer));
     }
+    for (const b of rampToggle.querySelectorAll<HTMLButtonElement>("button[data-ramp]")) {
+      b.setAttribute("aria-current", String(b.dataset.ramp === precipRamp));
+    }
+    rampToggle.hidden = layer === "temperature";
     legendTemp.hidden = layer !== "temperature";
-    legendPrecip.hidden = layer === "temperature";
+    legendPrecip.hidden = layer === "temperature" || precipRamp === "stepped";
+    legendPrecipStepped.hidden = layer === "temperature" || precipRamp !== "stepped";
   }
   syncLayerUI();
+
+  rampToggle.querySelectorAll<HTMLButtonElement>("button[data-ramp]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.ramp as PrecipRamp;
+      if (next === precipRamp) return;
+      precipRamp = next;
+      writeRampToURL(precipRamp);
+      syncLayerUI();
+      // Frame caches are keyed by ramp, so a style switch re-rasterizes on
+      // demand; warm the nearby frames and repaint the current one.
+      prefetchAround(frameIndex, 2);
+      refreshOverlay();
+    });
+  });
   toggle?.querySelectorAll<HTMLButtonElement>("button[data-layer]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const next = btn.dataset.layer as Layer;
