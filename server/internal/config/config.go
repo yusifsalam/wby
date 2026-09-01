@@ -33,6 +33,15 @@ type Config struct {
 	GribBBox        string
 	GribInterval    time.Duration
 	GribFetchEnable bool
+
+	RadarWMSURL      string
+	RadarLayer       string
+	RadarBBox        string
+	RadarWidth       int
+	RadarHeight      int
+	RadarGridStep    int
+	RadarFrameSpan   time.Duration
+	RadarFetchEnable bool
 }
 
 func Load() Config {
@@ -64,6 +73,21 @@ func Load() Config {
 		GribBBox:        getEnv("GRIB_BBOX", "10,56.5,37.6,71.5"),
 		GribInterval:    time.Duration(getEnvInt("GRIB_INTERVAL_MINUTES", 60)) * time.Minute,
 		GribFetchEnable: getEnv("GRIB_FETCH_ENABLE", "") == "1",
+
+		// Keyless radar rain-rate composites from FMI's open WMS, fetched as
+		// EPSG:4326 GeoTIFF data grids (not styled tiles). The bbox matches the
+		// radar network's useful coverage; width/height set the stored raster
+		// resolution (~1.3km, close to the 1km radar native so the grid render
+		// matches the sharpness of FMI's own PNGs), RADAR_GRID_STEP the
+		// extraction stride on top.
+		RadarWMSURL:      getEnv("RADAR_WMS_URL", "https://openwms.fmi.fi/geoserver/Radar/wms"),
+		RadarLayer:       getEnv("RADAR_LAYER", "Radar:suomi_rr_eureffin"),
+		RadarBBox:        getEnv("RADAR_BBOX", "19,59,32,71.5"),
+		RadarWidth:       getEnvInt("RADAR_WIDTH", 512),
+		RadarHeight:      getEnvInt("RADAR_HEIGHT", 1024),
+		RadarGridStep:    getEnvInt("RADAR_GRID_STEP", 1),
+		RadarFrameSpan:   time.Duration(getEnvInt("RADAR_FRAME_SPAN_MINUTES", 70)) * time.Minute,
+		RadarFetchEnable: getEnv("RADAR_FETCH_ENABLE", "") == "1",
 	}
 }
 

@@ -81,6 +81,10 @@ func (s weatherServiceStub) GetPrecipitationForecastGrid(ctx context.Context, re
 	panic("not used in this test")
 }
 
+func (s weatherServiceStub) GetPrecipitationObservationGrid(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationForecastGrid, error) {
+	panic("not used in this test")
+}
+
 func (s weatherServiceStub) GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*weather.Station, float64, []weather.ClimateNormal, weather.InterpolatedNormal, error) {
 	panic("not used in this test")
 }

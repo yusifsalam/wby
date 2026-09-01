@@ -105,6 +105,9 @@ type Service struct {
 	gribPrecip      GribPrecipitationSource
 	gribPrecipCache *Cache[*PrecipitationForecastGrid]
 
+	radarPrecip      RadarPrecipitationSource
+	radarPrecipCache *Cache[*PrecipitationForecastGrid]
+
 	gridBackfillMu         sync.Mutex
 	gridBackfillInProgress bool
 	gridBackfillLastRun    time.Time
@@ -124,6 +127,7 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 		leaderboardCache: NewCache[[]LeaderboardEntry](5 * time.Minute),
 		gribGridCache:    NewCache[*FieldGrid](gribGridCacheTTL),
 		gribPrecipCache:  NewCache[*PrecipitationForecastGrid](gribGridCacheTTL),
+		radarPrecipCache: NewCache[*PrecipitationForecastGrid](gribGridCacheTTL),
 	}
 }
 

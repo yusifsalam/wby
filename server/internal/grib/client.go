@@ -86,6 +86,17 @@ func NewPrecipitation(baseURL, file, param string, step int) *Client {
 	})
 }
 
+// NewRadar returns a Client for radar rain-rate GeoTIFF frames. gribsvc scales
+// those to mm/h and nulls nodata cells itself (per the frame sidecar), so no
+// conversion applies here. Frames are per-timestamp files, so callers use
+// GridForFile rather than the fixed-file Grid.
+func NewRadar(baseURL string, step int) *Client {
+	return newClient(baseURL, "", step, field{
+		param: "rr",
+		scale: 1,
+	})
+}
+
 func newClient(baseURL, file string, step int, f field) *Client {
 	if step < 1 {
 		step = 1
@@ -180,8 +191,12 @@ func (c *Client) Samples(ctx context.Context, minLon, minLat, maxLon, maxLat flo
 // fetchBBox posts the extract request and decodes the grid. ok is false (with a
 // nil error) on a soft miss — the file/field isn't available yet.
 func (c *Client) fetchBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) (bboxResponse, bool, error) {
+	return c.fetchBBoxFile(ctx, c.file, minLon, minLat, maxLon, maxLat, at)
+}
+
+func (c *Client) fetchBBoxFile(ctx context.Context, file string, minLon, minLat, maxLon, maxLat float64, at time.Time) (bboxResponse, bool, error) {
 	reqBody := bboxRequest{
-		File:  c.file,
+		File:  file,
 		Param: c.field.param,
 		BBox:  bbox{MinLon: minLon, MinLat: minLat, MaxLon: maxLon, MaxLat: maxLat},
 		Step:  c.step,
@@ -228,7 +243,14 @@ func (c *Client) fetchBBox(ctx context.Context, minLon, minLat, maxLon, maxLat f
 // emitted north-to-south (row 0 = MaxLat) regardless of the gribsvc order. Soft
 // misses (file/field not ready) return a nil grid and nil error.
 func (c *Client) Grid(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time) (*weather.FieldGrid, time.Time, error) {
-	out, ok, err := c.fetchBBox(ctx, minLon, minLat, maxLon, maxLat, at)
+	return c.GridForFile(ctx, c.file, minLon, minLat, maxLon, maxLat, at)
+}
+
+// GridForFile is Grid against an explicit gribsvc file name — used for
+// per-timestamp radar frames, where each instant is its own file and the
+// requested time is implied by the name (at stays zero).
+func (c *Client) GridForFile(ctx context.Context, file string, minLon, minLat, maxLon, maxLat float64, at time.Time) (*weather.FieldGrid, time.Time, error) {
+	out, ok, err := c.fetchBBoxFile(ctx, file, minLon, minLat, maxLon, maxLat, at)
 	if err != nil || !ok {
 		return nil, time.Time{}, err
 	}

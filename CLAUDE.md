@@ -133,6 +133,17 @@ carries the older `WeatherSymbol3` code for reference only.
 
 Radiation observations come from a separate query and are merged into the nearest station's data as a fallback when the primary station lacks a radiometer.
 
+### Open radar composites (openwms.fmi.fi)
+
+Keyless radar rain-rate composites (`Radar:suomi_rr_eureffin`, 5-min cadence)
+are fetched as EPSG:4326 **GeoTIFF data grids** via GetMap (`RADAR_FETCH_ENABLE=1`).
+The fetcher keeps a rolling ~70min window of frames (uint16, value÷100 = mm/h,
+65535 = outside coverage) plus JSON sidecars in the gribsvc volume; gribsvc
+parses them next to the GRIBs, and `/v1/map/precipitation/observed` serves the
+grid for past scrubber frames (iOS renders it client-side like the 12h
+forecast). This replaces the API-key WMS tiles for the observation half of the
+near-term precipitation scrubber; the +1h forecast half still uses the key.
+
 ### Timeseries (data.fmi.fi)
 
 UV forecast data is fetched from the Smartmet Timeseries API at `data.fmi.fi` using `producer=uv`. Requires `FMI_API_KEY` env var. When no API key is configured, UV data is gracefully skipped.

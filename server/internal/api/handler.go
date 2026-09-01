@@ -20,6 +20,7 @@ type WeatherService interface {
 	GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*weather.TemperatureSamplesResponse, error)
 	GetPrecipitationOverlay(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationOverlay, error)
 	GetPrecipitationForecastGrid(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationForecastGrid, error)
+	GetPrecipitationObservationGrid(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationForecastGrid, error)
 	GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*weather.Station, float64, []weather.ClimateNormal, weather.InterpolatedNormal, error)
 	GetLeaderboard(ctx context.Context, lat, lon float64, timeframe string) ([]weather.LeaderboardEntry, error)
 }
@@ -38,6 +39,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/map/temperature/samples", h.getTemperatureSamples)
 	mux.HandleFunc("GET /v1/map/precipitation", h.getPrecipitationOverlay)
 	mux.HandleFunc("GET /v1/map/precipitation/forecast", h.getPrecipitationForecastGrid)
+	mux.HandleFunc("GET /v1/map/precipitation/observed", h.getPrecipitationObservedGrid)
 	mux.HandleFunc("GET /v1/map/frames", h.getMapFrames)
 	mux.HandleFunc("GET /v1/climate-normals", h.getClimateNormals)
 	mux.HandleFunc("GET /v1/leaderboard", h.getLeaderboard)
