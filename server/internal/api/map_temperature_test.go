@@ -120,6 +120,10 @@ func (f fakeWeatherService) GetPrecipitationObservationGrid(ctx context.Context,
 	panic("not used in this test")
 }
 
+func (f fakeWeatherService) GetPrecipitationNowcastGrid(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationForecastGrid, error) {
+	panic("not used in this test")
+}
+
 func (f fakeWeatherService) GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*weather.Station, float64, []weather.ClimateNormal, weather.InterpolatedNormal, error) {
 	panic("not used in this test")
 }

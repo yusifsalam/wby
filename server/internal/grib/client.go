@@ -112,6 +112,28 @@ func newClient(baseURL, file string, step int, f field) *Client {
 	}
 }
 
+// RunNowcast asks gribsvc to (re)compute the radar extrapolation nowcast
+// frames from the observed frames on disk. Blocking but cheap (~seconds);
+// callers warm grids after it returns.
+func (c *Client) RunNowcast(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/nowcast/run", nil)
+	if err != nil {
+		return fmt.Errorf("build nowcast request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("call gribsvc nowcast: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return fmt.Errorf("gribsvc nowcast returned %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
 type bboxRequest struct {
 	File  string `json:"file"`
 	Param string `json:"param"`

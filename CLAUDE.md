@@ -139,10 +139,13 @@ Keyless radar rain-rate composites (`Radar:suomi_rr_eureffin`, 5-min cadence)
 are fetched as EPSG:4326 **GeoTIFF data grids** via GetMap (`RADAR_FETCH_ENABLE=1`).
 The fetcher keeps a rolling ~70min window of frames (uint16, value÷100 = mm/h,
 65535 = outside coverage) plus JSON sidecars in the gribsvc volume; gribsvc
-parses them next to the GRIBs, and `/v1/map/precipitation/observed` serves the
-grid for past scrubber frames (iOS renders it client-side like the 12h
-forecast). This replaces the API-key WMS tiles for the observation half of the
-near-term precipitation scrubber; the +1h forecast half still uses the key.
+parses them next to the GRIBs. After new frames land the server POSTs gribsvc
+`/nowcast/run`, which extrapolates the newest frames (OpenCV DIS optical flow
++ backward semi-Lagrangian advection, `gribsvc/app/nowcast.py`) into
+`nowcast_rr_*` frames out to +75min in the same encoding.
+`/v1/map/precipitation/observed` serves past scrubber frames and
+`/v1/map/precipitation/nowcast` future ones; clients render both client-side
+like the 12h forecast, falling back to the API-key WMS tiles only on a miss.
 
 ### Timeseries (data.fmi.fi)
 

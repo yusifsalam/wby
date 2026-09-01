@@ -43,8 +43,10 @@ func main() {
 	svc.SetPrecipitationStyle(cfg.FMIPrecipStyle)
 	svc.SetGribTemperatureSource(grib.New(cfg.GribsvcURL, cfg.GribFilename, cfg.GribTempParam, cfg.GribStep))
 	svc.SetGribPrecipitationSource(grib.NewPrecipitation(cfg.GribsvcURL, cfg.GribFilename, cfg.GribPrecipParam, cfg.GribPrecipStep))
+	var radarGrib *grib.Client
 	if cfg.RadarFetchEnable {
-		svc.SetRadarPrecipitationSource(grib.NewRadar(cfg.GribsvcURL, cfg.RadarGridStep))
+		radarGrib = grib.NewRadar(cfg.GribsvcURL, cfg.RadarGridStep)
+		svc.SetRadarPrecipitationSource(radarGrib)
 	}
 
 	f := fetcher.New(fmiClient, db)
@@ -68,8 +70,10 @@ func main() {
 			Width:   cfg.RadarWidth,
 			Height:  cfg.RadarHeight,
 			Span:    cfg.RadarFrameSpan,
+			Nowcast: radarGrib,
 		}, func(ctx context.Context) {
 			svc.WarmRadarGrids(ctx)
+			svc.WarmNowcastGrids(ctx)
 		})
 	}
 	// Disabled: bursts ~200 FMI WFS requests every 30min and on every restart,

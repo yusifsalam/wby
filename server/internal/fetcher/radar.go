@@ -29,6 +29,15 @@ type RadarJob struct {
 	Width   int
 	Height  int
 	Span    time.Duration // how far back frames are kept and backfilled
+
+	// Nowcast, when non-nil, is run after new frames land (and before
+	// onRefresh) so gribsvc re-extrapolates the forecast frames from them.
+	Nowcast NowcastRunner
+}
+
+// NowcastRunner triggers a gribsvc nowcast recompute.
+type NowcastRunner interface {
+	RunNowcast(ctx context.Context) error
 }
 
 // RunRadarLoop keeps the last Span of radar composite frames on disk: on each
@@ -85,6 +94,11 @@ func (f *Fetcher) fetchRadarWindow(ctx context.Context, radar *fmi.RadarClient, 
 
 	if fetched > 0 {
 		slog.Info("radar frames fetched", "frames", fetched, "duration", time.Since(start))
+		if job.Nowcast != nil {
+			if err := job.Nowcast.RunNowcast(ctx); err != nil {
+				slog.Error("nowcast run failed", "err", err)
+			}
+		}
 		if onRefresh != nil {
 			onRefresh(ctx)
 		}

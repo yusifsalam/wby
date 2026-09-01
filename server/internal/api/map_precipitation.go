@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -183,10 +184,31 @@ func (h *Handler) getPrecipitationForecastGrid(w http.ResponseWriter, r *http.Re
 	w.Write(body)
 }
 
-// getPrecipitationObservedGrid serves the keyless radar-composite rain-rate
-// raster for past scrubber frames, in the same response shape as the forecast
-// grid so clients render both through one texture path.
+// getPrecipitationObservedGrid serves the radar-composite rain-rate raster for
+// past scrubber frames, in the same response shape as the forecast grid so
+// clients render both through one texture path.
 func (h *Handler) getPrecipitationObservedGrid(w http.ResponseWriter, r *http.Request) {
+	h.servePrecipitationRadarGrid(w, r, "observed",
+		h.service.GetPrecipitationObservationGrid,
+		"public, max-age=120, stale-while-revalidate=300")
+}
+
+// getPrecipitationNowcastGrid serves the radar-extrapolation rain-rate raster
+// for future scrubber frames. Frames are re-predicted every run, so the cache
+// window is shorter than the observed grid's.
+func (h *Handler) getPrecipitationNowcastGrid(w http.ResponseWriter, r *http.Request) {
+	h.servePrecipitationRadarGrid(w, r, "nowcast",
+		h.service.GetPrecipitationNowcastGrid,
+		"public, max-age=60, stale-while-revalidate=120")
+}
+
+func (h *Handler) servePrecipitationRadarGrid(
+	w http.ResponseWriter,
+	r *http.Request,
+	kind string,
+	fetch func(context.Context, weather.PrecipitationOverlayRequest) (*weather.PrecipitationForecastGrid, error),
+	cacheControl string,
+) {
 	started := time.Now()
 	base, err := parseMapTemperatureRequest(r)
 	if err != nil {
@@ -195,7 +217,7 @@ func (h *Handler) getPrecipitationObservedGrid(w http.ResponseWriter, r *http.Re
 	}
 
 	// 5-min steps, matching the radar composite cadence. A zero target means
-	// "newest available frame" (resolved in the service).
+	// "newest / next frame" (resolved in the service).
 	const radarStep = 5 * time.Minute
 	var target time.Time
 	if raw := strings.TrimSpace(r.URL.Query().Get("time")); raw != "" {
@@ -219,18 +241,18 @@ func (h *Handler) getPrecipitationObservedGrid(w http.ResponseWriter, r *http.Re
 		if errText != "" {
 			attrs = append(attrs, "err", errText)
 		}
-		slog.Info("precipitation observed grid request completed", attrs...)
+		slog.Info("precipitation "+kind+" grid request completed", attrs...)
 	}()
 
-	result, err := h.service.GetPrecipitationObservationGrid(r.Context(), weather.PrecipitationOverlayRequest{
+	result, err := fetch(r.Context(), weather.PrecipitationOverlayRequest{
 		MapOverlayRequest: base,
 		Time:              target,
 	})
 	if err != nil {
 		if errors.Is(err, weather.ErrPrecipitationDisabled) {
 			status = http.StatusNotFound
-			errText = "precipitation observation not available"
-			writeJSONError(w, "precipitation observation not available", http.StatusNotFound)
+			errText = "precipitation " + kind + " not available"
+			writeJSONError(w, errText, http.StatusNotFound)
 			return
 		}
 		if isClientCanceled(err) {
@@ -240,7 +262,7 @@ func (h *Handler) getPrecipitationObservedGrid(w http.ResponseWriter, r *http.Re
 		}
 		status = http.StatusBadGateway
 		errText = err.Error()
-		slog.Error("get precipitation observed grid failed", "err", err, "time", target)
+		slog.Error("get precipitation "+kind+" grid failed", "err", err, "time", target)
 		writeJSONError(w, "grid unavailable", http.StatusBadGateway)
 		return
 	}
@@ -254,13 +276,13 @@ func (h *Handler) getPrecipitationObservedGrid(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		status = http.StatusBadGateway
 		errText = err.Error()
-		slog.Error("marshal precipitation observed grid failed", "err", err)
+		slog.Error("marshal precipitation "+kind+" grid failed", "err", err)
 		writeJSONError(w, "grid unavailable", http.StatusBadGateway)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=120, stale-while-revalidate=300")
+	w.Header().Set("Cache-Control", cacheControl)
 	w.Header().Set("X-Data-Time", result.DataTime.UTC().Format(time.RFC3339))
 	w.Write(body)
 }
