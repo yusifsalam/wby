@@ -1,6 +1,10 @@
 package weather
 
-import "time"
+import (
+	"math"
+	"strconv"
+	"time"
+)
 
 const DefaultPlaceTimezone = "Europe/Helsinki"
 
@@ -155,8 +159,36 @@ type FieldGrid struct {
 	MaxLat     float64
 	MinLon     float64
 	MaxLon     float64
-	Values     []*float64
+	Values     []float32 // row-major, NaN = masked
 	ObservedAt time.Time
+}
+
+// GridRange returns the min and max over the grid's valid (non-NaN) cells, or
+// (0, 0) when the grid is entirely masked.
+func (g *FieldGrid) GridRange() (float64, float64) {
+	minV, maxV := float32(math.Inf(1)), float32(math.Inf(-1))
+	for _, v := range g.Values {
+		if v != v {
+			continue
+		}
+		if v < minV {
+			minV = v
+		}
+		if v > maxV {
+			maxV = v
+		}
+	}
+	if math.IsInf(float64(minV), 1) {
+		return 0, 0
+	}
+	return widen(minV), widen(maxV)
+}
+
+// widen converts a float32 to the float64 with the same shortest decimal
+// representation (3.2 rather than 3.200000047683716).
+func widen(v float32) float64 {
+	f, _ := strconv.ParseFloat(strconv.FormatFloat(float64(v), 'g', -1, 32), 64)
+	return f
 }
 
 type TemperatureOverlay struct {

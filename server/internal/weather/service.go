@@ -583,21 +583,7 @@ func pruneWarmCache[V any](cache *Cache[V], key func(time.Time) string, hours []
 // temperatureGridResponse builds a samples response carrying the dense GRIB
 // raster (Samples left empty; clients use Grid). Min/max are over valid cells.
 func temperatureGridResponse(grid *FieldGrid) *TemperatureSamplesResponse {
-	minTemp, maxTemp := math.Inf(1), math.Inf(-1)
-	for _, v := range grid.Values {
-		if v == nil {
-			continue
-		}
-		if *v < minTemp {
-			minTemp = *v
-		}
-		if *v > maxTemp {
-			maxTemp = *v
-		}
-	}
-	if math.IsInf(minTemp, 1) {
-		minTemp, maxTemp = 0, 0
-	}
+	minTemp, maxTemp := grid.GridRange()
 	return &TemperatureSamplesResponse{
 		DataTime: grid.ObservedAt.UTC().Truncate(time.Second),
 		MinTemp:  minTemp,

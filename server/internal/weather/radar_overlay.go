@@ -96,7 +96,7 @@ func (s *Service) fetchRadarGrid(ctx context.Context, at time.Time) (*Precipitat
 		validTime = at
 	}
 
-	minV, maxV := fieldGridRange(grid)
+	minV, maxV := grid.GridRange()
 	out := &PrecipitationForecastGrid{
 		DataTime: validTime.UTC().Truncate(time.Second),
 		Min:      minV,
@@ -158,7 +158,7 @@ func (s *Service) fetchNowcastGrid(ctx context.Context, at time.Time) (*Precipit
 		validTime = at
 	}
 
-	minV, maxV := fieldGridRange(grid)
+	minV, maxV := grid.GridRange()
 	out := &PrecipitationForecastGrid{
 		DataTime: validTime.UTC().Truncate(time.Second),
 		Min:      minV,

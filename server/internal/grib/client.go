@@ -365,7 +365,7 @@ func (c *Client) buildGrid(gridValues [][]*float64, lats, lons [][]float64, vali
 
 	northToSouth := lats[0][0] >= lats[rows-1][0]
 
-	values := make([]*float64, 0, rows*cols)
+	values := make([]float32, 0, rows*cols)
 	for r := 0; r < rows; r++ {
 		src := r
 		if !northToSouth {
@@ -373,11 +373,10 @@ func (c *Client) buildGrid(gridValues [][]*float64, lats, lons [][]float64, vali
 		}
 		row := gridValues[src]
 		for j := 0; j < cols; j++ {
-			var cell *float64
+			cell := float32(math.NaN())
 			if j < len(row) {
 				if v := row[j]; v != nil && !(c.field.missingAbove > 0 && *v >= c.field.missingAbove) {
-					converted := *v*c.field.scale + c.field.offset
-					cell = &converted
+					cell = float32(*v*c.field.scale + c.field.offset)
 				}
 			}
 			values = append(values, cell)

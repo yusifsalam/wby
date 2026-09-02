@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math"
 	"time"
 )
 
@@ -75,7 +74,7 @@ func (s *Service) fetchPrecipitationGrid(ctx context.Context, target time.Time) 
 		validTime = target
 	}
 
-	minV, maxV := fieldGridRange(grid)
+	minV, maxV := grid.GridRange()
 	out := &PrecipitationForecastGrid{
 		DataTime: validTime.UTC().Truncate(time.Second),
 		Min:      minV,
@@ -118,7 +117,7 @@ func (s *Service) warmPrecipitationHours(ctx context.Context, hours []time.Time)
 			return s.gribPrecip.GridSeries(ctx, precipGridMinLon, precipGridMinLat, precipGridMaxLon, precipGridMaxLat, times)
 		},
 		func(grid *FieldGrid) {
-			minV, maxV := fieldGridRange(grid)
+			minV, maxV := grid.GridRange()
 			validTime := grid.ObservedAt.UTC()
 			s.gribPrecipCache.Set(gribPrecipGridKey(validTime.Truncate(time.Hour)), &PrecipitationForecastGrid{
 				DataTime: validTime.Truncate(time.Second),
@@ -136,25 +135,4 @@ func (s *Service) warmPrecipitationHours(ctx context.Context, hours []time.Time)
 
 func gribPrecipGridKey(hour time.Time) string {
 	return "gribprecipgrid:" + hour.Format(time.RFC3339)
-}
-
-// fieldGridRange returns the min and max over the grid's valid (non-nil) cells,
-// or (0, 0) when the grid is entirely masked.
-func fieldGridRange(grid *FieldGrid) (float64, float64) {
-	minV, maxV := math.Inf(1), math.Inf(-1)
-	for _, v := range grid.Values {
-		if v == nil {
-			continue
-		}
-		if *v < minV {
-			minV = *v
-		}
-		if *v > maxV {
-			maxV = *v
-		}
-	}
-	if math.IsInf(minV, 1) {
-		return 0, 0
-	}
-	return minV, maxV
 }

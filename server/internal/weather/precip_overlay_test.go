@@ -3,6 +3,7 @@ package weather
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 )
@@ -58,7 +59,7 @@ func TestGetPrecipitationForecastGrid_RangeAndCache(t *testing.T) {
 		grid: &FieldGrid{
 			Rows: 2, Cols: 2,
 			MinLat: 60, MaxLat: 60.1, MinLon: 24, MaxLon: 24.1,
-			Values:     []*float64{ptr(0.0), ptr(3.2), nil, ptr(0.6)},
+			Values:     []float32{0, 3.2, float32(math.NaN()), 0.6},
 			ObservedAt: at,
 		},
 		validTime: at,

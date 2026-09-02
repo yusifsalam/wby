@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"strconv"
 	"time"
 
 	"wby/internal/weather"
@@ -32,13 +33,34 @@ type temperatureSampleJSON struct {
 // regular lat/lon grid, row-major north-to-south (row 0 = max_lat), west-to-east,
 // length rows*cols, in the field's units (°C or mm/h); null = masked.
 type fieldGridJSON struct {
-	Rows   int        `json:"rows"`
-	Cols   int        `json:"cols"`
-	MinLat float64    `json:"min_lat"`
-	MaxLat float64    `json:"max_lat"`
-	MinLon float64    `json:"min_lon"`
-	MaxLon float64    `json:"max_lon"`
-	Values []*float64 `json:"values"`
+	Rows   int            `json:"rows"`
+	Cols   int            `json:"cols"`
+	MinLat float64        `json:"min_lat"`
+	MaxLat float64        `json:"max_lat"`
+	MinLon float64        `json:"min_lon"`
+	MaxLon float64        `json:"max_lon"`
+	Values gridValuesJSON `json:"values"`
+}
+
+// gridValuesJSON encodes a FieldGrid's cells as a JSON array of numbers rounded
+// to 0.1 (plenty for an overlay, and roughly halves the payload) with null for
+// masked (NaN) cells.
+type gridValuesJSON []float32
+
+func (v gridValuesJSON) MarshalJSON() ([]byte, error) {
+	buf := make([]byte, 0, 1+len(v)*6)
+	buf = append(buf, '[')
+	for i, cell := range v {
+		if i > 0 {
+			buf = append(buf, ',')
+		}
+		if cell != cell {
+			buf = append(buf, "null"...)
+			continue
+		}
+		buf = strconv.AppendFloat(buf, math.Round(float64(cell)*10)/10, 'f', -1, 64)
+	}
+	return append(buf, ']'), nil
 }
 
 func (h *Handler) getTemperatureSamples(w http.ResponseWriter, r *http.Request) {
@@ -135,19 +157,10 @@ func buildTemperatureSamplesJSON(resp *weather.TemperatureSamplesResponse) tempe
 	}
 }
 
-// buildFieldGridJSON converts a FieldGrid to its wire form, rounding values to
-// 0.1 — plenty for an overlay and roughly halves the payload.
+// buildFieldGridJSON converts a FieldGrid to its wire form.
 func buildFieldGridJSON(grid *weather.FieldGrid) *fieldGridJSON {
 	if grid == nil {
 		return nil
-	}
-	values := make([]*float64, len(grid.Values))
-	for i, v := range grid.Values {
-		if v == nil {
-			continue
-		}
-		rounded := math.Round(*v*10) / 10
-		values[i] = &rounded
 	}
 	return &fieldGridJSON{
 		Rows:   grid.Rows,
@@ -156,6 +169,6 @@ func buildFieldGridJSON(grid *weather.FieldGrid) *fieldGridJSON {
 		MaxLat: grid.MaxLat,
 		MinLon: grid.MinLon,
 		MaxLon: grid.MaxLon,
-		Values: values,
+		Values: gridValuesJSON(grid.Values),
 	}
 }

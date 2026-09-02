@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -214,5 +215,21 @@ func TestGetTemperatureSamples_ETagChangesWhenSamplesChange(t *testing.T) {
 	}
 	if etag1 == etag2 {
 		t.Fatalf("expected ETag to change when payload changes; got %s", etag1)
+	}
+}
+
+func TestFieldGridJSON_ValuesWireFormat(t *testing.T) {
+	grid := &weather.FieldGrid{
+		Rows: 2, Cols: 2,
+		MinLat: 60, MaxLat: 60.1, MinLon: 24, MaxLon: 24.1,
+		Values: []float32{1.25, float32(math.NaN()), -3.14, 0},
+	}
+	body, err := json.Marshal(buildFieldGridJSON(grid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"rows":2,"cols":2,"min_lat":60,"max_lat":60.1,"min_lon":24,"max_lon":24.1,"values":[1.3,null,-3.1,0]}`
+	if string(body) != want {
+		t.Fatalf("got %s\nwant %s", body, want)
 	}
 }

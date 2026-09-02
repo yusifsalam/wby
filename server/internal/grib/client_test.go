@@ -145,18 +145,18 @@ func TestGridFlipsConvertsAndMasks(t *testing.T) {
 		t.Fatalf("unexpected lat bounds: %v..%v", grid.MinLat, grid.MaxLat)
 	}
 	// Row 0 must now be the northern row (lat 60.1): 283.15K->10C, 300.65K->27.5C.
-	if grid.Values[0] == nil || math.Abs(*grid.Values[0]-10.0) > 1e-6 {
+	if math.Abs(float64(grid.Values[0])-10.0) > 1e-4 {
 		t.Fatalf("expected north-west cell 10.0C, got %v", grid.Values[0])
 	}
-	if grid.Values[1] == nil || math.Abs(*grid.Values[1]-27.5) > 1e-6 {
+	if math.Abs(float64(grid.Values[1])-27.5) > 1e-4 {
 		t.Fatalf("expected north-east cell 27.5C, got %v", grid.Values[1])
 	}
-	// Southern row (originally row 0): 293.15K->20C, then the fill sentinel -> nil.
-	if grid.Values[2] == nil || math.Abs(*grid.Values[2]-20.0) > 1e-6 {
+	// Southern row (originally row 0): 293.15K->20C, then the fill sentinel -> NaN.
+	if math.Abs(float64(grid.Values[2])-20.0) > 1e-4 {
 		t.Fatalf("expected south-west cell 20.0C, got %v", grid.Values[2])
 	}
-	if grid.Values[3] != nil {
-		t.Fatalf("expected south-east fill cell to be nil, got %v", *grid.Values[3])
+	if !math.IsNaN(float64(grid.Values[3])) {
+		t.Fatalf("expected south-east fill cell to be NaN, got %v", grid.Values[3])
 	}
 }
 
@@ -204,12 +204,12 @@ func TestGridSeriesReturnsFrameGrids(t *testing.T) {
 		t.Fatalf("unexpected valid times: %v, %v", grids[0].ObservedAt, grids[1].ObservedAt)
 	}
 	// Frame 1, row 0 must be the northern row: 284.15K -> 11C.
-	if got := grids[1].Values[0]; got == nil || math.Abs(*got-11.0) > 1e-6 {
+	if got := grids[1].Values[0]; math.Abs(float64(got)-11.0) > 1e-4 {
 		t.Fatalf("expected north-west cell 11.0C, got %v", got)
 	}
-	// Frame 1's fill sentinel (southern row after the flip) must be nil.
-	if got := grids[1].Values[3]; got != nil {
-		t.Fatalf("expected fill cell to be nil, got %v", *got)
+	// Frame 1's fill sentinel (southern row after the flip) must be NaN.
+	if got := grids[1].Values[3]; !math.IsNaN(float64(got)) {
+		t.Fatalf("expected fill cell to be NaN, got %v", got)
 	}
 }
 

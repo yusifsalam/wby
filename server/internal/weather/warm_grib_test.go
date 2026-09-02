@@ -25,7 +25,7 @@ func (c *countingTempSource) Grid(ctx context.Context, minLon, minLat, maxLon, m
 	c.mu.Unlock()
 	return &FieldGrid{
 		Rows: 1, Cols: 1,
-		Values:     []*float64{ptr(1.0)},
+		Values:     []float32{1},
 		ObservedAt: at,
 	}, at, nil
 }
@@ -44,7 +44,7 @@ func (c *countingTempSource) GridSeries(ctx context.Context, minLon, minLat, max
 	for _, at := range times {
 		grids = append(grids, &FieldGrid{
 			Rows: 1, Cols: 1,
-			Values:     []*float64{ptr(1.0)},
+			Values:     []float32{1},
 			ObservedAt: at,
 		})
 	}
@@ -110,7 +110,7 @@ func TestWarmTemperatureGrids_PrunesHoursOutsideWindowAndKeepsCurrent(t *testing
 	svc := newWarmTestService(src)
 	base := time.Now().UTC().Truncate(time.Hour)
 	stale := base.Add(-2 * time.Hour)
-	svc.gribGridCache.Set(gribTempGridKey(stale), &FieldGrid{Rows: 1, Cols: 1, Values: []*float64{ptr(9.0)}})
+	svc.gribGridCache.Set(gribTempGridKey(stale), &FieldGrid{Rows: 1, Cols: 1, Values: []float32{9}})
 
 	svc.WarmTemperatureGrids(context.Background())
 	if grid := svc.gribTemperatureGrid(stale); grid != nil {
@@ -178,7 +178,7 @@ func (o orderedSource) GridSeries(ctx context.Context, minLon, minLat, maxLon, m
 	*o.log = append(*o.log, o.name)
 	grids := make([]*FieldGrid, 0, len(times))
 	for _, at := range times {
-		grids = append(grids, &FieldGrid{Rows: 1, Cols: 1, Values: []*float64{ptr(1.0)}, ObservedAt: at})
+		grids = append(grids, &FieldGrid{Rows: 1, Cols: 1, Values: []float32{1}, ObservedAt: at})
 	}
 	return grids, nil
 }
@@ -258,7 +258,7 @@ func (c *countingPrecipSource) Grid(ctx context.Context, minLon, minLat, maxLon,
 	c.mu.Unlock()
 	return &FieldGrid{
 		Rows: 1, Cols: 1,
-		Values:     []*float64{ptr(0.5)},
+		Values:     []float32{0.5},
 		ObservedAt: at,
 	}, at, nil
 }
@@ -275,7 +275,7 @@ func (c *countingPrecipSource) GridSeries(ctx context.Context, minLon, minLat, m
 	for _, at := range times {
 		grids = append(grids, &FieldGrid{
 			Rows: 1, Cols: 1,
-			Values:     []*float64{ptr(0.5)},
+			Values:     []float32{0.5},
 			ObservedAt: at,
 		})
 	}

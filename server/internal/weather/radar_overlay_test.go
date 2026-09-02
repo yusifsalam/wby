@@ -2,6 +2,7 @@ package weather
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 )
@@ -22,7 +23,7 @@ func (f *fakeRadarSource) GridForFile(ctx context.Context, file string, minLon, 
 }
 
 func radarTestGrid(v float64) *FieldGrid {
-	return &FieldGrid{Rows: 1, Cols: 2, Values: []*float64{&v, nil}}
+	return &FieldGrid{Rows: 1, Cols: 2, Values: []float32{float32(v), float32(math.NaN())}}
 }
 
 func newRadarTestService() *Service {
