@@ -131,6 +131,10 @@ func (f fakeWeatherService) GetClimateNormals(ctx context.Context, lat, lon floa
 	panic("not used in this test")
 }
 
+func (f fakeWeatherService) GetDailyClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64, now time.Time) (*weather.DailyNormalsResult, error) {
+	return nil, nil
+}
+
 func (f fakeWeatherService) GetLeaderboard(ctx context.Context, lat, lon float64, timeframe string) ([]weather.LeaderboardEntry, error) {
 	panic("not used in this test")
 }

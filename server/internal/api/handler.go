@@ -23,6 +23,7 @@ type WeatherService interface {
 	GetPrecipitationObservationGrid(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationForecastGrid, error)
 	GetPrecipitationNowcastGrid(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationForecastGrid, error)
 	GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*weather.Station, float64, []weather.ClimateNormal, weather.InterpolatedNormal, error)
+	GetDailyClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64, now time.Time) (*weather.DailyNormalsResult, error)
 	GetLeaderboard(ctx context.Context, lat, lon float64, timeframe string) ([]weather.LeaderboardEntry, error)
 }
 
@@ -44,6 +45,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/map/precipitation/nowcast", h.getPrecipitationNowcastGrid)
 	mux.HandleFunc("GET /v1/map/frames", h.getMapFrames)
 	mux.HandleFunc("GET /v1/climate-normals", h.getClimateNormals)
+	mux.HandleFunc("GET /v1/climate-normals/daily", h.getDailyClimateNormals)
 	mux.HandleFunc("GET /v1/leaderboard", h.getLeaderboard)
 	mux.HandleFunc("GET /health", h.health)
 }
@@ -308,6 +310,82 @@ type monthlyNormalJSON struct {
 	TempHigh *float64 `json:"temp_high"`
 	TempLow  *float64 `json:"temp_low"`
 	PrecipMm *float64 `json:"precip_mm"`
+}
+
+type dailyNormalsJSON struct {
+	Station stationJSON          `json:"station"`
+	Period  string               `json:"period"`
+	Today   dailyNormalTodayJSON `json:"today"`
+	Daily   []dailyNormalJSON    `json:"daily"`
+}
+
+type dailyNormalJSON struct {
+	Month    int      `json:"month"`
+	Day      int      `json:"day"`
+	TempAvg  *float64 `json:"temp_avg"`
+	TempHigh *float64 `json:"temp_high"`
+	TempLow  *float64 `json:"temp_low"`
+	PrecipMm *float64 `json:"precip_mm"`
+}
+
+type dailyNormalTodayJSON struct {
+	dailyNormalJSON
+	TempHourly    []float64 `json:"temp_hourly"`
+	TempNowNormal *float64  `json:"temp_now_normal"`
+	TempDiff      *float64  `json:"temp_diff"`
+}
+
+func (h *Handler) getDailyClimateNormals(w http.ResponseWriter, r *http.Request) {
+	lat, err := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
+	if err != nil {
+		writeJSONError(w, "invalid lat parameter", http.StatusBadRequest)
+		return
+	}
+	lon, err := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
+	if err != nil {
+		writeJSONError(w, "invalid lon parameter", http.StatusBadRequest)
+		return
+	}
+	var currentTemp *float64
+	if ct := r.URL.Query().Get("current_temp"); ct != "" {
+		if v, err := strconv.ParseFloat(ct, 64); err == nil {
+			currentTemp = &v
+		}
+	}
+
+	res, err := h.service.GetDailyClimateNormals(r.Context(), lat, lon, currentTemp, time.Now())
+	if err != nil {
+		slog.Error("daily climate normals", "err", err)
+		writeJSONError(w, "failed to get daily climate normals", http.StatusInternalServerError)
+		return
+	}
+	if res == nil {
+		writeJSONError(w, "no daily climate normals available for this location", http.StatusNotFound)
+		return
+	}
+
+	toJSON := func(n weather.DailyClimateNormal) dailyNormalJSON {
+		return dailyNormalJSON{Month: n.Month, Day: n.Day, TempAvg: n.TempAvg, TempHigh: n.TempHigh, TempLow: n.TempLow, PrecipMm: n.PrecipMm}
+	}
+	daily := make([]dailyNormalJSON, len(res.Daily))
+	for i, n := range res.Daily {
+		daily[i] = toJSON(n)
+	}
+	resp := dailyNormalsJSON{
+		Station: stationJSON{Name: res.Station.Name, DistanceKM: res.DistanceKM},
+		Period:  res.Period,
+		Today: dailyNormalTodayJSON{
+			dailyNormalJSON: toJSON(res.Today),
+			TempHourly:      res.Today.TempHourly,
+			TempNowNormal:   res.TempNowNormal,
+			TempDiff:        res.TempDiff,
+		},
+		Daily: daily,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *Handler) getClimateNormals(w http.ResponseWriter, r *http.Request) {

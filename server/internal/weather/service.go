@@ -22,6 +22,9 @@ const (
 
 var ErrOutOfCoverage = errors.New("location outside coverage area")
 
+// ErrNoStation is returned by store lookups that found no matching station.
+var ErrNoStation = errors.New("no station found")
+
 // ErrForecastGridUnavailable is returned for a future-time temperature request
 // whose hourly GRIB frame isn't in the warmed cache.
 var ErrForecastGridUnavailable = errors.New("forecast grid not available")
@@ -39,6 +42,9 @@ type WeatherStore interface {
 	UpsertClimateNormals(ctx context.Context, normals []ClimateNormal) error
 	GetClimateNormals(ctx context.Context, fmisid int, period string) ([]ClimateNormal, error)
 	NearestStationWithClimateNormals(ctx context.Context, lat, lon float64, period string) (Station, float64, error)
+	NearestStationWithDailyClimateNormals(ctx context.Context, lat, lon float64, period string) (Station, float64, error)
+	GetDailyClimateNormals(ctx context.Context, fmisid int, period string) ([]DailyClimateNormal, error)
+	UpsertDailyClimateNormals(ctx context.Context, normals []DailyClimateNormal) error
 	GetLeaderboard(ctx context.Context, lat, lon float64, timeframe string) ([]LeaderboardEntry, error)
 }
 
@@ -716,6 +722,69 @@ func applyUVToDaily(uvPoints []UVDataPoint, forecasts []DailyForecast) {
 }
 
 const maxClimateNormalsDistanceKm = 50.0
+
+const dailyNormalsPeriod = "1991-2020"
+
+// GetDailyClimateNormals serves the day-of-year normals computed from station
+// history. A nil result with a nil error means no station within range has
+// them.
+func (s *Service) GetDailyClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64, now time.Time) (*DailyNormalsResult, error) {
+	station, distKm, err := s.store.NearestStationWithDailyClimateNormals(ctx, lat, lon, dailyNormalsPeriod)
+	if errors.Is(err, ErrNoStation) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("nearest station with daily climate normals: %w", err)
+	}
+	if distKm > maxClimateNormalsDistanceKm {
+		return nil, nil
+	}
+
+	normals, err := s.store.GetDailyClimateNormals(ctx, station.FMISID, dailyNormalsPeriod)
+	if err != nil {
+		return nil, fmt.Errorf("get daily climate normals: %w", err)
+	}
+	if len(normals) == 0 {
+		return nil, nil
+	}
+
+	loc, err := time.LoadLocation(DefaultPlaceTimezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	local := now.In(loc)
+	todayIdx := -1
+	for i, n := range normals {
+		if n.Month == int(local.Month()) && n.Day == local.Day() {
+			todayIdx = i
+			break
+		}
+	}
+	if todayIdx < 0 {
+		return nil, fmt.Errorf("no daily normal for %s", local.Format("01-02"))
+	}
+	today := normals[todayIdx]
+	var next []float64
+	if todayIdx+1 < len(normals) {
+		next = normals[todayIdx+1].TempHourly
+	} else {
+		next = normals[0].TempHourly
+	}
+
+	res := &DailyNormalsResult{
+		Station:       station,
+		DistanceKM:    distKm,
+		Period:        dailyNormalsPeriod,
+		Today:         today,
+		TempNowNormal: HourlyNormalAt(today.TempHourly, next, now),
+		Daily:         normals,
+	}
+	if currentTemp != nil && res.TempNowNormal != nil {
+		diff := *currentTemp - *res.TempNowNormal
+		res.TempDiff = &diff
+	}
+	return res, nil
+}
 
 func (s *Service) GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*Station, float64, []ClimateNormal, InterpolatedNormal, error) {
 	station, distKm, err := s.store.NearestStationWithClimateNormals(ctx, lat, lon, "1991-2020")

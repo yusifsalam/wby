@@ -218,6 +218,43 @@ type ClimateNormal struct {
 	PrecipMm *float64
 }
 
+type DailyClimateNormal struct {
+	FMISID   int
+	Period   string
+	Month    int
+	Day      int
+	TempAvg  *float64
+	TempHigh *float64
+	TempLow  *float64
+	PrecipMm *float64
+	// TempHourly holds the mean temperature per UTC hour (24 entries); nil
+	// when the station lacks an hourly record for the period.
+	TempHourly []float64
+}
+
+type DailyRecord struct {
+	Date     time.Time
+	TempAvg  *float64
+	TempHigh *float64
+	TempLow  *float64
+	PrecipMm *float64
+}
+
+type HourlyRecord struct {
+	Time time.Time
+	Temp float64
+}
+
+type DailyNormalsResult struct {
+	Station       Station
+	DistanceKM    float64
+	Period        string
+	Today         DailyClimateNormal
+	TempNowNormal *float64
+	TempDiff      *float64
+	Daily         []DailyClimateNormal
+}
+
 type InterpolatedNormal struct {
 	TempAvg     *float64
 	TempHigh    *float64

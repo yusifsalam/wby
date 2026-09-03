@@ -113,6 +113,8 @@ Migrations in `server/migrations/` (numbered SQL files, applied sequentially by 
 - `observations` — foreign key to stations, timestamped weather parameters + `extra` JSONB
 - `forecasts` — keyed by grid lat/lon + date, 20+ forecast parameter columns
 - `hourly_forecasts` — keyed by grid lat/lon + forecast time
+- `climate_normals` — FMI's published monthly 1991–2020 normals (`cmd/import-normals`), served by `/v1/climate-normals`
+- `daily_climate_normals` — per calendar day (month+day, incl. 29 Feb) + 24-hour UTC curve, computed from station history by `cmd/import-daily-normals` (only Kaisaniemi so far), served by `/v1/climate-normals/daily`. Both endpoints stay so the app can show v1 and v2 side by side.
 
 ## FMI Data Sources
 

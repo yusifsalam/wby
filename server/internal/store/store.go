@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -622,6 +623,73 @@ func timeframeToInterval(tf string) string {
 	default:
 		return "2 hours"
 	}
+}
+
+func (s *Store) NearestStationWithDailyClimateNormals(ctx context.Context, lat, lon float64, period string) (weather.Station, float64, error) {
+	var st weather.Station
+	var distMeters float64
+	err := s.pool.QueryRow(ctx,
+		`SELECT s.fmisid, s.name, ST_Y(s.geom::geometry), ST_X(s.geom::geometry), s.wmo_code,
+		        ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography)
+		 FROM stations s
+		 WHERE EXISTS (SELECT 1 FROM daily_climate_normals n WHERE n.fmisid = s.fmisid AND n.period = $3)
+		 ORDER BY s.geom <-> ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
+		 LIMIT 1`,
+		lon, lat, period,
+	).Scan(&st.FMISID, &st.Name, &st.Lat, &st.Lon, &st.WMOCode, &distMeters)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return st, 0, weather.ErrNoStation
+	}
+	if err != nil {
+		return st, 0, fmt.Errorf("nearest station with daily climate normals: %w", err)
+	}
+	return st, distMeters / 1000, nil
+}
+
+func (s *Store) UpsertDailyClimateNormals(ctx context.Context, normals []weather.DailyClimateNormal) error {
+	batch := &pgx.Batch{}
+	for _, n := range normals {
+		batch.Queue(`
+			INSERT INTO daily_climate_normals (fmisid, period, month, day, temp_avg, temp_high, temp_low, precip_mm, temp_hourly)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (fmisid, period, month, day) DO UPDATE SET
+				temp_avg = EXCLUDED.temp_avg,
+				temp_high = EXCLUDED.temp_high,
+				temp_low = EXCLUDED.temp_low,
+				precip_mm = EXCLUDED.precip_mm,
+				temp_hourly = EXCLUDED.temp_hourly`,
+			n.FMISID, n.Period, n.Month, n.Day, n.TempAvg, n.TempHigh, n.TempLow, n.PrecipMm, n.TempHourly)
+	}
+	br := s.pool.SendBatch(ctx, batch)
+	defer br.Close()
+	for range normals {
+		if _, err := br.Exec(); err != nil {
+			return fmt.Errorf("upsert daily climate normals: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *Store) GetDailyClimateNormals(ctx context.Context, fmisid int, period string) ([]weather.DailyClimateNormal, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT fmisid, period, month, day, temp_avg, temp_high, temp_low, precip_mm, temp_hourly
+		FROM daily_climate_normals
+		WHERE fmisid = $1 AND period = $2
+		ORDER BY month, day`, fmisid, period)
+	if err != nil {
+		return nil, fmt.Errorf("get daily climate normals: %w", err)
+	}
+	defer rows.Close()
+
+	var normals []weather.DailyClimateNormal
+	for rows.Next() {
+		var n weather.DailyClimateNormal
+		if err := rows.Scan(&n.FMISID, &n.Period, &n.Month, &n.Day, &n.TempAvg, &n.TempHigh, &n.TempLow, &n.PrecipMm, &n.TempHourly); err != nil {
+			return nil, fmt.Errorf("scan daily climate normal: %w", err)
+		}
+		normals = append(normals, n)
+	}
+	return normals, rows.Err()
 }
 
 func (s *Store) GetClimateNormals(ctx context.Context, fmisid int, period string) ([]weather.ClimateNormal, error) {
