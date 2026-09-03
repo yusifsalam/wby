@@ -7,11 +7,35 @@ struct DailyClimateNormalsCard: View {
     let todayWeatherLow: Double?
     let timeZone: TimeZone
 
+    enum Mode: String, CaseIterable, Identifiable {
+        case daily = "Daily"
+        case hourly = "Hourly"
+
+        var id: String { rawValue }
+    }
+
+    @State private var mode: Mode = .daily
+
+    private var hasHourly: Bool { normals.today.tempHourly?.count == 24 }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("CLIMATE NORMALS · DAILY", systemImage: "thermometer.medium")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(alignment: .center) {
+                Label("CLIMATE NORMALS · \(mode.rawValue.uppercased())", systemImage: "thermometer.medium")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if hasHourly {
+                    Picker("Normals mode", selection: $mode) {
+                        ForEach(Mode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .controlSize(.mini)
+                    .fixedSize()
+                }
+            }
 
             Text("\(normals.station.name) · \(normals.period)")
                 .font(.caption2)
@@ -19,7 +43,8 @@ struct DailyClimateNormalsCard: View {
 
             comparisonRows
 
-            NormalsTemperatureChart(data: chartData)
+            NormalsTemperatureChart(data: mode == .hourly && hasHourly ? hourlyChartData : dailyChartData)
+                .animation(.easeInOut(duration: 0.25), value: mode)
         }
         .weatherCard()
     }
@@ -85,10 +110,14 @@ struct DailyClimateNormalsCard: View {
 
     // MARK: - Chart Data
 
-    private var chartData: NormalsTemperatureChart.Data {
+    private var localCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
+        return calendar
+    }
 
+    private var dailyChartData: NormalsTemperatureChart.Data {
+        let calendar = localCalendar
         let now = Date()
         let month = calendar.component(.month, from: now)
         let todayDay = calendar.component(.day, from: now)
@@ -105,10 +134,34 @@ struct DailyClimateNormalsCard: View {
             highs: highs,
             lows: lows,
             avgs: avgs,
+            xLabels: NormalsTemperatureChart.Data.dayLabels(count: days.count),
             todayIndex: todayIndex,
             currentTemp: currentTemp,
             todayWeatherHigh: todayWeatherHigh,
             todayWeatherLow: todayWeatherLow
+        )
+    }
+
+    private var hourlyChartData: NormalsTemperatureChart.Data {
+        let now = Date()
+        let utcHourly = normals.today.tempHourly ?? []
+        let offsetHours = Int((Double(timeZone.secondsFromGMT(for: now)) / 3600).rounded())
+        let localHourly = (0..<24).map { hour -> Double in
+            guard utcHourly.count == 24 else { return 0 }
+            let utcHour = ((hour - offsetHours) % 24 + 24) % 24
+            return utcHourly[utcHour]
+        }
+        let currentHour = localCalendar.component(.hour, from: now)
+
+        return NormalsTemperatureChart.Data(
+            highs: [],
+            lows: [],
+            avgs: localHourly,
+            xLabels: NormalsTemperatureChart.Data.hourLabels(),
+            todayIndex: currentHour,
+            currentTemp: currentTemp,
+            todayWeatherHigh: nil,
+            todayWeatherLow: nil
         )
     }
 }

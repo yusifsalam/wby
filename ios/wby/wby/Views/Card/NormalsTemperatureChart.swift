@@ -2,24 +2,43 @@ import SwiftUI
 
 struct NormalsTemperatureChart: View {
     struct Data {
+        struct XLabel: Hashable {
+            let index: Int
+            let text: String
+        }
+
         let highs: [Double]
         let lows: [Double]
         let avgs: [Double]
+        let xLabels: [XLabel]
         let todayIndex: Int
         let currentTemp: Double?
         let todayWeatherHigh: Double?
         let todayWeatherLow: Double?
 
+        var hasBand: Bool { highs.count == avgs.count && lows.count == avgs.count && !avgs.isEmpty }
+
         var tempMin: Double { (allTemps.min() ?? -10) - 2 }
         var tempMax: Double { (allTemps.max() ?? 30) + 2 }
 
         private var allTemps: [Double] {
-            var all = highs
+            var all = avgs
+            all.append(contentsOf: highs)
             all.append(contentsOf: lows)
             if let currentTemp { all.append(currentTemp) }
             if let todayWeatherHigh { all.append(todayWeatherHigh) }
             if let todayWeatherLow { all.append(todayWeatherLow) }
             return all
+        }
+
+        static func dayLabels(count: Int) -> [XLabel] {
+            let candidates = [1, 8, 15, 22, count]
+            return Array(Set(candidates.filter { $0 >= 1 && $0 <= count })).sorted()
+                .map { XLabel(index: $0 - 1, text: "\($0)") }
+        }
+
+        static func hourLabels() -> [XLabel] {
+            stride(from: 0, to: 24, by: 6).map { XLabel(index: $0, text: String(format: "%02d", $0)) }
         }
     }
 
@@ -29,7 +48,7 @@ struct NormalsTemperatureChart: View {
         VStack(spacing: 12) {
             temperatureChart
                 .frame(height: 120)
-            dayLabelRow
+            xLabelRow
         }
     }
 
@@ -67,7 +86,7 @@ struct NormalsTemperatureChart: View {
     private func filledBand(width: CGFloat, height: CGFloat, safeRange: Double) -> some View {
         Path { path in
             let count = data.highs.count
-            guard count > 0 else { return }
+            guard data.hasBand else { return }
 
             for i in 0..<count {
                 let x = xPosition(for: i, count: count, width: width)
@@ -134,14 +153,17 @@ struct NormalsTemperatureChart: View {
         if data.todayIndex >= 0, data.todayIndex < count {
             let x = xPosition(for: data.todayIndex, count: count, width: width)
             let yAvg = yPosition(for: data.avgs[data.todayIndex], range: safeRange, min: data.tempMin, height: height)
-            let yHigh = yPosition(for: data.highs[data.todayIndex], range: safeRange, min: data.tempMin, height: height)
-            let yLow = yPosition(for: data.lows[data.todayIndex], range: safeRange, min: data.tempMin, height: height)
 
-            Path { path in
-                path.move(to: CGPoint(x: x, y: yHigh))
-                path.addLine(to: CGPoint(x: x, y: yLow))
+            if data.hasBand {
+                let yHigh = yPosition(for: data.highs[data.todayIndex], range: safeRange, min: data.tempMin, height: height)
+                let yLow = yPosition(for: data.lows[data.todayIndex], range: safeRange, min: data.tempMin, height: height)
+
+                Path { path in
+                    path.move(to: CGPoint(x: x, y: yHigh))
+                    path.addLine(to: CGPoint(x: x, y: yLow))
+                }
+                .stroke(.primary.opacity(0.3), lineWidth: 1)
             }
-            .stroke(.primary.opacity(0.3), lineWidth: 1)
 
             Circle()
                 .fill(.blue)
@@ -218,29 +240,22 @@ struct NormalsTemperatureChart: View {
         }
     }
 
-    // MARK: - Day Labels
+    // MARK: - X-Axis Labels
 
-    private var dayLabelRow: some View {
+    private var xLabelRow: some View {
         GeometryReader { geo in
             let width = geo.size.width
             let count = data.avgs.count
-            let ticks = dayTicks(for: count)
 
-            ForEach(ticks, id: \.self) { day in
-                let index = day - 1
-                let x = xPosition(for: index, count: count, width: width)
-                Text("\(day)")
+            ForEach(data.xLabels.filter { $0.index >= 0 && $0.index < count }, id: \.self) { label in
+                let x = xPosition(for: label.index, count: count, width: width)
+                Text(label.text)
                     .font(.system(size: 9))
-                    .foregroundStyle(index == data.todayIndex ? .primary : .tertiary)
+                    .foregroundStyle(label.index == data.todayIndex ? .primary : .tertiary)
                     .position(x: x, y: 6)
             }
         }
         .frame(height: 12)
-    }
-
-    private func dayTicks(for dayCount: Int) -> [Int] {
-        let candidates = [1, 8, 15, 22, dayCount]
-        return Array(Set(candidates.filter { $0 >= 1 && $0 <= dayCount })).sorted()
     }
 
     private func yAxisTicks(min: Double, max maxValue: Double) -> [Double] {
