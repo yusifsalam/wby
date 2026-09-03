@@ -162,6 +162,18 @@ func (s *Store) LatestObservation(ctx context.Context, fmisid int) (weather.Obse
 	return o, nil
 }
 
+func (s *Store) ObservedTemperatureRange(ctx context.Context, fmisid int, from, to time.Time) (low, high *float64, err error) {
+	err = s.pool.QueryRow(ctx,
+		`SELECT min(temperature), max(temperature) FROM observations
+		 WHERE fmisid = $1 AND observed_at >= $2 AND observed_at < $3`,
+		fmisid, from, to,
+	).Scan(&low, &high)
+	if err != nil {
+		return nil, nil, fmt.Errorf("observed temperature range: %w", err)
+	}
+	return low, high, nil
+}
+
 func (s *Store) GetLatestTemperatureSamplesInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, limit int) ([]weather.TemperatureSample, error) {
 	if limit <= 0 {
 		limit = 300

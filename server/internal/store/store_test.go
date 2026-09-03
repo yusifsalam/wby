@@ -99,3 +99,47 @@ func TestLatestObservationComposesAcrossRows(t *testing.T) {
 		t.Errorf("SnowDepth = %v, want nil (outside window)", *got.SnowDepth)
 	}
 }
+
+func TestObservedTemperatureRange(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+
+	const fmisid = 999002
+	if err := s.UpsertStations(ctx, []weather.Station{{FMISID: fmisid, Name: "Test Range", Lat: 69.9, Lon: 31.8}}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = s.pool.Exec(ctx, `DELETE FROM observations WHERE fmisid = $1`, fmisid)
+		_, _ = s.pool.Exec(ctx, `DELETE FROM stations WHERE fmisid = $1`, fmisid)
+	})
+
+	f := func(v float64) *float64 { return &v }
+	day := time.Date(2026, 9, 3, 0, 0, 0, 0, time.UTC)
+	obs := []weather.Observation{
+		{FMISID: fmisid, ObservedAt: day.Add(-10 * time.Minute), Temperature: f(-5)},
+		{FMISID: fmisid, ObservedAt: day, Temperature: f(4)},
+		{FMISID: fmisid, ObservedAt: day.Add(6 * time.Hour), Temperature: f(2.5)},
+		{FMISID: fmisid, ObservedAt: day.Add(12 * time.Hour), Temperature: f(17)},
+		{FMISID: fmisid, ObservedAt: day.Add(13 * time.Hour)},
+		{FMISID: fmisid, ObservedAt: day.Add(24 * time.Hour), Temperature: f(30)},
+	}
+	if err := s.UpsertObservations(ctx, obs); err != nil {
+		t.Fatal(err)
+	}
+
+	low, high, err := s.ObservedTemperatureRange(ctx, fmisid, day, day.Add(24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if low == nil || *low != 2.5 || high == nil || *high != 17 {
+		t.Errorf("range = %v..%v, want 2.5..17", low, high)
+	}
+
+	low, high, err = s.ObservedTemperatureRange(ctx, fmisid, day.Add(48*time.Hour), day.Add(72*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if low != nil || high != nil {
+		t.Errorf("empty window must yield nil, got %v..%v", low, high)
+	}
+}

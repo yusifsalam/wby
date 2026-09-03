@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"slices"
 	"strings"
 	"time"
 )
@@ -28,6 +29,7 @@ var ErrForecastGridUnavailable = errors.New("forecast grid not available")
 type WeatherStore interface {
 	NearestStation(ctx context.Context, lat, lon float64) (Station, float64, error)
 	LatestObservation(ctx context.Context, fmisid int) (Observation, error)
+	ObservedTemperatureRange(ctx context.Context, fmisid int, from, to time.Time) (low, high *float64, err error)
 	GetLatestTemperatureSamplesInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, limit int) ([]TemperatureSample, error)
 	GetObservationSamplesAtTimeInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time, limit int) ([]TemperatureSample, error)
 	GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]DailyForecast, error)
@@ -196,6 +198,10 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 			slog.Warn("failed to persist UV-enriched daily forecasts", "err", err)
 		}
 	}
+
+	forecast = widenWithObservedRange(forecast, time.Now().UTC(), func(from, to time.Time) (*float64, *float64, error) {
+		return s.store.ObservedTemperatureRange(ctx, station.FMISID, from, to)
+	})
 
 	return &WeatherResponse{
 		Current: CurrentWeather{
@@ -590,6 +596,43 @@ func temperatureGridResponse(grid *FieldGrid) *TemperatureSamplesResponse {
 		MaxTemp:  maxTemp,
 		Grid:     grid,
 	}
+}
+
+// widenWithObservedRange extends the high/low of forecast days already underway
+// with what the station has observed so far. Forecast days are UTC buckets
+// starting at the current hour, so today's range alone only covers the hours
+// still ahead.
+func widenWithObservedRange(forecast []DailyForecast, now time.Time, observed func(from, to time.Time) (low, high *float64, err error)) []DailyForecast {
+	out := slices.Clone(forecast)
+	for i := range out {
+		start := out[i].Date
+		if !start.Before(now) {
+			continue
+		}
+		end := start.Add(24 * time.Hour)
+		if end.After(now) {
+			end = now
+		}
+		low, high, err := observed(start, end)
+		if err != nil {
+			slog.Warn("observed temperature range unavailable", "err", err, "date", start.Format("2006-01-02"))
+			return forecast
+		}
+		out[i].TempLow = pickPtr(out[i].TempLow, low, math.Min)
+		out[i].TempHigh = pickPtr(out[i].TempHigh, high, math.Max)
+	}
+	return out
+}
+
+func pickPtr(a, b *float64, choose func(float64, float64) float64) *float64 {
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+	v := choose(*a, *b)
+	return &v
 }
 
 func snapToGrid(lat, lon float64) (float64, float64) {
