@@ -35,18 +35,34 @@ struct ClimateNormalsCard: View {
 
     @ViewBuilder
     private var comparisonRow: some View {
-        if let normalTemp = normals.today.tempAvg {
-            HStack(spacing: 8) {
-                Text("Normal: \(Int(normalTemp.rounded()))°")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+        let highPair = todayWeatherHigh.flatMap { high in normals.today.tempHigh.map { (high, $0) } }
+        let lowPair = todayWeatherLow.flatMap { low in normals.today.tempLow.map { (low, $0) } }
 
-                if let diff = normals.today.tempDiff {
-                    diffBadge(diff)
-                } else if let current = currentTemp {
-                    diffBadge(current - normalTemp)
+        if highPair != nil || lowPair != nil {
+            VStack(alignment: .leading, spacing: 6) {
+                if let (high, normalHigh) = highPair {
+                    comparisonLine(label: "High", value: high, normal: normalHigh)
+                }
+                if let (low, normalLow) = lowPair {
+                    comparisonLine(label: "Low", value: low, normal: normalLow)
                 }
             }
+        } else if let normalTemp = normals.today.tempAvg {
+            Text("Normal: \(Int(normalTemp.rounded()))°")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func comparisonLine(label: String, value: Double, normal: Double) -> some View {
+        HStack(spacing: 8) {
+            Text("\(label) \(Int(value.rounded()))°")
+                .font(.subheadline)
+                .fontWeight(.medium)
+            Text("normal \(Int(normal.rounded()))°")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            diffBadge(value - normal)
         }
     }
 
