@@ -11,6 +11,7 @@ struct WeatherPageView: View {
 
     @State private var weather: WeatherResponse?
     @State private var climateNormals: ClimateNormalsResponse?
+    @State private var dailyClimateNormals: DailyClimateNormalsResponse?
     @State private var isLoading = false
     @State private var lastUpdated: Date?
     @State private var errorMessage: String?
@@ -123,6 +124,15 @@ struct WeatherPageView: View {
                             currentTemp: weather.current.resolvedTemperature,
                             todayWeatherHigh: weather.dailyForecast.first?.high,
                             todayWeatherLow: weather.dailyForecast.first?.low
+                        )
+                    }
+                    if let dailyClimateNormals {
+                        DailyClimateNormalsCard(
+                            normals: dailyClimateNormals,
+                            currentTemp: weather.current.resolvedTemperature,
+                            todayWeatherHigh: weather.dailyForecast.first?.high,
+                            todayWeatherLow: weather.dailyForecast.first?.low,
+                            timeZone: weather.resolvedTimeZone
                         )
                     }
                     if let lastUpdated {
@@ -261,6 +271,15 @@ struct WeatherPageView: View {
             climateNormals = try await weatherService.fetchClimateNormals(lat: coord.latitude, lon: coord.longitude)
         } catch {
             climateNormals = nil
+        }
+        do {
+            dailyClimateNormals = try await weatherService.fetchDailyClimateNormals(
+                lat: coord.latitude,
+                lon: coord.longitude,
+                currentTemp: weather?.current.resolvedTemperature
+            )
+        } catch {
+            dailyClimateNormals = nil
         }
     }
 

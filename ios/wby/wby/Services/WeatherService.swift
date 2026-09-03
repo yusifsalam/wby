@@ -190,6 +190,17 @@ actor WeatherService {
         )
     }
 
+    func fetchDailyClimateNormals(lat: Double, lon: Double, currentTemp: Double?) async throws -> DailyClimateNormalsResponse {
+        var queryItems = [
+            URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
+            URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
+        ]
+        if let currentTemp {
+            queryItems.append(URLQueryItem(name: "current_temp", value: String(format: "%.1f", currentTemp)))
+        }
+        return try await fetchJSON(path: "v1/climate-normals/daily", queryItems: queryItems)
+    }
+
     // MARK: - Leaderboard
 
     func fetchLeaderboard(lat: Double, lon: Double, timeframe: String = "now") async throws -> LeaderboardResponse {
