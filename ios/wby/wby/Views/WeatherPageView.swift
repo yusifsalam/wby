@@ -9,12 +9,17 @@ struct WeatherPageView: View {
     let onBackgroundUpdate: (WeatherScene, Double?, Double?) -> Void
     let onScrollOffsetChange: (CGFloat) -> Void
 
+    @Environment(\.scenePhase) private var scenePhase
+
     @State private var weather: WeatherResponse?
     @State private var climateNormals: ClimateNormalsResponse?
     @State private var dailyClimateNormals: DailyClimateNormalsResponse?
     @State private var isLoading = false
+    @State private var isFetching = false
     @State private var lastUpdated: Date?
     @State private var errorMessage: String?
+
+    private static let staleAfter: TimeInterval = 10 * 60
 
     init(
         location: WeatherLocation,
@@ -168,13 +173,11 @@ struct WeatherPageView: View {
         }
         .scrollBounceBehavior(.always)
         .refreshable {
-            if case .gps = location {
-                if let freshCoord = await locationService.requestFreshLocation() {
-                    await fetchWeather(coord: freshCoord)
-                }
-            } else {
-                await fetchWeather()
-            }
+            await refresh()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, !disableAutoLoad, !isFetching, isStale else { return }
+            Task { await refresh() }
         }
         .onAppear { publishBackground() }
         .onChange(of: currentScene) { _, _ in publishBackground() }
@@ -244,15 +247,34 @@ struct WeatherPageView: View {
 
     // MARK: - Loading
 
+    private var isStale: Bool {
+        guard let lastUpdated else { return true }
+        return Date().timeIntervalSince(lastUpdated) > Self.staleAfter
+    }
+
     private func loadWeather() async {
         guard let coordinate else { return }
         await fetchWeather(coord: coordinate)
     }
 
+    private func refresh() async {
+        if case .gps = location {
+            if let freshCoord = await locationService.requestFreshLocation() {
+                await fetchWeather(coord: freshCoord)
+            }
+        } else {
+            await fetchWeather()
+        }
+    }
+
     private func fetchWeather(coord: CLLocationCoordinate2D? = nil) async {
         guard let coord = coord ?? coordinate else { return }
         isLoading = weather == nil
-        defer { isLoading = false }
+        isFetching = true
+        defer {
+            isLoading = false
+            isFetching = false
+        }
         do {
             let response = try await weatherService.fetchWeather(lat: coord.latitude, lon: coord.longitude)
             weather = response
