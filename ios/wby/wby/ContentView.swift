@@ -107,14 +107,10 @@ struct ContentView: View {
                     set: { if let id = $0 { currentPageID = id } }
                 ))
                 .scrollIndicators(.hidden)
-                .zIndex(1)
-
-                VStack {
-                    Spacer()
+                .safeAreaBar(edge: .bottom) {
                     bottomBar
-                        .padding(.bottom, 4)
                 }
-                .zIndex(2)
+                .zIndex(1)
             }
             .onChange(of: pages.map(\.id)) {
                 pageBackgrounds = pageBackgrounds.filter { pageIDs.contains($0.key) }
@@ -169,18 +165,10 @@ struct ContentView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { showingLocations = true } label: {
-                        Image(systemName: "list.bullet")
-                            .foregroundStyle(.white)
-                            .accessibilityLabel("Locations")
-                    }
+                    Button("Locations", systemImage: "list.bullet") { showingLocations = true }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showingSettings = true } label: {
-                        Image(systemName: "gearshape")
-                            .foregroundStyle(.white)
-                            .accessibilityLabel("Settings")
-                    }
+                    Button("Settings", systemImage: "gearshape") { showingSettings = true }
                 }
             }
             .navigationTitle("")
@@ -193,8 +181,7 @@ struct ContentView: View {
     private var bottomBar: some View {
         GlassEffectContainer(spacing: 20) {
             HStack {
-                circleButton(icon: "map") { showingMap = true }
-                    .accessibilityLabel("Map")
+                circleButton("Map", icon: "map") { showingMap = true }
 
                 Spacer()
 
@@ -218,22 +205,21 @@ struct ContentView: View {
 
                 Spacer()
 
-                circleButton(icon: "chart.bar.fill") { showingLeaderboard = true }
-                    .accessibilityLabel("Leaderboard")
+                circleButton("Leaderboard", icon: "chart.bar.fill") { showingLeaderboard = true }
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 4)
         }
     }
 
-    private func circleButton(icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(.white)
-                .frame(width: 50, height: 50)
-                .glassEffect(.regular.interactive(), in: .circle)
-        }
+    private func circleButton(_ title: LocalizedStringKey, icon: String, action: @escaping () -> Void) -> some View {
+        Button(title, systemImage: icon, action: action)
+            .labelStyle(.iconOnly)
+            .font(.system(size: 17, weight: .medium))
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .controlSize(.large)
+            .tint(.primary)
     }
 
 }

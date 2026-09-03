@@ -16,11 +16,10 @@ private struct FavoriteWeatherPinBubbleView: View {
 
                 Text(rangeText)
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Color.white.opacity(0.88))
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
             }
             .frame(width: 86, height: 44)
-            .shadow(color: .black.opacity(0.5), radius: 2, y: 0.5)
             .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             Circle()
@@ -30,7 +29,6 @@ private struct FavoriteWeatherPinBubbleView: View {
                 }
                 .frame(width: 8, height: 8)
         }
-        .foregroundStyle(.white)
         .frame(width: 86, height: 54)
     }
 }
@@ -61,7 +59,7 @@ private struct PreviewPinBubbleView: View {
                         .font(.system(size: 12, weight: .regular))
                         .lineLimit(1)
                 }
-                .foregroundStyle(Color.white.opacity(0.88))
+                .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 2)
 
@@ -72,11 +70,10 @@ private struct PreviewPinBubbleView: View {
 
                 Text(rangeText)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Color.white.opacity(0.88))
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
             }
             .frame(width: 160, height: 92)
-            .shadow(color: .black.opacity(0.5), radius: 2, y: 0.5)
             .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .onTapGesture {
                 onTap?()
@@ -89,7 +86,6 @@ private struct PreviewPinBubbleView: View {
                 }
                 .frame(width: 8, height: 8)
         }
-        .foregroundStyle(.white)
         .frame(width: 160, height: 104)
     }
 }

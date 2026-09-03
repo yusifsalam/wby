@@ -74,26 +74,21 @@ struct LeaderboardView: View {
                     }
                 }
                 .padding()
-                .padding(.top, 82)
             }
             .scrollBounceBehavior(.always)
             .refreshable {
                 guard !disableAutoLoad else { return }
                 await fetchLeaderboard()
             }
-
-            VStack {
+            .safeAreaBar(edge: .top) {
                 HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(.primary)
-                            .frame(width: 50, height: 50)
-                            .glassEffect(.regular.interactive(), in: Circle())
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Close")
+                    Button("Close", systemImage: "xmark", role: .close) { dismiss() }
+                        .labelStyle(.iconOnly)
+                        .font(.system(size: 17, weight: .medium))
+                        .buttonStyle(.glass)
+                        .buttonBorderShape(.circle)
+                        .controlSize(.large)
+                        .tint(.primary)
 
                     Spacer()
 
@@ -105,8 +100,8 @@ struct LeaderboardView: View {
                     .pickerStyle(.segmented)
                     .frame(width: 200)
                 }
-                .padding()
-                Spacer()
+                .padding(.horizontal)
+                .padding(.bottom, 8)
             }
         }
         .task {

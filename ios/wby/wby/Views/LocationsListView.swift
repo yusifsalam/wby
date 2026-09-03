@@ -77,7 +77,6 @@ struct LocationsListView: View {
                             Image(systemName: "checkmark.circle")
                                 .font(.title2)
                                 .symbolRenderingMode(.monochrome)
-                                .foregroundStyle(.white.opacity(0.7))
                         }
                     }
                 }

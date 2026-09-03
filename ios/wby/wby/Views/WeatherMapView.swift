@@ -13,6 +13,7 @@ struct WeatherMapView: View {
     @AppStorage(OverlayMode.storageKey) private var overlayModeRawValue = OverlayMode.metal.rawValue
     @AppStorage(MapLayerKind.storageKey) private var layerRawValue = MapLayerKind.temperature.rawValue
     @State private var viewModel: WeatherMapViewModel
+    @Namespace private var glassNamespace
 
     init(
         locationService: LocationService,
@@ -53,25 +54,23 @@ struct WeatherMapView: View {
                 .allowsHitTesting(false)
             }
 
-            GlassEffectContainer(spacing: 10) {
+            GlassEffectContainer(spacing: 4) {
                 VStack {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 10) {
-                            Button {
+                            Button("Close map", systemImage: "xmark", role: .close) {
                                 dismiss()
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 17, weight: .medium))
-                                    .foregroundStyle(.primary)
-                                    .frame(width: 50, height: 50)
-                                    .glassEffect(.regular.interactive(), in: Circle())
-                                    .contentShape(Circle())
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Close map")
+                            .labelStyle(.iconOnly)
+                            .font(.system(size: 17, weight: .medium))
+                            .buttonStyle(.glass)
+                            .buttonBorderShape(.circle)
+                            .controlSize(.large)
+                            .tint(.primary)
 
                             if viewModel.selectedLayer == .temperature {
                                 TemperatureLegendView()
+                                    .glassEffectID("legend", in: glassNamespace)
                             }
                         }
                         Spacer()
@@ -98,11 +97,13 @@ struct WeatherMapView: View {
                     if viewModel.selectedLayer == .temperature {
                         HStack {
                             overlayBackendIndicator
+                                .glassEffectID("backend", in: glassNamespace)
                             Spacer()
                         }
                     }
                     if viewModel.isScrubberVisible {
                         TimeScrubberView(viewModel: viewModel)
+                            .glassEffectID("scrubber", in: glassNamespace)
                             .padding(.top, 8)
                     }
                 }
@@ -145,7 +146,9 @@ struct WeatherMapView: View {
         if overlayModeRawValue != mode.rawValue {
             overlayModeRawValue = mode.rawValue
         }
-        viewModel.setOverlayMode(mode)
+        withAnimation {
+            viewModel.setOverlayMode(mode)
+        }
         if viewModel.isScrubberVisible {
             viewModel.prefetchTimeline()
         }
@@ -156,7 +159,9 @@ struct WeatherMapView: View {
         if layerRawValue != layer.rawValue {
             layerRawValue = layer.rawValue
         }
-        viewModel.setSelectedLayer(layer)
+        withAnimation {
+            viewModel.setSelectedLayer(layer)
+        }
         if viewModel.isScrubberVisible {
             viewModel.prefetchTimeline()
         }
@@ -171,16 +176,15 @@ struct WeatherMapView: View {
                 }
             }
         } label: {
-            Image(systemName: "square.3.layers.3d")
+            Label("Map layer", systemImage: "square.3.layers.3d")
                 .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(.primary)
-                .frame(width: 50, height: 50)
-                .glassEffect(.regular.interactive(), in: Circle())
-                .contentShape(Circle())
         }
+        .labelStyle(.iconOnly)
         .menuStyle(.button)
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .controlSize(.large)
         .tint(.primary)
-        .accessibilityLabel("Map layer")
     }
 
     private var overlayBackendIndicator: some View {
