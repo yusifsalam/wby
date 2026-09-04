@@ -650,15 +650,41 @@ func (s *Store) UpsertDailyClimateNormals(ctx context.Context, normals []weather
 	batch := &pgx.Batch{}
 	for _, n := range normals {
 		batch.Queue(`
-			INSERT INTO daily_climate_normals (fmisid, period, month, day, temp_avg, temp_high, temp_low, precip_mm, temp_hourly)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			INSERT INTO daily_climate_normals (
+				fmisid, period, month, day,
+				temp_avg, temp_high, temp_low,
+				feels_like_avg, feels_like_high, feels_like_low,
+				wind_avg, wind_gust, humidity_avg,
+				precip_mm, precip_days_pct, snow_cm,
+				temp_hourly, feels_like_hourly, wind_hourly, humidity_hourly,
+				temp_hourly_p10, temp_hourly_p90)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
 			ON CONFLICT (fmisid, period, month, day) DO UPDATE SET
 				temp_avg = EXCLUDED.temp_avg,
 				temp_high = EXCLUDED.temp_high,
 				temp_low = EXCLUDED.temp_low,
+				feels_like_avg = EXCLUDED.feels_like_avg,
+				feels_like_high = EXCLUDED.feels_like_high,
+				feels_like_low = EXCLUDED.feels_like_low,
+				wind_avg = EXCLUDED.wind_avg,
+				wind_gust = EXCLUDED.wind_gust,
+				humidity_avg = EXCLUDED.humidity_avg,
 				precip_mm = EXCLUDED.precip_mm,
-				temp_hourly = EXCLUDED.temp_hourly`,
-			n.FMISID, n.Period, n.Month, n.Day, n.TempAvg, n.TempHigh, n.TempLow, n.PrecipMm, n.TempHourly)
+				precip_days_pct = EXCLUDED.precip_days_pct,
+				snow_cm = EXCLUDED.snow_cm,
+				temp_hourly = EXCLUDED.temp_hourly,
+				feels_like_hourly = EXCLUDED.feels_like_hourly,
+				wind_hourly = EXCLUDED.wind_hourly,
+				humidity_hourly = EXCLUDED.humidity_hourly,
+				temp_hourly_p10 = EXCLUDED.temp_hourly_p10,
+				temp_hourly_p90 = EXCLUDED.temp_hourly_p90`,
+			n.FMISID, n.Period, n.Month, n.Day,
+			n.TempAvg, n.TempHigh, n.TempLow,
+			n.FeelsLikeAvg, n.FeelsLikeHigh, n.FeelsLikeLow,
+			n.WindAvg, n.WindGust, n.HumidityAvg,
+			n.PrecipMm, n.PrecipDaysPct, n.SnowCm,
+			n.TempHourly, n.FeelsLikeHourly, n.WindHourly, n.HumidityHourly,
+			n.TempHourlyP10, n.TempHourlyP90)
 	}
 	br := s.pool.SendBatch(ctx, batch)
 	defer br.Close()
@@ -672,7 +698,13 @@ func (s *Store) UpsertDailyClimateNormals(ctx context.Context, normals []weather
 
 func (s *Store) GetDailyClimateNormals(ctx context.Context, fmisid int, period string) ([]weather.DailyClimateNormal, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT fmisid, period, month, day, temp_avg, temp_high, temp_low, precip_mm, temp_hourly
+		SELECT fmisid, period, month, day,
+		       temp_avg, temp_high, temp_low,
+		       feels_like_avg, feels_like_high, feels_like_low,
+		       wind_avg, wind_gust, humidity_avg,
+		       precip_mm, precip_days_pct, snow_cm,
+		       temp_hourly, feels_like_hourly, wind_hourly, humidity_hourly,
+		       temp_hourly_p10, temp_hourly_p90
 		FROM daily_climate_normals
 		WHERE fmisid = $1 AND period = $2
 		ORDER BY month, day`, fmisid, period)
@@ -684,7 +716,13 @@ func (s *Store) GetDailyClimateNormals(ctx context.Context, fmisid int, period s
 	var normals []weather.DailyClimateNormal
 	for rows.Next() {
 		var n weather.DailyClimateNormal
-		if err := rows.Scan(&n.FMISID, &n.Period, &n.Month, &n.Day, &n.TempAvg, &n.TempHigh, &n.TempLow, &n.PrecipMm, &n.TempHourly); err != nil {
+		if err := rows.Scan(&n.FMISID, &n.Period, &n.Month, &n.Day,
+			&n.TempAvg, &n.TempHigh, &n.TempLow,
+			&n.FeelsLikeAvg, &n.FeelsLikeHigh, &n.FeelsLikeLow,
+			&n.WindAvg, &n.WindGust, &n.HumidityAvg,
+			&n.PrecipMm, &n.PrecipDaysPct, &n.SnowCm,
+			&n.TempHourly, &n.FeelsLikeHourly, &n.WindHourly, &n.HumidityHourly,
+			&n.TempHourlyP10, &n.TempHourlyP90); err != nil {
 			return nil, fmt.Errorf("scan daily climate normal: %w", err)
 		}
 		normals = append(normals, n)

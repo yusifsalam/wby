@@ -50,8 +50,14 @@ func TestParseHourlyObservations(t *testing.T) {
 		if !r.Time.Equal(want) {
 			t.Errorf("record %d time = %v, want %v", i, r.Time, want)
 		}
-		if r.Temp < -40 || r.Temp > 40 {
+		if r.Temp == nil || *r.Temp < -40 || *r.Temp > 40 {
 			t.Errorf("record %d temp %v out of range", i, r.Temp)
+		}
+		if r.Humidity == nil || *r.Humidity < 0 || *r.Humidity > 100 {
+			t.Errorf("record %d humidity %v out of range", i, r.Humidity)
+		}
+		if r.WindSpeed == nil || r.WindGust == nil || *r.WindGust < *r.WindSpeed {
+			t.Errorf("record %d wind %v gust %v: want both present, gust >= speed", i, r.WindSpeed, r.WindGust)
 		}
 	}
 }

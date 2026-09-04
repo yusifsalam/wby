@@ -23,10 +23,10 @@ const (
 	historyConcurrency     = 4
 )
 
-// FetchDailyObservations returns the daily mean/max/min temperature and
-// precipitation for a station between start and end (inclusive).
+// FetchDailyObservations returns the daily mean/max/min temperature,
+// precipitation and snow depth for a station between start and end (inclusive).
 func (c *Client) FetchDailyObservations(ctx context.Context, fmisid int, start, end time.Time) ([]weather.DailyRecord, error) {
-	chunks, err := c.fetchChunked(ctx, "fmi::observations::weather::daily::timevaluepair", "tday,tmax,tmin,rrday", fmisid, start, end, dailyObservationChunk)
+	chunks, err := c.fetchChunked(ctx, "fmi::observations::weather::daily::timevaluepair", "tday,tmax,tmin,rrday,snow", stationSelector(fmisid), start, end, dailyObservationChunk)
 	if err != nil {
 		return nil, fmt.Errorf("fetch daily observations: %w", err)
 	}
@@ -48,32 +48,98 @@ func (c *Client) FetchDailyObservations(ctx context.Context, fmisid int, start, 
 	return out, nil
 }
 
-// FetchHourlyObservations returns the hourly mean temperature for a station
-// between start and end (inclusive).
+// FetchHourlyObservations returns the hourly mean temperature, humidity and
+// wind for a station between start and end (inclusive).
 func (c *Client) FetchHourlyObservations(ctx context.Context, fmisid int, start, end time.Time) ([]weather.HourlyRecord, error) {
-	chunks, err := c.fetchChunked(ctx, "fmi::observations::weather::hourly::timevaluepair", "TA_PT1H_AVG", fmisid, start, end, hourlyObservationChunk)
+	chunks, err := c.fetchChunked(ctx, "fmi::observations::weather::hourly::timevaluepair", "TA_PT1H_AVG,RH_PT1H_AVG,WS_PT1H_AVG,WG_PT1H_MAX", stationSelector(fmisid), start, end, hourlyObservationChunk)
 	if err != nil {
 		return nil, fmt.Errorf("fetch hourly observations: %w", err)
 	}
-	byTime := make(map[time.Time]float64)
+	byTime := make(map[time.Time]weather.HourlyRecord)
 	for _, data := range chunks {
 		recs, err := ParseHourlyObservations(data)
 		if err != nil {
 			return nil, err
 		}
 		for _, r := range recs {
-			byTime[r.Time] = r.Temp
+			byTime[r.Time] = r
 		}
 	}
 	out := make([]weather.HourlyRecord, 0, len(byTime))
-	for t, v := range byTime {
-		out = append(out, weather.HourlyRecord{Time: t, Temp: v})
+	for _, r := range byTime {
+		out = append(out, r)
 	}
 	slices.SortFunc(out, func(a, b weather.HourlyRecord) int { return a.Time.Compare(b.Time) })
 	return out, nil
 }
 
-func (c *Client) fetchChunked(ctx context.Context, query, parameters string, fmisid int, start, end time.Time, chunk time.Duration) ([][]byte, error) {
+// Half-widths of the station search box for precipitation gauges, in degrees:
+// roughly 45 km each way at Finnish latitudes.
+const (
+	precipSearchHalfLat = 0.4
+	precipSearchHalfLon = 0.8
+)
+
+// FetchHourlyPrecipitationNear returns the hourly precipitation accumulation
+// between start and end (inclusive) from the gauge nearest to lat/lon that
+// reported any value in the range; each record's PrecipMm covers the hour
+// ending at its time. Not every station has a gauge, so the nearest weather
+// station is not necessarily the one returned. ErrNoStation when none report.
+func (c *Client) FetchHourlyPrecipitationNear(ctx context.Context, lat, lon float64, start, end time.Time) (weather.PrecipitationObservations, error) {
+	bbox := fmt.Sprintf("%.3f,%.3f,%.3f,%.3f", lon-precipSearchHalfLon, lat-precipSearchHalfLat, lon+precipSearchHalfLon, lat+precipSearchHalfLat)
+	chunks, err := c.fetchChunked(ctx, "fmi::observations::weather::hourly::timevaluepair", "PRA_PT1H_ACC", url.Values{"bbox": {bbox}}, start, end, hourlyObservationChunk)
+	if err != nil {
+		return weather.PrecipitationObservations{}, fmt.Errorf("fetch hourly precipitation: %w", err)
+	}
+	byStation := make(map[int]*weather.PrecipitationObservations)
+	for _, data := range chunks {
+		stations, err := parseHourlyObservationsByStation(data)
+		if err != nil {
+			return weather.PrecipitationObservations{}, err
+		}
+		for _, st := range stations {
+			var recs []weather.HourlyRecord
+			for _, r := range st.Hourly {
+				if r.PrecipMm != nil {
+					recs = append(recs, r)
+				}
+			}
+			if len(recs) == 0 {
+				continue
+			}
+			agg, ok := byStation[st.Station.FMISID]
+			if !ok {
+				agg = &weather.PrecipitationObservations{Station: st.Station, DistanceKM: haversineKm(lat, lon, st.Station.Lat, st.Station.Lon)}
+				byStation[st.Station.FMISID] = agg
+			}
+			agg.Hourly = append(agg.Hourly, recs...)
+		}
+	}
+	var best *weather.PrecipitationObservations
+	for _, st := range byStation {
+		if best == nil || st.DistanceKM < best.DistanceKM {
+			best = st
+		}
+	}
+	if best == nil {
+		return weather.PrecipitationObservations{}, weather.ErrNoStation
+	}
+	slices.SortFunc(best.Hourly, func(a, b weather.HourlyRecord) int { return a.Time.Compare(b.Time) })
+	return *best, nil
+}
+
+func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
+	const earthRadiusKm = 6371.0
+	toRad := func(deg float64) float64 { return deg * math.Pi / 180 }
+	dLat := toRad(lat2 - lat1)
+	dLon := toRad(lon2 - lon1)
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) + math.Cos(toRad(lat1))*math.Cos(toRad(lat2))*math.Sin(dLon/2)*math.Sin(dLon/2)
+	return 2 * earthRadiusKm * math.Asin(math.Sqrt(a))
+}
+
+// fetchChunked splits [start, end] into chunk-sized WFS requests, run a few
+// at a time. selector picks the stations (fmisid or bbox).
+func (c *Client) fetchChunked(ctx context.Context, query, parameters string, selector url.Values, start, end time.Time, chunk time.Duration) ([][]byte, error) {
 	type span struct{ start, end time.Time }
 	var spans []span
 	for cur := start; !cur.After(end); cur = cur.Add(chunk) {
@@ -99,10 +165,12 @@ func (c *Client) fetchChunked(ctx context.Context, query, parameters string, fmi
 				"version":        {"2.0.0"},
 				"request":        {"getFeature"},
 				"storedquery_id": {query},
-				"fmisid":         {strconv.Itoa(fmisid)},
 				"parameters":     {parameters},
 				"starttime":      {sp.start.UTC().Format(time.RFC3339)},
 				"endtime":        {sp.end.UTC().Format(time.RFC3339)},
+			}
+			for k, v := range selector {
+				params[k] = v
 			}
 			results[i], errs[i] = c.fetch(ctx, params)
 		}(i, sp)
@@ -151,6 +219,8 @@ func ParseDailyObservations(data []byte) ([]weather.DailyRecord, error) {
 				r.TempLow = val
 			case "rrday":
 				r.PrecipMm = val
+			case "snow":
+				r.SnowCm = val
 			}
 		}
 	}
@@ -163,19 +233,52 @@ func ParseDailyObservations(data []byte) ([]weather.DailyRecord, error) {
 	return out, nil
 }
 
-// ParseHourlyObservations parses an hourly observation timevaluepair response
-// carrying TA_PT1H_AVG into one record per hour, skipping missing values.
+func stationSelector(fmisid int) url.Values {
+	return url.Values{"fmisid": {strconv.Itoa(fmisid)}}
+}
+
+// ParseHourlyObservations parses a single-station hourly observation
+// timevaluepair response into one record per hour, leaving missing parameters
+// nil. Hours with no values at all are dropped.
 func ParseHourlyObservations(data []byte) ([]weather.HourlyRecord, error) {
+	stations, err := parseHourlyObservationsByStation(data)
+	if err != nil {
+		return nil, err
+	}
+	var out []weather.HourlyRecord
+	for _, st := range stations {
+		out = append(out, st.Hourly...)
+	}
+	slices.SortFunc(out, func(a, b weather.HourlyRecord) int { return a.Time.Compare(b.Time) })
+	return out, nil
+}
+
+// parseHourlyObservationsByStation parses an hourly observation timevaluepair
+// response into per-station hourly records.
+func parseHourlyObservationsByStation(data []byte) ([]weather.PrecipitationObservations, error) {
 	var fc featureCollection
 	if err := xml.Unmarshal(data, &fc); err != nil {
 		return nil, fmt.Errorf("unmarshal WFS hourly observations: %w", err)
 	}
 
-	var out []weather.HourlyRecord
+	type stationHours struct {
+		station weather.Station
+		byTime  map[time.Time]*weather.HourlyRecord
+	}
+	stations := make(map[int]*stationHours)
+	var order []int
 	for _, m := range fc.Members {
-		if !strings.EqualFold(extractParam(m.Observation.ObservedProperty.Href), "TA_PT1H_AVG") {
-			continue
+		fmisid, name, lat, lon, wmo := extractStationInfo(m.Observation)
+		st, ok := stations[fmisid]
+		if !ok {
+			st = &stationHours{
+				station: weather.Station{FMISID: fmisid, Name: name, Lat: lat, Lon: lon, WMOCode: wmo},
+				byTime:  make(map[time.Time]*weather.HourlyRecord),
+			}
+			stations[fmisid] = st
+			order = append(order, fmisid)
 		}
+		param := strings.ToUpper(extractParam(m.Observation.ObservedProperty.Href))
 		for _, pt := range m.Observation.Result.TimeSeries.Points {
 			t, err := time.Parse(time.RFC3339, pt.TVP.Time)
 			if err != nil {
@@ -185,9 +288,36 @@ func ParseHourlyObservations(data []byte) ([]weather.HourlyRecord, error) {
 			if val == nil || math.IsNaN(*val) {
 				continue
 			}
-			out = append(out, weather.HourlyRecord{Time: t.UTC(), Temp: *val})
+			t = t.UTC()
+			r, ok := st.byTime[t]
+			if !ok {
+				r = &weather.HourlyRecord{Time: t}
+				st.byTime[t] = r
+			}
+			switch param {
+			case "TA_PT1H_AVG":
+				r.Temp = val
+			case "RH_PT1H_AVG":
+				r.Humidity = val
+			case "WS_PT1H_AVG":
+				r.WindSpeed = val
+			case "WG_PT1H_MAX":
+				r.WindGust = val
+			case "PRA_PT1H_ACC":
+				r.PrecipMm = val
+			}
 		}
 	}
-	slices.SortFunc(out, func(a, b weather.HourlyRecord) int { return a.Time.Compare(b.Time) })
+
+	out := make([]weather.PrecipitationObservations, 0, len(order))
+	for _, fmisid := range order {
+		st := stations[fmisid]
+		recs := make([]weather.HourlyRecord, 0, len(st.byTime))
+		for _, r := range st.byTime {
+			recs = append(recs, *r)
+		}
+		slices.SortFunc(recs, func(a, b weather.HourlyRecord) int { return a.Time.Compare(b.Time) })
+		out = append(out, weather.PrecipitationObservations{Station: st.station, Hourly: recs})
+	}
 	return out, nil
 }

@@ -219,17 +219,31 @@ type ClimateNormal struct {
 }
 
 type DailyClimateNormal struct {
-	FMISID   int
-	Period   string
-	Month    int
-	Day      int
-	TempAvg  *float64
-	TempHigh *float64
-	TempLow  *float64
-	PrecipMm *float64
-	// TempHourly holds the mean temperature per UTC hour (24 entries); nil
-	// when the station lacks an hourly record for the period.
-	TempHourly []float64
+	FMISID        int
+	Period        string
+	Month         int
+	Day           int
+	TempAvg       *float64
+	TempHigh      *float64
+	TempLow       *float64
+	FeelsLikeAvg  *float64
+	FeelsLikeHigh *float64
+	FeelsLikeLow  *float64
+	WindAvg       *float64 // m/s
+	WindGust      *float64 // mean of the daily maximum gust, m/s
+	HumidityAvg   *float64 // %
+	PrecipMm      *float64 // mm/day
+	PrecipDaysPct *float64 // share of days with >= 0.1 mm, %
+	SnowCm        *float64
+	// The hourly curves hold one mean per UTC hour (24 entries); nil when
+	// the station lacks an hourly record for the period. TempHourlyP10 and
+	// TempHourlyP90 bound the typical range for each hour.
+	TempHourly      []float64
+	TempHourlyP10   []float64
+	TempHourlyP90   []float64
+	FeelsLikeHourly []float64
+	WindHourly      []float64
+	HumidityHourly  []float64
 }
 
 type DailyRecord struct {
@@ -238,21 +252,54 @@ type DailyRecord struct {
 	TempHigh *float64
 	TempLow  *float64
 	PrecipMm *float64
+	SnowCm   *float64
 }
 
 type HourlyRecord struct {
-	Time time.Time
-	Temp float64
+	Time      time.Time
+	Temp      *float64
+	Humidity  *float64
+	WindSpeed *float64
+	WindGust  *float64
+	// PrecipMm is the accumulation over the hour ending at Time.
+	PrecipMm *float64
+}
+
+// PrecipitationObservations is a gauge station's hourly precipitation history
+// with its distance from the requested point.
+type PrecipitationObservations struct {
+	Station    Station
+	DistanceKM float64
+	Hourly     []HourlyRecord
+}
+
+// PrecipitationToDate compares observed precipitation for today and the
+// current month so far against the daily normals summed over the same days.
+// Observed values come from the nearest gauge, which may differ from the
+// normals station.
+type PrecipitationToDate struct {
+	Station               *Station
+	StationDistanceKM     float64
+	TodayObservedMm       *float64
+	TodayNormalMm         *float64
+	MonthToDateObservedMm *float64
+	MonthToDateNormalMm   *float64
+	MonthNormalMm         *float64
+	ObservedThrough       *time.Time
 }
 
 type DailyNormalsResult struct {
-	Station       Station
-	DistanceKM    float64
-	Period        string
-	Today         DailyClimateNormal
-	TempNowNormal *float64
-	TempDiff      *float64
-	Daily         []DailyClimateNormal
+	Station            Station
+	DistanceKM         float64
+	Period             string
+	Today              DailyClimateNormal
+	TempNowNormal      *float64
+	TempDiff           *float64
+	FeelsLikeNowNormal *float64
+	WindNowNormal      *float64
+	HumidityNowNormal  *float64
+	Precipitation      PrecipitationToDate
+	Daily              []DailyClimateNormal
 }
 
 type InterpolatedNormal struct {

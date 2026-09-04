@@ -22,7 +22,7 @@ import (
 func main() {
 	fmisids := flag.String("fmisid", "100971", "comma-separated station FMISIDs")
 	period := flag.String("period", "1991-2020", "normal period as YYYY-YYYY")
-	withHourly := flag.Bool("hourly", true, "also fetch hourly temperatures for the hour-of-day curve")
+	withHourly := flag.Bool("hourly", true, "also fetch hourly temperature, humidity and wind for the hour-of-day curves and feels-like")
 	flag.Parse()
 
 	dsn := os.Getenv("DATABASE_URL")
@@ -90,7 +90,7 @@ func main() {
 			log.Error("compute normals", "err", err)
 			os.Exit(1)
 		}
-		withTemp, withHours := 0, 0
+		withTemp, withHours, withFeels, withWind := 0, 0, 0, 0
 		for _, n := range normals {
 			if n.TempAvg != nil {
 				withTemp++
@@ -98,11 +98,17 @@ func main() {
 			if n.TempHourly != nil {
 				withHours++
 			}
+			if n.FeelsLikeAvg != nil {
+				withFeels++
+			}
+			if n.WindAvg != nil {
+				withWind++
+			}
 		}
 		if err := db.UpsertDailyClimateNormals(ctx, normals); err != nil {
 			log.Error("upsert normals", "err", err)
 			os.Exit(1)
 		}
-		log.Info("imported daily normals", "days", len(normals), "with_temperature", withTemp, "with_hourly", withHours)
+		log.Info("imported daily normals", "days", len(normals), "with_temperature", withTemp, "with_hourly", withHours, "with_feels_like", withFeels, "with_wind", withWind)
 	}
 }

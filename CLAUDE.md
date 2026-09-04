@@ -114,7 +114,7 @@ Migrations in `server/migrations/` (numbered SQL files, applied sequentially by 
 - `forecasts` — keyed by grid lat/lon + date, 20+ forecast parameter columns
 - `hourly_forecasts` — keyed by grid lat/lon + forecast time
 - `climate_normals` — FMI's published monthly 1991–2020 normals (`cmd/import-normals`), served by `/v1/climate-normals`
-- `daily_climate_normals` — per calendar day (month+day, incl. 29 Feb) + 24-hour UTC curve, computed from station history by `cmd/import-daily-normals` (only Kaisaniemi so far), served by `/v1/climate-normals/daily`. Both endpoints stay so the app can show v1 and v2 side by side.
+- `daily_climate_normals` — per calendar day (month+day, incl. 29 Feb): temperature avg/high/low, feels-like avg/high/low (wind chill from hourly temp+wind), wind avg, daily max gust, humidity, precipitation mm, wet-day share (≥0.1 mm), snow depth, plus 24-hour UTC curves for temp/feels-like/wind/humidity. Computed from station history by `cmd/import-daily-normals` (only Kaisaniemi so far; hourly params exist there from ~2000, hourly precip only from 2012 so precip stays daily), served by `/v1/climate-normals/daily`, which also returns a `precipitation` block: observed mm so far today and month-to-date (hourly `PRA_PT1H_ACC` from FMI since the 1st, cached per station-hour) against the daily normals summed over the same days. The app prefers the daily card and falls back to the monthly one only where no daily normals exist.
 
 ## FMI Data Sources
 

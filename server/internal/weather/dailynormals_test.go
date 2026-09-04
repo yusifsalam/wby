@@ -21,12 +21,22 @@ func syntheticRecords(startYear, endYear int) ([]DailyRecord, []HourlyRecord) {
 	for d := time.Date(startYear, 1, 1, 0, 0, 0, 0, time.UTC); d.Year() <= endYear; d = d.AddDate(0, 0, 1) {
 		base := syntheticDailyTemp(d)
 		precip := 2.0
-		if d.YearDay()%2 == 0 {
+		if d.Year()%2 == 0 {
 			precip = -1
 		}
-		daily = append(daily, DailyRecord{Date: d, TempAvg: f(base), TempHigh: f(base + 4), TempLow: f(base - 4), PrecipMm: f(precip)})
+		snow := -1.0
+		if d.Month() <= 2 || d.Month() == 12 {
+			snow = 10
+		}
+		daily = append(daily, DailyRecord{Date: d, TempAvg: f(base), TempHigh: f(base + 4), TempLow: f(base - 4), PrecipMm: f(precip), SnowCm: f(snow)})
 		for h := 0; h < 24; h++ {
-			hourly = append(hourly, HourlyRecord{Time: d.Add(time.Duration(h) * time.Hour), Temp: base + syntheticHourlyOffset(h)})
+			hourly = append(hourly, HourlyRecord{
+				Time:      d.Add(time.Duration(h) * time.Hour),
+				Temp:      f(base + syntheticHourlyOffset(h)),
+				Humidity:  f(80 - 2*syntheticHourlyOffset(h)),
+				WindSpeed: f(5),
+				WindGust:  f(8 + float64(h%3)),
+			})
 		}
 	}
 	return daily, hourly
@@ -80,6 +90,55 @@ func TestComputeDailyNormalsRecoversSeasonalCurve(t *testing.T) {
 		if math.Abs(n.TempHourly[9]-*n.TempAvg) > 0.3 {
 			t.Errorf("%02d-%02d hour 9 = %.2f, want ~daily mean %.2f", probe.month, probe.day, n.TempHourly[9], *n.TempAvg)
 		}
+		if len(n.TempHourlyP10) != 24 || len(n.TempHourlyP90) != 24 {
+			t.Fatalf("%02d-%02d hourly percentiles len = %d/%d", probe.month, probe.day, len(n.TempHourlyP10), len(n.TempHourlyP90))
+		}
+		for h := 0; h < 24; h++ {
+			if n.TempHourlyP10[h] > n.TempHourly[h] || n.TempHourly[h] > n.TempHourlyP90[h] {
+				t.Errorf("%02d-%02d hour %d: p10 %.2f, mean %.2f, p90 %.2f out of order", probe.month, probe.day, h, n.TempHourlyP10[h], n.TempHourly[h], n.TempHourlyP90[h])
+			}
+		}
+		if spread := n.TempHourlyP90[12] - n.TempHourlyP10[12]; spread <= 0 || spread > 3 {
+			t.Errorf("%02d-%02d noon p10..p90 spread = %.2f, want within the window's seasonal drift", probe.month, probe.day, spread)
+		}
+		if n.PrecipDaysPct == nil || math.Abs(*n.PrecipDaysPct-50) > 2 {
+			t.Errorf("%02d-%02d wet days = %v, want ~50%%", probe.month, probe.day, n.PrecipDaysPct)
+		}
+		if n.WindAvg == nil || math.Abs(*n.WindAvg-5) > 1e-6 {
+			t.Errorf("%02d-%02d wind = %v, want 5", probe.month, probe.day, n.WindAvg)
+		}
+		if n.WindGust == nil || math.Abs(*n.WindGust-10) > 1e-6 {
+			t.Errorf("%02d-%02d gust = %v, want 10 (daily max)", probe.month, probe.day, n.WindGust)
+		}
+		if n.HumidityAvg == nil || math.Abs(*n.HumidityAvg-80) > 0.3 {
+			t.Errorf("%02d-%02d humidity = %v, want ~80", probe.month, probe.day, n.HumidityAvg)
+		}
+		for name, curve := range map[string][]float64{"feels": n.FeelsLikeHourly, "wind": n.WindHourly, "humidity": n.HumidityHourly} {
+			if len(curve) != 24 {
+				t.Errorf("%02d-%02d %s hourly len = %d", probe.month, probe.day, name, len(curve))
+			}
+		}
+		if n.FeelsLikeAvg == nil || n.FeelsLikeHigh == nil || n.FeelsLikeLow == nil {
+			t.Fatalf("%02d-%02d feels-like nil: %v %v %v", probe.month, probe.day, n.FeelsLikeAvg, n.FeelsLikeHigh, n.FeelsLikeLow)
+		}
+		if *n.FeelsLikeLow > *n.FeelsLikeAvg || *n.FeelsLikeAvg > *n.FeelsLikeHigh {
+			t.Errorf("%02d-%02d feels-like low/avg/high out of order: %.2f %.2f %.2f", probe.month, probe.day, *n.FeelsLikeLow, *n.FeelsLikeAvg, *n.FeelsLikeHigh)
+		}
+	}
+
+	jan := findNormal(t, normals, 1, 15)
+	if *jan.FeelsLikeAvg > *jan.TempAvg-3 {
+		t.Errorf("January feels-like %.2f should sit well below %.2f at 5 m/s", *jan.FeelsLikeAvg, *jan.TempAvg)
+	}
+	if jan.SnowCm == nil || math.Abs(*jan.SnowCm-10) > 1e-6 {
+		t.Errorf("January snow = %v, want 10", jan.SnowCm)
+	}
+	jul := findNormal(t, normals, 7, 15)
+	if math.Abs(*jul.FeelsLikeAvg-*jul.TempAvg) > 0.1 {
+		t.Errorf("July feels-like %.2f should match %.2f above 10°C", *jul.FeelsLikeAvg, *jul.TempAvg)
+	}
+	if jul.SnowCm == nil || *jul.SnowCm != 0 {
+		t.Errorf("July snow = %v, want 0 (no-snow marker counts as zero)", jul.SnowCm)
 	}
 
 	leap := findNormal(t, normals, 2, 29)
@@ -106,8 +165,11 @@ func TestComputeDailyNormalsLeavesSparseDaysNil(t *testing.T) {
 	if n.TempAvg != nil {
 		t.Errorf("only 10 of 30 years present, avg should be nil, got %v", *n.TempAvg)
 	}
-	if n.TempHourly != nil {
-		t.Errorf("no hourly data, hourly should be nil")
+	if n.TempHourly != nil || n.TempHourlyP10 != nil || n.TempHourlyP90 != nil || n.WindHourly != nil || n.FeelsLikeHourly != nil || n.HumidityHourly != nil {
+		t.Errorf("no hourly data, hourly curves should be nil")
+	}
+	if n.WindAvg != nil || n.FeelsLikeAvg != nil || n.FeelsLikeHigh != nil || n.WindGust != nil || n.HumidityAvg != nil {
+		t.Errorf("no hourly data, hourly-derived normals should be nil")
 	}
 }
 

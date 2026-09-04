@@ -121,23 +121,29 @@ type Service struct {
 
 	radarPrecip      RadarPrecipitationSource
 	radarPrecipCache *Cache[*PrecipitationForecastGrid]
+
+	precipHistory     PrecipitationHistoryFetcher
+	precipToDateCache *Cache[*PrecipitationObservations]
 }
 
 func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL time.Duration) *Service {
 	wms, _ := fmiClient.(WMSTileFetcher)
+	precipHistory, _ := fmiClient.(PrecipitationHistoryFetcher)
 	return &Service{
-		store:            store,
-		fmi:              fmiClient,
-		wms:              wms,
-		forecastCache:    NewCache[[]DailyForecast](forecastCacheTTL),
-		timezoneCache:    NewCache[string](forecastCacheTTL),
-		hourlyCache:      NewCache[[]HourlyForecast](forecastCacheTTL),
-		uvCache:          NewCache[[]UVDataPoint](forecastCacheTTL),
-		precipCache:      NewCache[*PrecipitationOverlay](30 * time.Minute),
-		leaderboardCache: NewCache[[]LeaderboardEntry](5 * time.Minute),
-		gribGridCache:    NewCache[*FieldGrid](0),
-		gribPrecipCache:  NewCache[*PrecipitationForecastGrid](0),
-		radarPrecipCache: NewCache[*PrecipitationForecastGrid](radarGridCacheTTL),
+		store:             store,
+		fmi:               fmiClient,
+		wms:               wms,
+		precipHistory:     precipHistory,
+		precipToDateCache: NewCache[*PrecipitationObservations](time.Hour),
+		forecastCache:     NewCache[[]DailyForecast](forecastCacheTTL),
+		timezoneCache:     NewCache[string](forecastCacheTTL),
+		hourlyCache:       NewCache[[]HourlyForecast](forecastCacheTTL),
+		uvCache:           NewCache[[]UVDataPoint](forecastCacheTTL),
+		precipCache:       NewCache[*PrecipitationOverlay](30 * time.Minute),
+		leaderboardCache:  NewCache[[]LeaderboardEntry](5 * time.Minute),
+		gribGridCache:     NewCache[*FieldGrid](0),
+		gribPrecipCache:   NewCache[*PrecipitationForecastGrid](0),
+		radarPrecipCache:  NewCache[*PrecipitationForecastGrid](radarGridCacheTTL),
 	}
 }
 
@@ -764,26 +770,57 @@ func (s *Service) GetDailyClimateNormals(ctx context.Context, lat, lon float64, 
 		return nil, fmt.Errorf("no daily normal for %s", local.Format("01-02"))
 	}
 	today := normals[todayIdx]
-	var next []float64
-	if todayIdx+1 < len(normals) {
-		next = normals[todayIdx+1].TempHourly
-	} else {
-		next = normals[0].TempHourly
-	}
+	next := normals[(todayIdx+1)%len(normals)]
 
 	res := &DailyNormalsResult{
-		Station:       station,
-		DistanceKM:    distKm,
-		Period:        dailyNormalsPeriod,
-		Today:         today,
-		TempNowNormal: HourlyNormalAt(today.TempHourly, next, now),
-		Daily:         normals,
+		Station:            station,
+		DistanceKM:         distKm,
+		Period:             dailyNormalsPeriod,
+		Today:              today,
+		TempNowNormal:      HourlyNormalAt(today.TempHourly, next.TempHourly, now),
+		FeelsLikeNowNormal: HourlyNormalAt(today.FeelsLikeHourly, next.FeelsLikeHourly, now),
+		WindNowNormal:      HourlyNormalAt(today.WindHourly, next.WindHourly, now),
+		HumidityNowNormal:  HourlyNormalAt(today.HumidityHourly, next.HumidityHourly, now),
+		Daily:              normals,
 	}
 	if currentTemp != nil && res.TempNowNormal != nil {
 		diff := *currentTemp - *res.TempNowNormal
 		res.TempDiff = &diff
 	}
+	observed := s.observedPrecipitationThisMonth(ctx, lat, lon, now, loc)
+	if observed != nil {
+		res.Precipitation = precipitationToDate(normals, observed.Hourly, now, loc)
+		st := observed.Station
+		res.Precipitation.Station = &st
+		res.Precipitation.StationDistanceKM = observed.DistanceKM
+	} else {
+		res.Precipitation = precipitationToDate(normals, nil, now, loc)
+	}
 	return res, nil
+}
+
+// observedPrecipitationThisMonth returns hourly precipitation since the first
+// of the local month from the gauge nearest lat/lon, cached per ~1 km grid
+// cell and hour. A fetch failure or missing gauge is logged and yields nil so
+// the normals still serve.
+func (s *Service) observedPrecipitationThisMonth(ctx context.Context, lat, lon float64, now time.Time, loc *time.Location) *PrecipitationObservations {
+	if s.precipHistory == nil {
+		return nil
+	}
+	local := now.In(loc)
+	gridLat, gridLon := snapToGrid(lat, lon)
+	key := fmt.Sprintf("%.2f:%.2f:%s", gridLat, gridLon, local.Format("2006-01-02T15"))
+	if cached, ok := s.precipToDateCache.Get(key); ok {
+		return cached
+	}
+	monthStart := time.Date(local.Year(), local.Month(), 1, 0, 0, 0, 0, loc)
+	observed, err := s.precipHistory.FetchHourlyPrecipitationNear(ctx, lat, lon, monthStart, now)
+	if err != nil {
+		slog.Warn("observed precipitation this month", "lat", lat, "lon", lon, "err", err)
+		return nil
+	}
+	s.precipToDateCache.Set(key, &observed)
+	return &observed
 }
 
 func (s *Service) GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*Station, float64, []ClimateNormal, InterpolatedNormal, error) {
