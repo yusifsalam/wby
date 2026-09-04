@@ -198,7 +198,7 @@ actor WeatherService {
         if let currentTemp {
             queryItems.append(URLQueryItem(name: "current_temp", value: String(format: "%.1f", currentTemp)))
         }
-        return try await fetchJSON(path: "v1/climate-normals/daily", queryItems: queryItems)
+        return try await fetchJSON(path: "v1/climate-normals/daily", queryItems: queryItems, dateDecodingStrategy: .iso8601)
     }
 
     // MARK: - Leaderboard

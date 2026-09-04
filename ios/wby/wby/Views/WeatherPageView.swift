@@ -123,21 +123,23 @@ struct WeatherPageView: View {
                         referenceDate: weather.current.observedAt,
                         timeZone: weather.resolvedTimeZone
                     )
-                    if let climateNormals {
+                    if let dailyClimateNormals {
+                        DailyClimateNormalsCard(
+                            normals: dailyClimateNormals,
+                            currentTemp: weather.current.resolvedTemperature,
+                            currentFeelsLike: weather.current.resolvedFeelsLike,
+                            currentWind: weather.current.resolvedWindSpeed,
+                            currentHumidity: weather.current.resolvedHumidity,
+                            currentSnowDepth: weather.current.snowDepth,
+                            todayForecast: weather.dailyForecast.first,
+                            timeZone: weather.resolvedTimeZone
+                        )
+                    } else if let climateNormals {
                         ClimateNormalsCard(
                             normals: climateNormals,
                             currentTemp: weather.current.resolvedTemperature,
                             todayWeatherHigh: weather.dailyForecast.first?.high,
                             todayWeatherLow: weather.dailyForecast.first?.low
-                        )
-                    }
-                    if let dailyClimateNormals {
-                        DailyClimateNormalsCard(
-                            normals: dailyClimateNormals,
-                            currentTemp: weather.current.resolvedTemperature,
-                            todayWeatherHigh: weather.dailyForecast.first?.high,
-                            todayWeatherLow: weather.dailyForecast.first?.low,
-                            timeZone: weather.resolvedTimeZone
                         )
                     }
                     if let lastUpdated {
@@ -290,11 +292,6 @@ struct WeatherPageView: View {
             }
         }
         do {
-            climateNormals = try await weatherService.fetchClimateNormals(lat: coord.latitude, lon: coord.longitude)
-        } catch {
-            climateNormals = nil
-        }
-        do {
             dailyClimateNormals = try await weatherService.fetchDailyClimateNormals(
                 lat: coord.latitude,
                 lon: coord.longitude,
@@ -302,6 +299,15 @@ struct WeatherPageView: View {
             )
         } catch {
             dailyClimateNormals = nil
+        }
+        guard dailyClimateNormals == nil else {
+            climateNormals = nil
+            return
+        }
+        do {
+            climateNormals = try await weatherService.fetchClimateNormals(lat: coord.latitude, lon: coord.longitude)
+        } catch {
+            climateNormals = nil
         }
     }
 
