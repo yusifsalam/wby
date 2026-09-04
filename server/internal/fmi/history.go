@@ -128,6 +128,36 @@ func (c *Client) FetchHourlyPrecipitationNear(ctx context.Context, lat, lon floa
 	return *best, nil
 }
 
+// fetchWithRetry retries throttled (429) and server-side (5xx) failures and
+// network errors with growing backoff; other errors return at once.
+func (c *Client) fetchWithRetry(ctx context.Context, params url.Values) ([]byte, error) {
+	backoff := []time.Duration{2 * time.Second, 8 * time.Second, 30 * time.Second}
+	var lastErr error
+	for attempt := 0; ; attempt++ {
+		data, err := c.fetch(ctx, params)
+		if err == nil {
+			return data, nil
+		}
+		lastErr = err
+		if attempt >= len(backoff) || !isRetryable(err) {
+			return nil, lastErr
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(backoff[attempt]):
+		}
+	}
+}
+
+func isRetryable(err error) bool {
+	msg := err.Error()
+	if strings.Contains(msg, "FMI returned ") {
+		return strings.Contains(msg, "FMI returned 429") || strings.Contains(msg, "FMI returned 5")
+	}
+	return true
+}
+
 func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
 	const earthRadiusKm = 6371.0
 	toRad := func(deg float64) float64 { return deg * math.Pi / 180 }
@@ -172,7 +202,7 @@ func (c *Client) fetchChunked(ctx context.Context, query, parameters string, sel
 			for k, v := range selector {
 				params[k] = v
 			}
-			results[i], errs[i] = c.fetch(ctx, params)
+			results[i], errs[i] = c.fetchWithRetry(ctx, params)
 		}(i, sp)
 	}
 	wg.Wait()

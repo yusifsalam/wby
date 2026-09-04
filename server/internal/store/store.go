@@ -625,17 +625,21 @@ func timeframeToInterval(tf string) string {
 	}
 }
 
-func (s *Store) NearestStationWithDailyClimateNormals(ctx context.Context, lat, lon float64, period string) (weather.Station, float64, error) {
+// NearestStationWithDailyClimateNormals finds the closest station that has a
+// temperature normal for the given calendar day in the period.
+func (s *Store) NearestStationWithDailyClimateNormals(ctx context.Context, lat, lon float64, period string, month, day int) (weather.Station, float64, error) {
 	var st weather.Station
 	var distMeters float64
 	err := s.pool.QueryRow(ctx,
 		`SELECT s.fmisid, s.name, ST_Y(s.geom::geometry), ST_X(s.geom::geometry), s.wmo_code,
 		        ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography)
 		 FROM stations s
-		 WHERE EXISTS (SELECT 1 FROM daily_climate_normals n WHERE n.fmisid = s.fmisid AND n.period = $3)
+		 WHERE EXISTS (SELECT 1 FROM daily_climate_normals n
+		               WHERE n.fmisid = s.fmisid AND n.period = $3 AND n.month = $4 AND n.day = $5
+		                 AND n.temp_avg IS NOT NULL)
 		 ORDER BY s.geom <-> ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
 		 LIMIT 1`,
-		lon, lat, period,
+		lon, lat, period, month, day,
 	).Scan(&st.FMISID, &st.Name, &st.Lat, &st.Lon, &st.WMOCode, &distMeters)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return st, 0, weather.ErrNoStation
@@ -728,6 +732,25 @@ func (s *Store) GetDailyClimateNormals(ctx context.Context, fmisid int, period s
 		normals = append(normals, n)
 	}
 	return normals, rows.Err()
+}
+
+// StationsWithClimateNormals lists the FMISIDs that have official monthly
+// normals for the period.
+func (s *Store) StationsWithClimateNormals(ctx context.Context, period string) ([]int, error) {
+	rows, err := s.pool.Query(ctx, `SELECT DISTINCT fmisid FROM climate_normals WHERE period = $1 ORDER BY fmisid`, period)
+	if err != nil {
+		return nil, fmt.Errorf("stations with climate normals: %w", err)
+	}
+	defer rows.Close()
+	var ids []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan fmisid: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 func (s *Store) GetClimateNormals(ctx context.Context, fmisid int, period string) ([]weather.ClimateNormal, error) {

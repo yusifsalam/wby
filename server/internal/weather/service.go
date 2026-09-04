@@ -42,7 +42,7 @@ type WeatherStore interface {
 	UpsertClimateNormals(ctx context.Context, normals []ClimateNormal) error
 	GetClimateNormals(ctx context.Context, fmisid int, period string) ([]ClimateNormal, error)
 	NearestStationWithClimateNormals(ctx context.Context, lat, lon float64, period string) (Station, float64, error)
-	NearestStationWithDailyClimateNormals(ctx context.Context, lat, lon float64, period string) (Station, float64, error)
+	NearestStationWithDailyClimateNormals(ctx context.Context, lat, lon float64, period string, month, day int) (Station, float64, error)
 	GetDailyClimateNormals(ctx context.Context, fmisid int, period string) ([]DailyClimateNormal, error)
 	UpsertDailyClimateNormals(ctx context.Context, normals []DailyClimateNormal) error
 	GetLeaderboard(ctx context.Context, lat, lon float64, timeframe string) ([]LeaderboardEntry, error)
@@ -735,7 +735,13 @@ const dailyNormalsPeriod = "1991-2020"
 // history. A nil result with a nil error means no station within range has
 // them.
 func (s *Service) GetDailyClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64, now time.Time) (*DailyNormalsResult, error) {
-	station, distKm, err := s.store.NearestStationWithDailyClimateNormals(ctx, lat, lon, dailyNormalsPeriod)
+	loc, err := time.LoadLocation(DefaultPlaceTimezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	local := now.In(loc)
+
+	station, distKm, err := s.store.NearestStationWithDailyClimateNormals(ctx, lat, lon, dailyNormalsPeriod, int(local.Month()), local.Day())
 	if errors.Is(err, ErrNoStation) {
 		return nil, nil
 	}
@@ -754,11 +760,6 @@ func (s *Service) GetDailyClimateNormals(ctx context.Context, lat, lon float64, 
 		return nil, nil
 	}
 
-	loc, err := time.LoadLocation(DefaultPlaceTimezone)
-	if err != nil {
-		loc = time.UTC
-	}
-	local := now.In(loc)
 	todayIdx := -1
 	for i, n := range normals {
 		if n.Month == int(local.Month()) && n.Day == local.Day() {
