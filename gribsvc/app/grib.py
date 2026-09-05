@@ -186,19 +186,19 @@ def extract_bbox_raster(
         grbs.close()
 
 
-def extract_bbox_series(
+def _bbox_series(
     path: Path,
     param: str,
     bbox: tuple[float, float, float, float],
     step: int,
     times: Optional[list[datetime]],
-) -> dict:
-    """Subset every matching message to a bbox in one pass over the file.
+) -> tuple[list[tuple[Optional[datetime], np.ndarray]], np.ndarray, np.ndarray, Optional[str]]:
+    """One pass over the file: (valid, data) per matching message sorted by
+    valid time, plus the shared lat/lon lattice and units.
 
-    Returns the shared lat/lon lattice once, plus one values frame per matching
-    message sorted by valid time. `times` (naive UTC datetimes) filters which
-    messages are kept; None keeps every message for the param. Duplicate valid
-    times keep the first message, mirroring extract_bbox's selection.
+    `times` (naive UTC datetimes) filters which messages are kept; None keeps
+    every message for the param. Duplicate valid times keep the first message,
+    mirroring extract_bbox's selection.
     """
     min_lon, min_lat, max_lon, max_lat = bbox
     step = max(1, int(step))
@@ -206,8 +206,8 @@ def extract_bbox_series(
     if times is not None:
         wanted = {t.replace(tzinfo=None) for t in times}
 
-    frames: list[dict] = []
-    seen: set[datetime] = set()
+    frames: list[tuple[Optional[datetime], np.ndarray]] = []
+    seen: set[Optional[datetime]] = set()
     lats_out = lons_out = None
     units = None
     grbs = pygrib.open(str(path))
@@ -232,9 +232,7 @@ def extract_bbox_series(
                 units = getattr(grb, "units", None)
             elif data.shape != lats_out.shape:
                 continue
-            masked = np.ma.getmaskarray(data) if np.ma.isMaskedArray(data) else np.isnan(data)
-            grid = np.where(masked, None, data.astype(object))
-            frames.append({"valid_time": _iso(valid), "values": grid.tolist()})
+            frames.append((valid, data))
     except Exception as exc:  # noqa: BLE001 - surface a clean parse error
         raise GribError(f"failed to read {path.name}: {exc}") from exc
     finally:
@@ -243,7 +241,28 @@ def extract_bbox_series(
     if not frames:
         raise GribError(f"no fields found: param={param!r}")
 
-    frames.sort(key=lambda f: f["valid_time"] or "")
+    frames.sort(key=lambda f: _iso(f[0]) or "")
+    return frames, lats_out, lons_out, units
+
+
+def extract_bbox_series(
+    path: Path,
+    param: str,
+    bbox: tuple[float, float, float, float],
+    step: int,
+    times: Optional[list[datetime]],
+) -> dict:
+    """Subset every matching message to a bbox in one pass over the file.
+
+    Returns the shared lat/lon lattice once, plus one values frame per matching
+    message sorted by valid time.
+    """
+    frames, lats_out, lons_out, units = _bbox_series(path, param, bbox, step, times)
+    out_frames = []
+    for valid, data in frames:
+        masked = np.ma.getmaskarray(data) if np.ma.isMaskedArray(data) else np.isnan(data)
+        grid = np.where(masked, None, data.astype(object))
+        out_frames.append({"valid_time": _iso(valid), "values": grid.tolist()})
     return {
         "param": param,
         "units": units,
@@ -251,8 +270,22 @@ def extract_bbox_series(
         "cols": int(lats_out.shape[1]),
         "lats": lats_out.tolist(),
         "lons": lons_out.tolist(),
-        "frames": frames,
+        "frames": out_frames,
     }
+
+
+def extract_bbox_series_raster(
+    path: Path,
+    param: str,
+    bbox: tuple[float, float, float, float],
+    step: int,
+    times: Optional[list[datetime]],
+) -> dict:
+    """extract_bbox_series as a binary-ready frame stack (see raster.series)."""
+    frames, lats_out, lons_out, units = _bbox_series(path, param, bbox, step, times)
+    return raster.series(
+        [raster.regular_grid(data, lats_out, lons_out, _iso(valid), units) for valid, data in frames]
+    )
 
 
 def field_grid(path: Path, param: str, at: Optional[datetime]) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:

@@ -231,74 +231,96 @@ func TestGridRejectsTruncatedRaster(t *testing.T) {
 }
 
 func TestGridSeriesReturnsFrameGrids(t *testing.T) {
-	// Two hourly frames sharing one lat/lon lattice (south-to-north rows). Each
-	// frame must become its own flipped, Kelvin->Celsius FieldGrid.
-	const body = `{
-		"param":"2t","units":"K","rows":2,"cols":2,
-		"lats":[[60.0,60.0],[60.1,60.1]],
-		"lons":[[24.0,24.1],[24.0,24.1]],
-		"frames":[
-			{"valid_time":"2026-06-24T16:00:00Z","values":[[293.15,283.15],[283.15,300.65]]},
-			{"valid_time":"2026-06-24T17:00:00Z","values":[[294.15,9999.0],[284.15,301.65]]}
-		]
-	}`
-
-	var gotPath string
-	var gotBody seriesRequest
+	// Two hourly frames concatenated in one float32 body, north-to-south rows.
+	// Each must become its own Kelvin->Celsius FieldGrid stamped with its time.
+	frames := []float32{
+		283.15, 300.65, 293.15, 9999.0, // 16:00
+		284.15, 301.65, 294.15, float32(math.NaN()), // 17:00
+	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
-		_ = json.NewDecoder(r.Body).Decode(&gotBody)
-		_, _ = w.Write([]byte(body))
+		if r.URL.Path != "/grib/extract_raster_series" {
+			t.Errorf("unexpected path %q", r.URL.Path)
+		}
+		var req struct {
+			Times []string `json:"times"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Times) != 2 {
+			t.Errorf("expected two requested times, got %v (%v)", req.Times, err)
+		}
+		h := w.Header()
+		h.Set("X-Grid-Rows", "2")
+		h.Set("X-Grid-Cols", "2")
+		h.Set("X-Grid-Min-Lat", "60.0")
+		h.Set("X-Grid-Max-Lat", "60.1")
+		h.Set("X-Grid-Min-Lon", "24.0")
+		h.Set("X-Grid-Max-Lon", "24.1")
+		h.Set("X-Grid-Frames", "2")
+		h.Set("X-Valid-Times", "2026-06-24T16:00:00Z,2026-06-24T17:00:00Z")
+		body := make([]byte, 4*len(frames))
+		for i, v := range frames {
+			binary.LittleEndian.PutUint32(body[4*i:], math.Float32bits(v))
+		}
+		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 
-	hours := []time.Time{
-		time.Date(2026, 6, 24, 16, 0, 0, 0, time.UTC),
-		time.Date(2026, 6, 24, 17, 0, 0, 0, time.UTC),
-	}
+	t16 := time.Date(2026, 6, 24, 16, 0, 0, 0, time.UTC)
 	grids, err := New(srv.URL, "f.grib2", "2t", 1).
-		GridSeries(context.Background(), 19, 59, 32, 71, hours)
+		GridSeries(context.Background(), 19, 59, 32, 71, []time.Time{t16, t16.Add(time.Hour)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if gotPath != "/grib/extract_series" {
-		t.Fatalf("unexpected path %q", gotPath)
-	}
-	if len(gotBody.Times) != 2 || gotBody.Times[0] != "2026-06-24T16:00:00Z" {
-		t.Fatalf("unexpected times in request: %v", gotBody.Times)
 	}
 	if len(grids) != 2 {
 		t.Fatalf("expected 2 grids, got %d", len(grids))
 	}
-	if !grids[0].ObservedAt.Equal(hours[0]) || !grids[1].ObservedAt.Equal(hours[1]) {
-		t.Fatalf("unexpected valid times: %v, %v", grids[0].ObservedAt, grids[1].ObservedAt)
+	if !grids[0].ObservedAt.Equal(t16) || !grids[1].ObservedAt.Equal(t16.Add(time.Hour)) {
+		t.Fatalf("unexpected frame times: %v, %v", grids[0].ObservedAt, grids[1].ObservedAt)
 	}
-	// Frame 1, row 0 must be the northern row: 284.15K -> 11C.
-	if got := grids[1].Values[0]; math.Abs(float64(got)-11.0) > 1e-4 {
-		t.Fatalf("expected north-west cell 11.0C, got %v", got)
+	if grids[0].MinLat != 60.0 || grids[0].MaxLat != 60.1 || grids[1].MinLon != 24.0 || grids[1].MaxLon != 24.1 {
+		t.Fatalf("unexpected bounds: %+v", grids[0])
 	}
-	// Frame 1's fill sentinel (southern row after the flip) must be NaN.
-	if got := grids[1].Values[3]; !math.IsNaN(float64(got)) {
-		t.Fatalf("expected fill cell to be NaN, got %v", got)
+	if math.Abs(float64(grids[0].Values[0])-10.0) > 1e-4 || !math.IsNaN(float64(grids[0].Values[3])) {
+		t.Fatalf("frame 0: expected 10.0C and fill->NaN, got %v", grids[0].Values)
+	}
+	if math.Abs(float64(grids[1].Values[0])-11.0) > 1e-4 || !math.IsNaN(float64(grids[1].Values[3])) {
+		t.Fatalf("frame 1: expected 11.0C and NaN, got %v", grids[1].Values)
+	}
+}
+
+func TestGridSeriesRejectsFrameCountMismatch(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Grid-Rows", "1")
+		h.Set("X-Grid-Cols", "1")
+		h.Set("X-Grid-Min-Lat", "60.0")
+		h.Set("X-Grid-Max-Lat", "60.0")
+		h.Set("X-Grid-Min-Lon", "24.0")
+		h.Set("X-Grid-Max-Lon", "24.0")
+		h.Set("X-Grid-Frames", "2")
+		h.Set("X-Valid-Times", "2026-06-24T16:00:00Z")
+		_, _ = w.Write(make([]byte, 8))
+	}))
+	defer srv.Close()
+
+	if _, err := New(srv.URL, "f.grib2", "2t", 1).
+		GridSeries(context.Background(), 19, 59, 32, 71, nil); err == nil {
+		t.Fatal("expected an error when frame count and valid times disagree")
 	}
 }
 
 func TestGridSeriesSoftMiss(t *testing.T) {
-	for _, status := range []int{http.StatusNotFound, http.StatusUnprocessableEntity} {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(status)
-			_, _ = w.Write([]byte(`{"detail":"not available"}`))
-		}))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"detail":"no fields found"}`, http.StatusUnprocessableEntity)
+	}))
+	defer srv.Close()
 
-		grids, err := New(srv.URL, "f.grib2", "2t", 1).
-			GridSeries(context.Background(), 19, 59, 32, 71, []time.Time{time.Now()})
-		srv.Close()
-		if err != nil {
-			t.Fatalf("status %d: expected soft miss (nil error), got %v", status, err)
-		}
-		if len(grids) != 0 {
-			t.Fatalf("status %d: expected no grids, got %d", status, len(grids))
-		}
+	grids, err := New(srv.URL, "f.grib2", "2t", 1).
+		GridSeries(context.Background(), 19, 59, 32, 71, []time.Time{time.Now()})
+	if err != nil {
+		t.Fatalf("expected soft miss, got error: %v", err)
+	}
+	if len(grids) != 0 {
+		t.Fatalf("expected no grids on soft miss, got %d", len(grids))
 	}
 }
 

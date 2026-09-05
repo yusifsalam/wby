@@ -103,3 +103,51 @@ def test_extract_bbox_raster_matches_json(sample_grib, first_param):
             assert np.isnan(grid["values"][0, j])
         else:
             assert grid["values"][0, j] == pytest.approx(v, rel=1e-6)
+
+
+def test_extract_bbox_series_raster_matches_json(sample_grib, first_param):
+    import numpy as np
+
+    from app import grib
+
+    bbox = (19.0, 59.0, 32.0, 71.0)
+    out = grib.extract_bbox_series(sample_grib, first_param, bbox, step=4, times=None)
+    grid = grib.extract_bbox_series_raster(sample_grib, first_param, bbox, step=4, times=None)
+    assert grid["valid_times"] == [f["valid_time"] for f in out["frames"]]
+    assert grid["values"].shape == (len(out["frames"]), out["rows"], out["cols"])
+    assert grid["values"].dtype == np.float32
+    north_first = out["lats"][0][0] >= out["lats"][-1][0]
+    for k, frame in enumerate(out["frames"]):
+        json_north_row = frame["values"][0] if north_first else frame["values"][-1]
+        for j, v in enumerate(json_north_row):
+            if v is None:
+                assert np.isnan(grid["values"][k, 0, j])
+            else:
+                assert grid["values"][k, 0, j] == pytest.approx(v, rel=1e-6)
+
+
+def test_raster_series_endpoint(sample_grib, first_param):
+    import numpy as np
+    from fastapi.testclient import TestClient
+
+    from app import raster
+    from app.main import app
+
+    client = TestClient(app)
+    resp = client.post(
+        "/grib/extract_raster_series",
+        json={
+            "file": sample_grib.name,
+            "param": first_param,
+            "bbox": {"min_lon": 19, "min_lat": 59, "max_lon": 32, "max_lat": 71},
+            "step": 4,
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    frames = int(resp.headers[raster.HEADER_FRAMES])
+    times = resp.headers[raster.HEADER_VALID_TIMES].split(",")
+    rows, cols = int(resp.headers[raster.HEADER_ROWS]), int(resp.headers[raster.HEADER_COLS])
+    assert frames == len(times) >= 1
+    assert len(resp.content) == frames * rows * cols * 4
+    values = np.frombuffer(resp.content, dtype="<f4").reshape(frames, rows, cols)
+    assert np.isfinite(values).any()

@@ -6,6 +6,7 @@ Endpoints:
   POST /grib/extract     numeric values at points or over a bbox
   POST /grib/extract_series  one bbox grid per requested hour, in one file pass
   POST /grib/extract_raster  one bbox grid as a binary float32 raster (see raster.py)
+  POST /grib/extract_raster_series  the series as concatenated float32 frames
   POST /grib/render      colormapped PNG tile of a field over a bbox
   POST /nowcast/run      extrapolate radar frames into nowcast frames
 """
@@ -165,6 +166,30 @@ def extract_series(req: ExtractSeriesRequest):
         raise HTTPException(status_code=422, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/grib/extract_raster_series")
+def extract_raster_series(req: ExtractSeriesRequest):
+    """extract_series as binary: every frame's float32 cells concatenated in
+    X-Valid-Times order (X-Grid-Frames of them), geometry in X-Grid-* headers."""
+    try:
+        path = sources.resolve(req.file)
+        times = [grib.parse_time(t) for t in req.times] if req.times else None
+        with _work_slots:
+            grid = grib.extract_bbox_series_raster(
+                path, req.param, req.bbox.as_tuple(), req.step, times
+            )
+    except sources.SourceError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except grib.GribError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return Response(
+        content=raster.encode(grid),
+        media_type=raster.MEDIA_TYPE,
+        headers=raster.series_headers(grid),
+    )
 
 
 class NowcastRequest(BaseModel):

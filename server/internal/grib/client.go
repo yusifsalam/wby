@@ -15,6 +15,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"wby/internal/weather"
@@ -250,92 +251,153 @@ const (
 	rasterHeaderMinLon    = "X-Grid-Min-Lon"
 	rasterHeaderMaxLon    = "X-Grid-Max-Lon"
 	rasterHeaderValidTime = "X-Valid-Time"
+	// Series responses: frame count and comma-separated RFC3339 valid times,
+	// with the frames concatenated in that order in the body.
+	rasterHeaderFrames     = "X-Grid-Frames"
+	rasterHeaderValidTimes = "X-Valid-Times"
 )
 
 // maxRasterCells bounds the body we accept from gribsvc (~64 MB of float32).
 const maxRasterCells = 16 << 20
+
+// rasterGeometry is the grid shape and extent a raster response carries in
+// its headers.
+type rasterGeometry struct {
+	rows, cols                     int
+	minLat, maxLat, minLon, maxLon float64
+}
+
+func parseRasterGeometry(h http.Header) (rasterGeometry, error) {
+	var g rasterGeometry
+	var err error
+	if g.rows, err = strconv.Atoi(h.Get(rasterHeaderRows)); err != nil {
+		return g, fmt.Errorf("gribsvc raster: bad %s: %w", rasterHeaderRows, err)
+	}
+	if g.cols, err = strconv.Atoi(h.Get(rasterHeaderCols)); err != nil {
+		return g, fmt.Errorf("gribsvc raster: bad %s: %w", rasterHeaderCols, err)
+	}
+	if g.rows <= 0 || g.cols <= 0 || g.rows*g.cols > maxRasterCells {
+		return g, fmt.Errorf("gribsvc raster: unsupported dims %dx%d", g.rows, g.cols)
+	}
+	for name, dst := range map[string]*float64{
+		rasterHeaderMinLat: &g.minLat, rasterHeaderMaxLat: &g.maxLat,
+		rasterHeaderMinLon: &g.minLon, rasterHeaderMaxLon: &g.maxLon,
+	} {
+		if *dst, err = strconv.ParseFloat(h.Get(name), 64); err != nil {
+			return g, fmt.Errorf("gribsvc raster: bad %s: %w", name, err)
+		}
+	}
+	return g, nil
+}
+
+// postRaster posts a JSON request to a raster endpoint and returns the
+// response for the caller to decode. ok is false with a nil error on a soft
+// miss (404/422: file or field not available yet).
+func (c *Client) postRaster(ctx context.Context, path string, timeout time.Duration, in any) (*http.Response, bool, error) {
+	payload, err := json.Marshal(in)
+	if err != nil {
+		return nil, false, fmt.Errorf("marshal raster request: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(payload))
+	if err != nil {
+		cancel()
+		return nil, false, fmt.Errorf("build raster request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		cancel()
+		return nil, false, fmt.Errorf("call gribsvc raster: %w", err)
+	}
+	// The body outlives this call; tie the timeout to it.
+	resp.Body = &cancelOnClose{ReadCloser: resp.Body, cancel: cancel}
+
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusUnprocessableEntity {
+		resp.Body.Close()
+		return nil, false, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		resp.Body.Close()
+		return nil, false, fmt.Errorf("gribsvc raster returned %d: %s", resp.StatusCode, string(body))
+	}
+	return resp, true, nil
+}
+
+type cancelOnClose struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (c *cancelOnClose) Close() error {
+	c.cancel()
+	return c.ReadCloser.Close()
+}
+
+// readRasterFrames reads n consecutive little-endian float32 frames of the
+// given geometry from body, converting each into a FieldGrid in consumer units
+// (NaN and FMI fill cells stay NaN). validTimes[i] stamps frame i.
+func (c *Client) readRasterFrames(body io.Reader, g rasterGeometry, validTimes []time.Time) ([]*weather.FieldGrid, error) {
+	cells := g.rows * g.cols
+	want := cells * 4 * len(validTimes)
+	raw, err := io.ReadAll(io.LimitReader(body, int64(want)+1))
+	if err != nil {
+		return nil, fmt.Errorf("read raster body: %w", err)
+	}
+	if len(raw) != want {
+		return nil, fmt.Errorf("gribsvc raster: body %d bytes, want %d for %d frame(s) of %dx%d", len(raw), want, len(validTimes), g.rows, g.cols)
+	}
+
+	grids := make([]*weather.FieldGrid, 0, len(validTimes))
+	for f, validTime := range validTimes {
+		frame := raw[f*cells*4 : (f+1)*cells*4]
+		values := make([]float32, cells)
+		for i := range values {
+			v := math.Float32frombits(binary.LittleEndian.Uint32(frame[4*i:]))
+			if v != v || (c.field.missingAbove > 0 && float64(v) >= c.field.missingAbove) {
+				values[i] = float32(math.NaN())
+				continue
+			}
+			values[i] = float32(float64(v)*c.field.scale + c.field.offset)
+		}
+		grids = append(grids, &weather.FieldGrid{
+			Rows:       g.rows,
+			Cols:       g.cols,
+			MinLat:     g.minLat,
+			MaxLat:     g.maxLat,
+			MinLon:     g.minLon,
+			MaxLon:     g.maxLon,
+			Values:     values,
+			ObservedAt: validTime,
+		})
+	}
+	return grids, nil
+}
 
 // fetchRaster posts the extract request to the binary raster endpoint and
 // decodes the little-endian float32 body (row-major, north-to-south, NaN =
 // masked) into a FieldGrid in consumer units. A nil grid with a nil error is a
 // soft miss — the file or field isn't available yet.
 func (c *Client) fetchRaster(ctx context.Context, file string, minLon, minLat, maxLon, maxLat float64, at time.Time) (*weather.FieldGrid, time.Time, error) {
-	payload, err := json.Marshal(c.bboxRequest(file, minLon, minLat, maxLon, maxLat, at))
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("marshal raster request: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, extractTimeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/grib/extract_raster", bytes.NewReader(payload))
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("build raster request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("call gribsvc raster: %w", err)
+	resp, ok, err := c.postRaster(ctx, "/grib/extract_raster", extractTimeout, c.bboxRequest(file, minLon, minLat, maxLon, maxLat, at))
+	if err != nil || !ok {
+		return nil, time.Time{}, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusUnprocessableEntity {
-		return nil, time.Time{}, nil
-	}
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return nil, time.Time{}, fmt.Errorf("gribsvc raster returned %d: %s", resp.StatusCode, string(body))
-	}
-
-	rows, err := strconv.Atoi(resp.Header.Get(rasterHeaderRows))
+	g, err := parseRasterGeometry(resp.Header)
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("gribsvc raster: bad %s: %w", rasterHeaderRows, err)
-	}
-	cols, err := strconv.Atoi(resp.Header.Get(rasterHeaderCols))
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("gribsvc raster: bad %s: %w", rasterHeaderCols, err)
-	}
-	if rows <= 0 || cols <= 0 || rows*cols > maxRasterCells {
-		return nil, time.Time{}, fmt.Errorf("gribsvc raster: unsupported dims %dx%d", rows, cols)
-	}
-	var extent [4]float64
-	for i, name := range []string{rasterHeaderMinLat, rasterHeaderMaxLat, rasterHeaderMinLon, rasterHeaderMaxLon} {
-		extent[i], err = strconv.ParseFloat(resp.Header.Get(name), 64)
-		if err != nil {
-			return nil, time.Time{}, fmt.Errorf("gribsvc raster: bad %s: %w", name, err)
-		}
+		return nil, time.Time{}, err
 	}
 	validTime, _ := time.Parse(time.RFC3339, resp.Header.Get(rasterHeaderValidTime))
-
-	want := rows * cols * 4
-	body, err := io.ReadAll(io.LimitReader(resp.Body, int64(want)+1))
+	grids, err := c.readRasterFrames(resp.Body, g, []time.Time{validTime})
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("read raster body: %w", err)
+		return nil, time.Time{}, err
 	}
-	if len(body) != want {
-		return nil, time.Time{}, fmt.Errorf("gribsvc raster: body %d bytes, want %d for %dx%d", len(body), want, rows, cols)
-	}
-
-	values := make([]float32, rows*cols)
-	for i := range values {
-		v := math.Float32frombits(binary.LittleEndian.Uint32(body[4*i:]))
-		if v != v || (c.field.missingAbove > 0 && float64(v) >= c.field.missingAbove) {
-			values[i] = float32(math.NaN())
-			continue
-		}
-		values[i] = float32(float64(v)*c.field.scale + c.field.offset)
-	}
-
-	return &weather.FieldGrid{
-		Rows:       rows,
-		Cols:       cols,
-		MinLat:     extent[0],
-		MaxLat:     extent[1],
-		MinLon:     extent[2],
-		MaxLon:     extent[3],
-		Values:     values,
-		ObservedAt: validTime,
-	}, validTime, nil
+	return grids[0], validTime, nil
 }
 
 // postJSON posts a JSON body to a gribsvc path and decodes the response into
@@ -401,22 +463,13 @@ type seriesRequest struct {
 	Times []string `json:"times,omitempty"`
 }
 
-type seriesFrame struct {
-	ValidTime string       `json:"valid_time"`
-	Values    [][]*float64 `json:"values"`
-}
-
-type seriesResponse struct {
-	Lats   [][]float64   `json:"lats"`
-	Lons   [][]float64   `json:"lons"`
-	Frames []seriesFrame `json:"frames"`
-}
-
 // GridSeries extracts the configured field over the bbox for every requested
 // hour in a single gribsvc pass over the file, returning one FieldGrid per hour
 // present (ObservedAt carries the frame's valid time). Hours the file lacks are
 // simply absent from the result. Soft misses (file not downloaded yet, or no
-// matching fields at all) return an empty slice and nil error.
+// matching fields at all) return an empty slice and nil error. Frames travel as
+// one concatenated float32 raster rather than JSON: the hourly warm reads ~28
+// of them, which as text cost about a second of gribsvc CPU each.
 func (c *Client) GridSeries(ctx context.Context, minLon, minLat, maxLon, maxLat float64, times []time.Time) ([]*weather.FieldGrid, error) {
 	reqBody := seriesRequest{
 		File:  c.file,
@@ -428,76 +481,34 @@ func (c *Client) GridSeries(ctx context.Context, minLon, minLat, maxLon, maxLat 
 		reqBody.Times = append(reqBody.Times, t.UTC().Format(time.RFC3339))
 	}
 
-	var out seriesResponse
-	ok, err := c.postJSON(ctx, "/grib/extract_series", seriesTimeout, reqBody, &out)
+	resp, ok, err := c.postRaster(ctx, "/grib/extract_raster_series", seriesTimeout, reqBody)
 	if err != nil || !ok {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
-	grids := make([]*weather.FieldGrid, 0, len(out.Frames))
-	for _, frame := range out.Frames {
-		validTime, _ := time.Parse(time.RFC3339, frame.ValidTime)
-		if grid := c.buildGrid(frame.Values, out.Lats, out.Lons, validTime); grid != nil {
-			grids = append(grids, grid)
-		}
+	g, err := parseRasterGeometry(resp.Header)
+	if err != nil {
+		return nil, err
 	}
-	return grids, nil
-}
-
-// buildGrid converts one gribsvc values raster plus its lat/lon lattice into a
-// FieldGrid in consumer units. gribsvc returns rows south-to-north; the order
-// is detected from the corner latitudes and flipped if needed so row 0 is the
-// northernmost. Returns nil when the shapes are inconsistent.
-func (c *Client) buildGrid(gridValues [][]*float64, lats, lons [][]float64, validTime time.Time) *weather.FieldGrid {
-	rows := len(gridValues)
-	if rows == 0 {
-		return nil
+	frames, err := strconv.Atoi(resp.Header.Get(rasterHeaderFrames))
+	if err != nil || frames < 0 {
+		return nil, fmt.Errorf("gribsvc raster: bad %s: %v", rasterHeaderFrames, err)
 	}
-	cols := len(gridValues[0])
-	if cols == 0 || len(lats) != rows || len(lons) != rows {
-		return nil
-	}
-
-	northToSouth := lats[0][0] >= lats[rows-1][0]
-
-	values := make([]float32, 0, rows*cols)
-	for r := 0; r < rows; r++ {
-		src := r
-		if !northToSouth {
-			src = rows - 1 - r
-		}
-		row := gridValues[src]
-		for j := 0; j < cols; j++ {
-			cell := float32(math.NaN())
-			if j < len(row) {
-				if v := row[j]; v != nil && !(c.field.missingAbove > 0 && *v >= c.field.missingAbove) {
-					cell = float32(*v*c.field.scale + c.field.offset)
-				}
+	var validTimes []time.Time
+	if raw := resp.Header.Get(rasterHeaderValidTimes); raw != "" {
+		for _, part := range strings.Split(raw, ",") {
+			t, err := time.Parse(time.RFC3339, strings.TrimSpace(part))
+			if err != nil {
+				return nil, fmt.Errorf("gribsvc raster: bad %s entry %q: %w", rasterHeaderValidTimes, part, err)
 			}
-			values = append(values, cell)
+			validTimes = append(validTimes, t)
 		}
 	}
-
-	minLatV, maxLatV := lats[0][0], lats[0][0]
-	minLonV, maxLonV := lons[0][0], lons[0][0]
-	for r := 0; r < rows; r++ {
-		for j := 0; j < cols && j < len(lats[r]) && j < len(lons[r]); j++ {
-			lat, lon := lats[r][j], lons[r][j]
-			minLatV, maxLatV = math.Min(minLatV, lat), math.Max(maxLatV, lat)
-			minLonV, maxLonV = math.Min(minLonV, lon), math.Max(maxLonV, lon)
-		}
+	if len(validTimes) != frames {
+		return nil, fmt.Errorf("gribsvc raster: %d frames but %d valid times", frames, len(validTimes))
 	}
-
-	return &weather.FieldGrid{
-		Rows:       rows,
-		Cols:       cols,
-		MinLat:     minLatV,
-		MaxLat:     maxLatV,
-		MinLon:     minLonV,
-		MaxLon:     maxLonV,
-		Values:     values,
-		ObservedAt: validTime,
-	}
+	return c.readRasterFrames(resp.Body, g, validTimes)
 }
 
 // TemperatureSamples is a typed view of Samples for the temperature overlay,

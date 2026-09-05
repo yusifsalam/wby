@@ -19,6 +19,10 @@ HEADER_MIN_LON = "X-Grid-Min-Lon"
 HEADER_MAX_LON = "X-Grid-Max-Lon"
 HEADER_VALID_TIME = "X-Valid-Time"
 HEADER_UNITS = "X-Units"
+# Series responses: frame count and comma-separated valid times, frames
+# concatenated in that order in the body.
+HEADER_FRAMES = "X-Grid-Frames"
+HEADER_VALID_TIMES = "X-Valid-Times"
 
 MEDIA_TYPE = "application/octet-stream"
 
@@ -76,4 +80,26 @@ def headers(grid: dict) -> dict:
         out[HEADER_VALID_TIME] = grid["valid_time"]
     if grid.get("units"):
         out[HEADER_UNITS] = str(grid["units"])
+    return out
+
+
+def series(frames: list[dict]) -> dict:
+    """Combine per-frame regular_grid() results sharing one lattice into a
+    series: a (frames, rows, cols) float32 stack plus the frames' valid times."""
+    if not frames:
+        raise ValueError("raster: series needs at least one frame")
+    first = frames[0]
+    for f in frames[1:]:
+        if (f["rows"], f["cols"]) != (first["rows"], first["cols"]):
+            raise ValueError("raster: series frames must share one grid shape")
+    out = {k: first[k] for k in ("rows", "cols", "min_lat", "max_lat", "min_lon", "max_lon", "units")}
+    out["valid_times"] = [f["valid_time"] for f in frames]
+    out["values"] = np.stack([f["values"] for f in frames])
+    return out
+
+
+def series_headers(grid: dict) -> dict:
+    out = headers({**grid, "valid_time": None})
+    out[HEADER_FRAMES] = str(len(grid["valid_times"]))
+    out[HEADER_VALID_TIMES] = ",".join(t or "" for t in grid["valid_times"])
     return out

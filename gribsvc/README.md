@@ -46,6 +46,7 @@ GRIB_DATA_DIR=./testdata uvicorn app.main:app --port 9090
 | POST   | `/grib/extract`  | JSON values |
 | POST   | `/grib/extract_series` | one bbox grid per requested hour, in one file pass |
 | POST   | `/grib/extract_raster` | one bbox grid as binary float32 (`X-Grid-*` headers carry the geometry) |
+| POST   | `/grib/extract_raster_series` | `extract_series` as binary: frames concatenated in `X-Valid-Times` order |
 | POST   | `/grib/render`   | `image/png` |
 
 ### Examples
