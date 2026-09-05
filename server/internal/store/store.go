@@ -172,11 +172,14 @@ func (s *Store) LatestObservation(ctx context.Context, fmisid int) (weather.Obse
 // keyed by FMISID. Stations without any observation are absent from the map.
 func (s *Store) LatestObservations(ctx context.Context, fmisids []int) (map[int]weather.Observation, error) {
 	rows, err := s.pool.Query(ctx,
-		`WITH latest AS (
-		   SELECT fmisid, max(observed_at) AS at FROM observations WHERE fmisid = ANY($1) GROUP BY fmisid
-		 ), recent AS (
-		   SELECT o.* FROM observations o JOIN latest l ON l.fmisid = o.fmisid
-		   WHERE o.observed_at > l.at - INTERVAL '`+latestObservationWindow+`'
+		`WITH recent AS (
+		   SELECT o.* FROM unnest($1::int[]) AS s(fmisid)
+		   CROSS JOIN LATERAL (
+		     SELECT * FROM observations o
+		     WHERE o.fmisid = s.fmisid
+		       AND o.observed_at > (SELECT max(observed_at) FROM observations WHERE fmisid = s.fmisid)
+		                           - INTERVAL '`+latestObservationWindow+`'
+		   ) o
 		 )
 		 SELECT fmisid, max(observed_at),
 		        (array_agg(temperature ORDER BY observed_at DESC) FILTER (WHERE temperature IS NOT NULL))[1],
