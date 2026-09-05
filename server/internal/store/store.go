@@ -499,11 +499,14 @@ func (s *Store) UpsertHourlyForecasts(ctx context.Context, gridLat, gridLon floa
 		)
 	}
 	br := s.pool.SendBatch(ctx, batch)
-	defer br.Close()
 	for range hourly {
 		if _, err := br.Exec(); err != nil {
+			br.Close()
 			return fmt.Errorf("upsert hourly forecast: %w", err)
 		}
+	}
+	if err := br.Close(); err != nil {
+		return fmt.Errorf("upsert hourly forecast: %w", err)
 	}
 	_, _ = s.pool.Exec(ctx,
 		`DELETE FROM hourly_forecasts

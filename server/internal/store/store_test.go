@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -141,5 +142,50 @@ func TestObservedTemperatureRange(t *testing.T) {
 	}
 	if low != nil || high != nil {
 		t.Errorf("empty window must yield nil, got %v..%v", low, high)
+	}
+}
+
+// A single-connection pool must still complete the hourly upsert: the batch
+// connection has to be released before the trailing cleanup DELETE acquires
+// one, or concurrent requests deadlock the pool waiting on each other.
+func TestUpsertHourlyForecastsReleasesBatchConnBeforeCleanup(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://weather:weather@localhost:5432/weather?sslmode=disable"
+	}
+	sep := "?"
+	if strings.Contains(dsn, "?") {
+		sep = "&"
+	}
+	s, err := New(context.Background(), dsn+sep+"pool_max_conns=1")
+	if err != nil {
+		t.Skipf("database not available: %v", err)
+	}
+	t.Cleanup(func() { s.Close() })
+
+	// The context outlives the deadlock check: the old code only returned once
+	// the cleanup DELETE's acquire gave up on ctx, which would mask the hang.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	now := time.Now().UTC().Truncate(time.Hour)
+	temp := 12.5
+	hourly := []weather.HourlyForecast{
+		{Time: now, FetchedAt: now, Temperature: &temp},
+		{Time: now.Add(time.Hour), FetchedAt: now, Temperature: &temp},
+	}
+	done := make(chan error, 1)
+	go func() { done <- s.UpsertHourlyForecasts(ctx, 89.99, 179.99, hourly) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("upsert hourly forecasts: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("UpsertHourlyForecasts deadlocked on a single-connection pool")
+	}
+
+	if _, err := s.pool.Exec(context.Background(),
+		`DELETE FROM hourly_forecasts WHERE grid_lat = 89.99 AND grid_lon = 179.99`); err != nil {
+		t.Fatalf("cleanup: %v", err)
 	}
 }
