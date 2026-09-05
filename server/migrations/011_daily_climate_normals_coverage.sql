@@ -1,0 +1,3 @@
+ALTER TABLE daily_climate_normals
+    ADD COLUMN IF NOT EXISTS daily_years  DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS hourly_years DOUBLE PRECISION;

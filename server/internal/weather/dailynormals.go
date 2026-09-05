@@ -155,12 +155,14 @@ func ComputeDailyNormals(fmisid int, period string, daily []DailyRecord, hourly 
 	}
 
 	var avg, high, low, precip, wetDays, snow [calendarDays]normalAccumulator
+	dailyDays, hourlyHours := 0, 0
 	for _, r := range daily {
 		if !inPeriod(r.Date) {
 			continue
 		}
 		idx := calendarIndex(r.Date.UTC())
 		if r.TempAvg != nil {
+			dailyDays++
 			addWindowed(&avg, idx, *r.TempAvg, normalsTempWindow)
 		}
 		if r.TempHigh != nil {
@@ -194,6 +196,7 @@ func ComputeDailyNormals(fmisid int, period string, daily []DailyRecord, hourly 
 		idx := calendarIndex(t)
 		h := t.Hour()
 		if r.Temp != nil {
+			hourlyHours++
 			addWindowed(&tempCurve[h], idx, *r.Temp, normalsHourlyWindow)
 			tempSamples.add(h, idx, *r.Temp, normalsHourlyWindow)
 		}
@@ -248,6 +251,8 @@ func ComputeDailyNormals(fmisid int, period string, daily []DailyRecord, hourly 
 	minPrecip := (2*normalsPrecipWindow + 1) * years / 2
 	minHourly := (2*normalsHourlyWindow + 1) * years / 2
 	minAllHours := minDaily * 24
+	dailyYears := float64(dailyDays) / 365.25
+	hourlyYears := float64(hourlyHours) / 8766
 
 	out := make([]DailyClimateNormal, 0, calendarDays)
 	for i := 0; i < calendarDays; i++ {
@@ -275,6 +280,8 @@ func ComputeDailyNormals(fmisid int, period string, daily []DailyRecord, hourly 
 			FeelsLikeHourly: feelsCurve.at(i, minHourly),
 			WindHourly:      windCurve.at(i, minHourly),
 			HumidityHourly:  humidityCurve.at(i, minHourly),
+			DailyYears:      dailyYears,
+			HourlyYears:     hourlyYears,
 		})
 	}
 	return out, nil

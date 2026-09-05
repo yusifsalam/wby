@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -684,29 +683,41 @@ func timeframeToInterval(tf string) string {
 	}
 }
 
-// NearestStationWithDailyClimateNormals finds the closest station that has a
-// temperature normal for the given calendar day in the period.
-func (s *Store) NearestStationWithDailyClimateNormals(ctx context.Context, lat, lon float64, period string, month, day int) (weather.Station, float64, error) {
-	var st weather.Station
-	var distMeters float64
-	err := s.pool.QueryRow(ctx,
+// DailyClimateNormalsCandidates lists the stations within radiusKm that have
+// a daily normal row for the calendar day, nearest first.
+func (s *Store) DailyClimateNormalsCandidates(ctx context.Context, lat, lon float64, period string, month, day int, radiusKm float64) ([]weather.DailyNormalsCandidate, error) {
+	rows, err := s.pool.Query(ctx,
 		`SELECT s.fmisid, s.name, ST_Y(s.geom::geometry), ST_X(s.geom::geometry), s.wmo_code,
-		        ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography)
+		        ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography),
+		        COALESCE(n.daily_years, 0), COALESCE(n.hourly_years, 0),
+		        n.temp_avg IS NOT NULL, n.temp_hourly IS NOT NULL
 		 FROM stations s
-		 WHERE EXISTS (SELECT 1 FROM daily_climate_normals n
-		               WHERE n.fmisid = s.fmisid AND n.period = $3 AND n.month = $4 AND n.day = $5
-		                 AND n.temp_avg IS NOT NULL)
-		 ORDER BY s.geom <-> ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
-		 LIMIT 1`,
-		lon, lat, period, month, day,
-	).Scan(&st.FMISID, &st.Name, &st.Lat, &st.Lon, &st.WMOCode, &distMeters)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return st, 0, weather.ErrNoStation
-	}
+		 JOIN daily_climate_normals n ON n.fmisid = s.fmisid
+		 WHERE n.period = $3 AND n.month = $4 AND n.day = $5
+		   AND ST_DWithin(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, $6)
+		 ORDER BY s.geom <-> ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography`,
+		lon, lat, period, month, day, radiusKm*1000,
+	)
 	if err != nil {
-		return st, 0, fmt.Errorf("nearest station with daily climate normals: %w", err)
+		return nil, fmt.Errorf("daily climate normals candidates: %w", err)
 	}
-	return st, distMeters / 1000, nil
+	defer rows.Close()
+
+	var out []weather.DailyNormalsCandidate
+	for rows.Next() {
+		var c weather.DailyNormalsCandidate
+		var distMeters float64
+		if err := rows.Scan(&c.FMISID, &c.Name, &c.Lat, &c.Lon, &c.WMOCode, &distMeters,
+			&c.DailyYears, &c.HourlyYears, &c.HasTemp, &c.HasHourly); err != nil {
+			return nil, fmt.Errorf("scan daily climate normals candidate: %w", err)
+		}
+		c.DistanceKM = distMeters / 1000
+		out = append(out, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("daily climate normals candidates: %w", err)
+	}
+	return out, nil
 }
 
 func (s *Store) UpsertDailyClimateNormals(ctx context.Context, normals []weather.DailyClimateNormal) error {
@@ -720,8 +731,8 @@ func (s *Store) UpsertDailyClimateNormals(ctx context.Context, normals []weather
 				wind_avg, wind_gust, humidity_avg,
 				precip_mm, precip_days_pct, snow_cm,
 				temp_hourly, feels_like_hourly, wind_hourly, humidity_hourly,
-				temp_hourly_p10, temp_hourly_p90)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+				temp_hourly_p10, temp_hourly_p90, daily_years, hourly_years)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
 			ON CONFLICT (fmisid, period, month, day) DO UPDATE SET
 				temp_avg = EXCLUDED.temp_avg,
 				temp_high = EXCLUDED.temp_high,
@@ -740,14 +751,16 @@ func (s *Store) UpsertDailyClimateNormals(ctx context.Context, normals []weather
 				wind_hourly = EXCLUDED.wind_hourly,
 				humidity_hourly = EXCLUDED.humidity_hourly,
 				temp_hourly_p10 = EXCLUDED.temp_hourly_p10,
-				temp_hourly_p90 = EXCLUDED.temp_hourly_p90`,
+				temp_hourly_p90 = EXCLUDED.temp_hourly_p90,
+				daily_years = EXCLUDED.daily_years,
+				hourly_years = EXCLUDED.hourly_years`,
 			n.FMISID, n.Period, n.Month, n.Day,
 			n.TempAvg, n.TempHigh, n.TempLow,
 			n.FeelsLikeAvg, n.FeelsLikeHigh, n.FeelsLikeLow,
 			n.WindAvg, n.WindGust, n.HumidityAvg,
 			n.PrecipMm, n.PrecipDaysPct, n.SnowCm,
 			n.TempHourly, n.FeelsLikeHourly, n.WindHourly, n.HumidityHourly,
-			n.TempHourlyP10, n.TempHourlyP90)
+			n.TempHourlyP10, n.TempHourlyP90, n.DailyYears, n.HourlyYears)
 	}
 	br := s.pool.SendBatch(ctx, batch)
 	defer br.Close()
@@ -767,7 +780,8 @@ func (s *Store) GetDailyClimateNormals(ctx context.Context, fmisid int, period s
 		       wind_avg, wind_gust, humidity_avg,
 		       precip_mm, precip_days_pct, snow_cm,
 		       temp_hourly, feels_like_hourly, wind_hourly, humidity_hourly,
-		       temp_hourly_p10, temp_hourly_p90
+		       temp_hourly_p10, temp_hourly_p90,
+		       COALESCE(daily_years, 0), COALESCE(hourly_years, 0)
 		FROM daily_climate_normals
 		WHERE fmisid = $1 AND period = $2
 		ORDER BY month, day`, fmisid, period)
@@ -785,7 +799,7 @@ func (s *Store) GetDailyClimateNormals(ctx context.Context, fmisid int, period s
 			&n.WindAvg, &n.WindGust, &n.HumidityAvg,
 			&n.PrecipMm, &n.PrecipDaysPct, &n.SnowCm,
 			&n.TempHourly, &n.FeelsLikeHourly, &n.WindHourly, &n.HumidityHourly,
-			&n.TempHourlyP10, &n.TempHourlyP90); err != nil {
+			&n.TempHourlyP10, &n.TempHourlyP90, &n.DailyYears, &n.HourlyYears); err != nil {
 			return nil, fmt.Errorf("scan daily climate normal: %w", err)
 		}
 		normals = append(normals, n)

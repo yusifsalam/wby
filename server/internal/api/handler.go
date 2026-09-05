@@ -301,6 +301,7 @@ type monthlyNormalJSON struct {
 
 type dailyNormalsJSON struct {
 	Station       stationJSON             `json:"station"`
+	HourlyStation *stationJSON            `json:"hourly_station,omitempty"`
 	Period        string                  `json:"period"`
 	Today         dailyNormalTodayJSON    `json:"today"`
 	Precipitation precipitationToDateJSON `json:"precipitation"`
@@ -395,9 +396,14 @@ func (h *Handler) getDailyClimateNormals(w http.ResponseWriter, r *http.Request)
 	if st := res.Precipitation.Station; st != nil {
 		precipStation = &stationJSON{Name: st.Name, DistanceKM: res.Precipitation.StationDistanceKM}
 	}
+	var hourlyStation *stationJSON
+	if st := res.HourlyStation; st != nil {
+		hourlyStation = &stationJSON{Name: st.Name, DistanceKM: res.HourlyDistanceKM}
+	}
 	resp := dailyNormalsJSON{
-		Station: stationJSON{Name: res.Station.Name, DistanceKM: res.DistanceKM},
-		Period:  res.Period,
+		Station:       stationJSON{Name: res.Station.Name, DistanceKM: res.DistanceKM},
+		HourlyStation: hourlyStation,
+		Period:        res.Period,
 		Today: dailyNormalTodayJSON{
 			dailyNormalJSON:    toJSON(res.Today),
 			TempHourly:         res.Today.TempHourly,

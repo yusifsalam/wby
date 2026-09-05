@@ -249,6 +249,20 @@ type DailyClimateNormal struct {
 	FeelsLikeHourly []float64
 	WindHourly      []float64
 	HumidityHourly  []float64
+	// DailyYears and HourlyYears are the station's record length within the
+	// period in year-equivalents: days with a daily mean / 365.25 and hours
+	// with a temperature / 8766.
+	DailyYears  float64
+	HourlyYears float64
+}
+
+// DailyNormalsCandidate is a station with daily normals for one calendar day.
+type DailyNormalsCandidate struct {
+	StationDistance
+	DailyYears  float64
+	HourlyYears float64
+	HasTemp     bool
+	HasHourly   bool
 }
 
 type DailyRecord struct {
@@ -294,8 +308,12 @@ type PrecipitationToDate struct {
 }
 
 type DailyNormalsResult struct {
-	Station            Station
-	DistanceKM         float64
+	Station    Station
+	DistanceKM float64
+	// HourlyStation supplies the hourly-derived fields when Station has no
+	// hourly record; nil when they come from Station itself.
+	HourlyStation      *Station
+	HourlyDistanceKM   float64
 	Period             string
 	Today              DailyClimateNormal
 	TempNowNormal      *float64

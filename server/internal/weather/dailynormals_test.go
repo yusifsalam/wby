@@ -65,6 +65,12 @@ func TestComputeDailyNormalsRecoversSeasonalCurve(t *testing.T) {
 	if len(normals) != 366 {
 		t.Fatalf("got %d normals, want 366", len(normals))
 	}
+	if y := normals[0].DailyYears; math.Abs(y-30) > 0.1 {
+		t.Errorf("DailyYears = %.2f, want ~30 (the 1980 row is outside the period)", y)
+	}
+	if y := normals[0].HourlyYears; y <= 0 || y > 30.1 {
+		t.Errorf("HourlyYears = %.2f, want within (0, 30]", y)
+	}
 
 	for _, probe := range []struct{ month, day int }{{1, 15}, {4, 1}, {7, 15}, {10, 31}, {12, 31}} {
 		n := findNormal(t, normals, probe.month, probe.day)

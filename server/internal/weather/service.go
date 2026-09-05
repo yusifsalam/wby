@@ -44,7 +44,7 @@ type WeatherStore interface {
 	UpsertClimateNormals(ctx context.Context, normals []ClimateNormal) error
 	GetClimateNormals(ctx context.Context, fmisid int, period string) ([]ClimateNormal, error)
 	NearestStationWithClimateNormals(ctx context.Context, lat, lon float64, period string) (Station, float64, error)
-	NearestStationWithDailyClimateNormals(ctx context.Context, lat, lon float64, period string, month, day int) (Station, float64, error)
+	DailyClimateNormalsCandidates(ctx context.Context, lat, lon float64, period string, month, day int, radiusKm float64) ([]DailyNormalsCandidate, error)
 	GetDailyClimateNormals(ctx context.Context, fmisid int, period string) ([]DailyClimateNormal, error)
 	UpsertDailyClimateNormals(ctx context.Context, normals []DailyClimateNormal) error
 	GetLeaderboard(ctx context.Context, lat, lon float64, timeframe string) ([]LeaderboardEntry, error)
@@ -762,8 +762,8 @@ const maxClimateNormalsDistanceKm = 50.0
 const dailyNormalsPeriod = "1991-2020"
 
 // GetDailyClimateNormals serves the day-of-year normals computed from station
-// history. A nil result with a nil error means no station within range has
-// them.
+// history, from the station chosen by pickNormalsStations. A nil result with
+// a nil error means no station within range has them.
 func (s *Service) GetDailyClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64, now time.Time) (*DailyNormalsResult, error) {
 	loc, err := time.LoadLocation(DefaultPlaceTimezone)
 	if err != nil {
@@ -771,16 +771,19 @@ func (s *Service) GetDailyClimateNormals(ctx context.Context, lat, lon float64, 
 	}
 	local := now.In(loc)
 
-	station, distKm, err := s.store.NearestStationWithDailyClimateNormals(ctx, lat, lon, dailyNormalsPeriod, int(local.Month()), local.Day())
-	if errors.Is(err, ErrNoStation) {
-		return nil, nil
-	}
+	candidates, err := s.store.DailyClimateNormalsCandidates(ctx, lat, lon, dailyNormalsPeriod, int(local.Month()), local.Day(), maxClimateNormalsDistanceKm)
 	if err != nil {
-		return nil, fmt.Errorf("nearest station with daily climate normals: %w", err)
+		return nil, fmt.Errorf("daily climate normals candidates: %w", err)
 	}
-	if distKm > maxClimateNormalsDistanceKm {
+	startYear, endYear, err := parsePeriod(dailyNormalsPeriod)
+	if err != nil {
+		return nil, err
+	}
+	primary, hourlySource := pickNormalsStations(candidates, endYear-startYear+1)
+	if primary == nil {
 		return nil, nil
 	}
+	station, distKm := primary.Station, primary.DistanceKM
 
 	normals, err := s.store.GetDailyClimateNormals(ctx, station.FMISID, dailyNormalsPeriod)
 	if err != nil {
@@ -788,6 +791,17 @@ func (s *Service) GetDailyClimateNormals(ctx context.Context, lat, lon float64, 
 	}
 	if len(normals) == 0 {
 		return nil, nil
+	}
+	var hourlyStation *Station
+	var hourlyDistKm float64
+	if hourlySource != nil {
+		hourlyNormals, err := s.store.GetDailyClimateNormals(ctx, hourlySource.FMISID, dailyNormalsPeriod)
+		if err != nil {
+			return nil, fmt.Errorf("get hourly daily climate normals: %w", err)
+		}
+		mergeHourlyNormals(normals, hourlyNormals)
+		st := hourlySource.Station
+		hourlyStation, hourlyDistKm = &st, hourlySource.DistanceKM
 	}
 
 	todayIdx := -1
@@ -806,6 +820,8 @@ func (s *Service) GetDailyClimateNormals(ctx context.Context, lat, lon float64, 
 	res := &DailyNormalsResult{
 		Station:            station,
 		DistanceKM:         distKm,
+		HourlyStation:      hourlyStation,
+		HourlyDistanceKM:   hourlyDistKm,
 		Period:             dailyNormalsPeriod,
 		Today:              today,
 		TempNowNormal:      HourlyNormalAt(today.TempHourly, next.TempHourly, now),
