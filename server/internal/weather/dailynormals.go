@@ -82,6 +82,11 @@ func addWindowed(acc *[calendarDays]normalAccumulator, index int, v float64, hal
 // high/low, maximum gust).
 const normalsMinHoursPerDay = 18
 
+// NormalsMinHourlyYears is the record length, in years of the period, that
+// hourly-derived normals (curves, feels-like, wind, humidity) require. Daily
+// fields still need half the period.
+const NormalsMinHourlyYears = 10
+
 // Wet day threshold, mm. FMI marks dry days as -1 and traces as 0.
 const normalsWetDayMm = 0.1
 
@@ -249,8 +254,10 @@ func ComputeDailyNormals(fmisid int, period string, daily []DailyRecord, hourly 
 
 	minDaily := (2*normalsTempWindow + 1) * years / 2
 	minPrecip := (2*normalsPrecipWindow + 1) * years / 2
-	minHourly := (2*normalsHourlyWindow + 1) * years / 2
-	minAllHours := minDaily * 24
+	hourlyYearsNeeded := min(years, NormalsMinHourlyYears)
+	minHourly := (2*normalsHourlyWindow + 1) * hourlyYearsNeeded
+	minHourlyDays := (2*normalsTempWindow + 1) * hourlyYearsNeeded
+	minAllHours := minHourlyDays * 24
 	dailyYears := float64(dailyDays) / 365.25
 	hourlyYears := float64(hourlyHours) / 8766
 
@@ -266,10 +273,10 @@ func ComputeDailyNormals(fmisid int, period string, daily []DailyRecord, hourly 
 			TempHigh:        high[i].mean(minDaily),
 			TempLow:         low[i].mean(minDaily),
 			FeelsLikeAvg:    feelsAvg[i].mean(minAllHours),
-			FeelsLikeHigh:   feelsHigh[i].mean(minDaily),
-			FeelsLikeLow:    feelsLow[i].mean(minDaily),
+			FeelsLikeHigh:   feelsHigh[i].mean(minHourlyDays),
+			FeelsLikeLow:    feelsLow[i].mean(minHourlyDays),
 			WindAvg:         windAvg[i].mean(minAllHours),
-			WindGust:        gust[i].mean(minDaily),
+			WindGust:        gust[i].mean(minHourlyDays),
 			HumidityAvg:     humidityAvg[i].mean(minAllHours),
 			PrecipMm:        precip[i].mean(minPrecip),
 			PrecipDaysPct:   wetDays[i].mean(minPrecip),

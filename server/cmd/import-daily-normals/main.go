@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -128,6 +129,15 @@ func importStation(ctx context.Context, client *fmi.Client, db *store.Store, log
 			log.Warn("fetch hourly observations failed, continuing with daily only", "err", err)
 			hourly = nil
 		}
+		if years := tempWindYears(hourly, start, end); years < weather.NormalsMinHourlyYears {
+			instant, err := loadInstantHourly(ctx, client, log, cacheDir, fmisid, period, start, end)
+			if err != nil {
+				log.Warn("fetch instant hourly observations failed, continuing without", "err", err)
+			} else if len(instant) > 0 {
+				hourly = mergeHourly(hourly, instant)
+				log.Info("filled hourly record from instant observations", "temp_wind_years_before", years, "temp_wind_years_after", tempWindYears(hourly, start, end))
+			}
+		}
 	}
 
 	normals, err := weather.ComputeDailyNormals(fmisid, period, daily, hourly)
@@ -178,6 +188,85 @@ func loadDaily(ctx context.Context, client *fmi.Client, log *slog.Logger, cacheD
 		return nil, fmt.Errorf("write daily cache: %w", err)
 	}
 	return records, nil
+}
+
+// loadInstantHourly fetches the on-the-hour fallback record for a station
+// whose hourly product is short. A one-week probe at the end of the period
+// decides whether the station has wind at all; without it an empty cache is
+// written so later runs skip the station.
+func loadInstantHourly(ctx context.Context, client *fmi.Client, log *slog.Logger, cacheDir string, fmisid int, period string, start, end time.Time) ([]weather.HourlyRecord, error) {
+	path := instantHourlyCachePath(cacheDir, fmisid, period)
+	if records, ok, err := readHourlyCSV(path); err != nil {
+		return nil, err
+	} else if ok {
+		log.Info("loaded instant hourly observations from cache", "records", len(records), "path", path)
+		return records, nil
+	}
+	probe, err := client.FetchInstantHourlyObservations(ctx, fmisid, end.Add(-7*24*time.Hour), end)
+	if err != nil {
+		return nil, err
+	}
+	hasWind := false
+	for _, r := range probe {
+		if r.WindSpeed != nil {
+			hasWind = true
+			break
+		}
+	}
+	if !hasWind {
+		log.Info("instant observations carry no wind, skipping fallback")
+		return nil, writeHourlyCSV(path, nil)
+	}
+	t0 := time.Now()
+	records, err := client.FetchInstantHourlyObservations(ctx, fmisid, start, end)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("fetched instant hourly observations", "records", len(records), "took", time.Since(t0).Round(time.Second))
+	if err := writeHourlyCSV(path, records); err != nil {
+		return nil, fmt.Errorf("write instant hourly cache: %w", err)
+	}
+	return records, nil
+}
+
+// tempWindYears is the record length, in year-equivalents, of hours within
+// [start, end] carrying both temperature and wind.
+func tempWindYears(records []weather.HourlyRecord, start, end time.Time) float64 {
+	n := 0
+	for _, r := range records {
+		if r.Temp != nil && r.WindSpeed != nil && !r.Time.Before(start) && !r.Time.After(end) {
+			n++
+		}
+	}
+	return float64(n) / 8766
+}
+
+// mergeHourly adds the hours of extra that base lacks and fills nil
+// temperature, humidity and wind on hours both have.
+func mergeHourly(base, extra []weather.HourlyRecord) []weather.HourlyRecord {
+	byTime := make(map[time.Time]int, len(base))
+	for i, r := range base {
+		byTime[r.Time] = i
+	}
+	out := slices.Clone(base)
+	for _, r := range extra {
+		i, ok := byTime[r.Time]
+		if !ok {
+			out = append(out, r)
+			continue
+		}
+		if out[i].Temp == nil {
+			out[i].Temp = r.Temp
+		}
+		if out[i].Humidity == nil {
+			out[i].Humidity = r.Humidity
+		}
+		if out[i].WindSpeed == nil {
+			out[i].WindSpeed = r.WindSpeed
+		}
+	}
+	slices.SortFunc(out, func(a, b weather.HourlyRecord) int { return a.Time.Compare(b.Time) })
+	return out
 }
 
 func loadHourly(ctx context.Context, client *fmi.Client, log *slog.Logger, cacheDir string, fmisid int, period string, start, end time.Time) ([]weather.HourlyRecord, error) {

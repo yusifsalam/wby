@@ -25,6 +25,10 @@ func hourlyCachePath(dir string, fmisid int, period string) string {
 	return filepath.Join(dir, strconv.Itoa(fmisid), "hourly-"+period+".csv")
 }
 
+func instantHourlyCachePath(dir string, fmisid int, period string) string {
+	return filepath.Join(dir, strconv.Itoa(fmisid), "hourly-instant-"+period+".csv")
+}
+
 func readDailyCSV(path string) ([]weather.DailyRecord, bool, error) {
 	rows, err := readCSV(path, dailyHeader)
 	if err != nil || rows == nil {
@@ -128,6 +132,9 @@ func readCSV(path string, header []string) ([][]string, error) {
 	rows, err := r.ReadAll()
 	if err != nil {
 		return nil, fmt.Errorf("%s: read rows: %w", path, err)
+	}
+	if rows == nil {
+		rows = [][]string{}
 	}
 	return rows, nil
 }

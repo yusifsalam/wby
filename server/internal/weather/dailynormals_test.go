@@ -212,3 +212,30 @@ func TestHourlyNormalAt(t *testing.T) {
 		t.Error("nil curve must yield nil")
 	}
 }
+
+func TestComputeDailyNormalsHourlyThresholdIsTenYears(t *testing.T) {
+	daily, _ := syntheticRecords(1991, 2020)
+	_, twelve := syntheticRecords(2009, 2020)
+	_, eight := syntheticRecords(2013, 2020)
+
+	normals, err := ComputeDailyNormals(1, "1991-2020", daily, twelve)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := findNormal(t, normals, 7, 15)
+	if n.TempHourly == nil || n.FeelsLikeAvg == nil || n.WindAvg == nil || n.FeelsLikeHigh == nil || n.WindGust == nil {
+		t.Errorf("12 of 30 hourly years should yield curves and hourly-derived fields: %+v", n)
+	}
+
+	normals, err = ComputeDailyNormals(1, "1991-2020", daily, eight)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n = findNormal(t, normals, 7, 15)
+	if n.TempHourly != nil || n.FeelsLikeAvg != nil || n.WindAvg != nil || n.FeelsLikeHigh != nil || n.WindGust != nil {
+		t.Errorf("8 of 30 hourly years should leave hourly-derived fields nil: %+v", n)
+	}
+	if n.TempAvg == nil {
+		t.Error("daily temperature should be unaffected by the hourly threshold")
+	}
+}

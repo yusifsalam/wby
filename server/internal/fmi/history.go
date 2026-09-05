@@ -18,9 +18,10 @@ import (
 // FMI caps a single daily request at one year and an hourly request at 31
 // days, so historical ranges are fetched in chunks.
 const (
-	dailyObservationChunk  = 365 * 24 * time.Hour
-	hourlyObservationChunk = 31 * 24 * time.Hour
-	historyConcurrency     = 4
+	dailyObservationChunk   = 365 * 24 * time.Hour
+	hourlyObservationChunk  = 31 * 24 * time.Hour
+	instantObservationChunk = 168 * time.Hour
+	historyConcurrency      = 4
 )
 
 // FetchDailyObservations returns the daily mean/max/min temperature,
@@ -55,6 +56,24 @@ func (c *Client) FetchHourlyObservations(ctx context.Context, fmisid int, start,
 	if err != nil {
 		return nil, fmt.Errorf("fetch hourly observations: %w", err)
 	}
+	return mergeHourlyChunks(chunks)
+}
+
+// FetchInstantHourlyObservations returns on-the-hour temperature, humidity
+// and 10-minute mean wind from the raw observation query, for stations the
+// hourly product covers only briefly. Gusts are left out: a 10-minute gust
+// at the hour understates the hourly maximum.
+func (c *Client) FetchInstantHourlyObservations(ctx context.Context, fmisid int, start, end time.Time) ([]weather.HourlyRecord, error) {
+	selector := stationSelector(fmisid)
+	selector.Set("timestep", "60")
+	chunks, err := c.fetchChunked(ctx, "fmi::observations::weather::timevaluepair", "temperature,rh,ws_10min", selector, start, end, instantObservationChunk)
+	if err != nil {
+		return nil, fmt.Errorf("fetch instant hourly observations: %w", err)
+	}
+	return mergeHourlyChunks(chunks)
+}
+
+func mergeHourlyChunks(chunks [][]byte) ([]weather.HourlyRecord, error) {
 	byTime := make(map[time.Time]weather.HourlyRecord)
 	for _, data := range chunks {
 		recs, err := ParseHourlyObservations(data)
@@ -325,11 +344,11 @@ func parseHourlyObservationsByStation(data []byte) ([]weather.PrecipitationObser
 				st.byTime[t] = r
 			}
 			switch param {
-			case "TA_PT1H_AVG":
+			case "TA_PT1H_AVG", "TEMPERATURE":
 				r.Temp = val
-			case "RH_PT1H_AVG":
+			case "RH_PT1H_AVG", "RH":
 				r.Humidity = val
-			case "WS_PT1H_AVG":
+			case "WS_PT1H_AVG", "WS_10MIN":
 				r.WindSpeed = val
 			case "WG_PT1H_MAX":
 				r.WindGust = val

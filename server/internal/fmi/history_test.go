@@ -61,3 +61,32 @@ func TestParseHourlyObservations(t *testing.T) {
 		}
 	}
 }
+
+func TestParseHourlyObservationsFromInstantQuery(t *testing.T) {
+	data, err := os.ReadFile("testdata/instant_hourly_observations.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recs, err := ParseHourlyObservations(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recs) < 168 {
+		t.Fatalf("got %d records, want a week of hours", len(recs))
+	}
+	withAll := 0
+	for _, r := range recs {
+		if r.Time.Minute() != 0 {
+			t.Errorf("record at %v is not on the hour", r.Time)
+		}
+		if r.WindGust != nil || r.PrecipMm != nil {
+			t.Errorf("record at %v carries gust/precip the query never asked for", r.Time)
+		}
+		if r.Temp != nil && r.Humidity != nil && r.WindSpeed != nil {
+			withAll++
+		}
+	}
+	if withAll < 150 {
+		t.Errorf("only %d of %d records have temperature, humidity and wind", withAll, len(recs))
+	}
+}
