@@ -68,6 +68,39 @@ func (s *Store) NearestStation(ctx context.Context, lat, lon float64) (weather.S
 	return st, distMeters / 1000.0, nil
 }
 
+// NearestStations returns up to limit stations within radiusKm of the point,
+// nearest first.
+func (s *Store) NearestStations(ctx context.Context, lat, lon, radiusKm float64, limit int) ([]weather.StationDistance, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT fmisid, name, ST_Y(geom::geometry), ST_X(geom::geometry), wmo_code,
+		        ST_Distance(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography)
+		 FROM stations
+		 WHERE ST_DWithin(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, $3)
+		 ORDER BY geom <-> ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
+		 LIMIT $4`,
+		lon, lat, radiusKm*1000, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("nearest stations: %w", err)
+	}
+	defer rows.Close()
+
+	var out []weather.StationDistance
+	for rows.Next() {
+		var sd weather.StationDistance
+		var distMeters float64
+		if err := rows.Scan(&sd.FMISID, &sd.Name, &sd.Lat, &sd.Lon, &sd.WMOCode, &distMeters); err != nil {
+			return nil, fmt.Errorf("scan nearest station: %w", err)
+		}
+		sd.DistanceKM = distMeters / 1000.0
+		out = append(out, sd)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("nearest stations: %w", err)
+	}
+	return out, nil
+}
+
 func (s *Store) NearestStationWithClimateNormals(ctx context.Context, lat, lon float64, period string) (weather.Station, float64, error) {
 	var st weather.Station
 	var distMeters float64
@@ -125,16 +158,28 @@ const latestObservationWindow = "70 minutes"
 // recent non-null value of each parameter within latestObservationWindow of
 // the station's newest row. ObservedAt is that newest row's timestamp.
 func (s *Store) LatestObservation(ctx context.Context, fmisid int) (weather.Observation, error) {
-	var o weather.Observation
-	var extraRaw []byte
-	err := s.pool.QueryRow(ctx,
+	all, err := s.LatestObservations(ctx, []int{fmisid})
+	if err != nil {
+		return weather.Observation{}, err
+	}
+	o, ok := all[fmisid]
+	if !ok {
+		return weather.Observation{}, fmt.Errorf("latest observation: %w", pgx.ErrNoRows)
+	}
+	return o, nil
+}
+
+// LatestObservations is LatestObservation for several stations at once,
+// keyed by FMISID. Stations without any observation are absent from the map.
+func (s *Store) LatestObservations(ctx context.Context, fmisids []int) (map[int]weather.Observation, error) {
+	rows, err := s.pool.Query(ctx,
 		`WITH latest AS (
-		   SELECT max(observed_at) AS at FROM observations WHERE fmisid = $1
+		   SELECT fmisid, max(observed_at) AS at FROM observations WHERE fmisid = ANY($1) GROUP BY fmisid
 		 ), recent AS (
-		   SELECT * FROM observations, latest
-		   WHERE fmisid = $1 AND observed_at > latest.at - INTERVAL '`+latestObservationWindow+`'
+		   SELECT o.* FROM observations o JOIN latest l ON l.fmisid = o.fmisid
+		   WHERE o.observed_at > l.at - INTERVAL '`+latestObservationWindow+`'
 		 )
-		 SELECT $1::int, max(observed_at),
+		 SELECT fmisid, max(observed_at),
 		        (array_agg(temperature ORDER BY observed_at DESC) FILTER (WHERE temperature IS NOT NULL))[1],
 		        (array_agg(wind_speed ORDER BY observed_at DESC) FILTER (WHERE wind_speed IS NOT NULL))[1],
 		        (array_agg(wind_gust ORDER BY observed_at DESC) FILTER (WHERE wind_gust IS NOT NULL))[1],
@@ -150,17 +195,31 @@ func (s *Store) LatestObservation(ctx context.Context, fmisid int) (weather.Obse
 		        (array_agg(weather_code ORDER BY observed_at DESC) FILTER (WHERE weather_code IS NOT NULL))[1],
 		        (array_agg(extra ORDER BY observed_at DESC) FILTER (WHERE extra IS NOT NULL))[1]
 		 FROM recent
-		 HAVING count(*) > 0`,
-		fmisid,
-	).Scan(
-		&o.FMISID, &o.ObservedAt, &o.Temperature, &o.WindSpeed, &o.WindGust, &o.WindDir, &o.Humidity, &o.DewPoint,
-		&o.Pressure, &o.Precip1h, &o.PrecipIntensity, &o.SnowDepth, &o.Visibility, &o.TotalCloudCover, &o.WeatherCode, &extraRaw,
+		 GROUP BY fmisid`,
+		fmisids,
 	)
 	if err != nil {
-		return o, fmt.Errorf("latest observation: %w", err)
+		return nil, fmt.Errorf("latest observations: %w", err)
 	}
-	o.ExtraNumericParams = decodeNumericExtras(extraRaw)
-	return o, nil
+	defer rows.Close()
+
+	out := make(map[int]weather.Observation, len(fmisids))
+	for rows.Next() {
+		var o weather.Observation
+		var extraRaw []byte
+		if err := rows.Scan(
+			&o.FMISID, &o.ObservedAt, &o.Temperature, &o.WindSpeed, &o.WindGust, &o.WindDir, &o.Humidity, &o.DewPoint,
+			&o.Pressure, &o.Precip1h, &o.PrecipIntensity, &o.SnowDepth, &o.Visibility, &o.TotalCloudCover, &o.WeatherCode, &extraRaw,
+		); err != nil {
+			return nil, fmt.Errorf("scan latest observation: %w", err)
+		}
+		o.ExtraNumericParams = decodeNumericExtras(extraRaw)
+		out[o.FMISID] = o
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("latest observations: %w", err)
+	}
+	return out, nil
 }
 
 func (s *Store) ObservedTemperatureRange(ctx context.Context, fmisid int, from, to time.Time) (low, high *float64, err error) {

@@ -31,7 +31,9 @@ var ErrForecastGridUnavailable = errors.New("forecast grid not available")
 
 type WeatherStore interface {
 	NearestStation(ctx context.Context, lat, lon float64) (Station, float64, error)
+	NearestStations(ctx context.Context, lat, lon, radiusKm float64, limit int) ([]StationDistance, error)
 	LatestObservation(ctx context.Context, fmisid int) (Observation, error)
+	LatestObservations(ctx context.Context, fmisids []int) (map[int]Observation, error)
 	ObservedTemperatureRange(ctx context.Context, fmisid int, from, to time.Time) (low, high *float64, err error)
 	GetLatestTemperatureSamplesInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, limit int) ([]TemperatureSample, error)
 	GetObservationSamplesAtTimeInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time, limit int) ([]TemperatureSample, error)
@@ -179,14 +181,9 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 		return nil, ErrOutOfCoverage
 	}
 
-	station, distKM, err := s.store.NearestStation(ctx, lat, lon)
+	station, distKM, obs, err := s.currentConditions(ctx, lat, lon)
 	if err != nil {
-		return nil, fmt.Errorf("nearest station: %w", err)
-	}
-
-	obs, err := s.store.LatestObservation(ctx, station.FMISID)
-	if err != nil {
-		return nil, fmt.Errorf("latest observation: %w", err)
+		return nil, err
 	}
 
 	gridLat, gridLon := snapToGrid(lat, lon)
@@ -225,6 +222,39 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 		Forecast: forecast,
 		Timezone: forecastTimezone,
 	}, nil
+}
+
+// currentConditions picks the station representing lat/lon (see
+// station_pick.go) and composes its observation. With no candidate inside the
+// search radius it falls back to the nearest station anywhere, unmerged.
+func (s *Service) currentConditions(ctx context.Context, lat, lon float64) (Station, float64, Observation, error) {
+	candidates, err := s.store.NearestStations(ctx, lat, lon, stationSearchRadiusKm, stationCandidateLimit)
+	if err != nil {
+		return Station{}, 0, Observation{}, fmt.Errorf("nearest stations: %w", err)
+	}
+	if len(candidates) > 0 {
+		ids := make([]int, len(candidates))
+		for i, c := range candidates {
+			ids[i] = c.FMISID
+		}
+		obs, err := s.store.LatestObservations(ctx, ids)
+		if err != nil {
+			return Station{}, 0, Observation{}, fmt.Errorf("latest observations: %w", err)
+		}
+		if picked, merged, ok := pickStation(candidates, obs, time.Now()); ok {
+			return picked.Station, picked.DistanceKM, merged, nil
+		}
+	}
+
+	station, distKM, err := s.store.NearestStation(ctx, lat, lon)
+	if err != nil {
+		return Station{}, 0, Observation{}, fmt.Errorf("nearest station: %w", err)
+	}
+	obs, err := s.store.LatestObservation(ctx, station.FMISID)
+	if err != nil {
+		return Station{}, 0, Observation{}, fmt.Errorf("latest observation: %w", err)
+	}
+	return station, distKM, obs, nil
 }
 
 func (s *Service) GetTemperatureSamples(ctx context.Context) (*TemperatureSamplesResponse, error) {

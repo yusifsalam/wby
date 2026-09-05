@@ -16,6 +16,11 @@ type Station struct {
 	WMOCode string
 }
 
+type StationDistance struct {
+	Station
+	DistanceKM float64
+}
+
 type Observation struct {
 	FMISID             int
 	ObservedAt         time.Time
