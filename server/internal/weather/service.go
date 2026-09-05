@@ -196,15 +196,17 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 		slog.Warn("hourly forecast unavailable", "err", err, "lat", gridLat, "lon", gridLon)
 	}
 
-	uvPoints := s.getUVData(ctx, gridLat, gridLon)
+	uvPoints, uvFresh := s.getUVData(ctx, gridLat, gridLon)
 	if len(uvPoints) > 0 {
 		applyUVToHourly(uvPoints, hourly)
 		applyUVToDaily(uvPoints, forecast)
-		if err := s.store.UpsertHourlyForecasts(ctx, gridLat, gridLon, hourly); err != nil {
-			slog.Warn("failed to persist UV-enriched hourly forecasts", "err", err)
-		}
-		if err := s.store.UpsertForecasts(ctx, forecast); err != nil {
-			slog.Warn("failed to persist UV-enriched daily forecasts", "err", err)
+		if uvFresh {
+			if err := s.store.UpsertHourlyForecasts(ctx, gridLat, gridLon, hourly); err != nil {
+				slog.Warn("failed to persist UV-enriched hourly forecasts", "err", err)
+			}
+			if err := s.store.UpsertForecasts(ctx, forecast); err != nil {
+				slog.Warn("failed to persist UV-enriched daily forecasts", "err", err)
+			}
 		}
 	}
 
@@ -702,22 +704,26 @@ func hasExpandedForecastData(forecasts []DailyForecast) bool {
 	return false
 }
 
-func (s *Service) getUVData(ctx context.Context, gridLat, gridLon float64) []UVDataPoint {
+// getUVData returns the UV forecast for the grid cell and whether it was just
+// fetched from FMI (as opposed to served from the in-process cache). Only a
+// fresh fetch carries anything the persisted forecasts don't already have, so
+// callers persist on fresh only.
+func (s *Service) getUVData(ctx context.Context, gridLat, gridLon float64) ([]UVDataPoint, bool) {
 	cacheKey := fmt.Sprintf("uv:%.2f,%.2f", gridLat, gridLon)
 	if cached, ok := s.uvCache.Get(cacheKey); ok {
-		return cached
+		return cached, false
 	}
 
 	points, err := s.fmi.FetchUVForecast(ctx, gridLat, gridLon)
 	if err != nil {
 		slog.Warn("UV forecast fetch failed", "err", err)
-		return nil
+		return nil, false
 	}
 	slog.Info("fetched UV forecast from FMI", "lat", gridLat, "lon", gridLon, "points", len(points), "data", points)
 	if len(points) > 0 {
 		s.uvCache.Set(cacheKey, points)
 	}
-	return points
+	return points, true
 }
 
 func applyUVToHourly(uvPoints []UVDataPoint, hourly []HourlyForecast) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -15,8 +16,21 @@ type Store struct {
 	pool *pgxpool.Pool
 }
 
+// defaultMaxConns sizes the pool for a burst of concurrent weather requests
+// (an app refresh fans out one per saved location) plus the background
+// fetchers, instead of pgxpool's max(4, NumCPU) — 4 on the 2-vCPU host. A
+// pool_max_conns DSN parameter still wins.
+const defaultMaxConns = 16
+
 func New(ctx context.Context, dsn string) (*Store, error) {
-	pool, err := pgxpool.New(ctx, dsn)
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("parse db config: %w", err)
+	}
+	if !strings.Contains(dsn, "pool_max_conns") {
+		cfg.MaxConns = defaultMaxConns
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("connect to db: %w", err)
 	}
