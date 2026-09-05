@@ -11,6 +11,8 @@ from typing import Optional
 import numpy as np
 import pygrib
 
+from . import raster
+
 
 class GribError(Exception):
     """Raised when a file cannot be parsed or a requested field is not found."""
@@ -124,6 +126,18 @@ def extract_points(
         grbs.close()
 
 
+def _bbox_field(grb, bbox: tuple[float, float, float, float], step: int):
+    """Cut one message to the bbox at the given stride: (data, lats, lons)."""
+    min_lon, min_lat, max_lon, max_lat = bbox
+    data, lats, lons = grb.data(lat1=min_lat, lat2=max_lat, lon1=min_lon, lon2=max_lon)
+    step = max(1, int(step))
+    return (
+        np.asarray(data)[::step, ::step],
+        np.asarray(lats)[::step, ::step],
+        np.asarray(lons)[::step, ::step],
+    )
+
+
 def extract_bbox(
     path: Path,
     param: str,
@@ -132,16 +146,9 @@ def extract_bbox(
     at: Optional[datetime],
 ) -> dict:
     """Subset the field to a bbox (min_lon, min_lat, max_lon, max_lat) as a grid."""
-    min_lon, min_lat, max_lon, max_lat = bbox
     grb, grbs = _find_message(path, param, at)
     try:
-        data, lats, lons = grb.data(
-            lat1=min_lat, lat2=max_lat, lon1=min_lon, lon2=max_lon
-        )
-        step = max(1, int(step))
-        data = np.asarray(data)[::step, ::step]
-        lats = np.asarray(lats)[::step, ::step]
-        lons = np.asarray(lons)[::step, ::step]
+        data, lats, lons = _bbox_field(grb, bbox, step)
 
         # Render masked/NaN as null in JSON.
         masked = np.ma.getmaskarray(data) if np.ma.isMaskedArray(data) else np.isnan(data)
@@ -157,6 +164,24 @@ def extract_bbox(
             "lons": lons.tolist(),
             "values": grid.tolist(),
         }
+    finally:
+        grbs.close()
+
+
+def extract_bbox_raster(
+    path: Path,
+    param: str,
+    bbox: tuple[float, float, float, float],
+    step: int,
+    at: Optional[datetime],
+) -> dict:
+    """Subset the field to a bbox as a binary-ready regular grid (see raster.py)."""
+    grb, grbs = _find_message(path, param, at)
+    try:
+        data, lats, lons = _bbox_field(grb, bbox, step)
+        return raster.regular_grid(
+            data, lats, lons, _iso(grb.validDate), getattr(grb, "units", None)
+        )
     finally:
         grbs.close()
 

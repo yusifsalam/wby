@@ -44,7 +44,8 @@ No linter is configured. Code should be `gofmt`-clean.
 
 Three apps: a Go backend (`server/`), a SwiftUI iOS client (`ios/wby/`), and a
 standalone Python GRIB2 service (`gribsvc/`, FastAPI + pygrib) that parses GRIB2
-into JSON values + PNG tiles — not yet wired into the server. See
+and radar GeoTIFFs into JSON values, binary float32 rasters
+(`/grib/extract_raster`, what the server's grid warms use) + PNG tiles. See
 `gribsvc/README.md`.
 
 ### Server Data Flow

@@ -82,3 +82,24 @@ def test_parse_time_roundtrip():
     dt = grib.parse_time("2026-06-22T12:00:00Z")
     assert dt is not None and dt.tzinfo is None
     assert (dt.year, dt.month, dt.hour) == (2026, 6, 12)
+
+
+def test_extract_bbox_raster_matches_json(sample_grib, first_param):
+    import numpy as np
+
+    from app import grib
+
+    bbox = (19.0, 59.0, 32.0, 71.0)
+    out = grib.extract_bbox(sample_grib, first_param, bbox, step=4, at=None)
+    grid = grib.extract_bbox_raster(sample_grib, first_param, bbox, step=4, at=None)
+    assert (grid["rows"], grid["cols"]) == (out["rows"], out["cols"])
+    assert grid["valid_time"] == out["valid_time"]
+    assert grid["max_lat"] == pytest.approx(max(out["lats"][0][0], out["lats"][-1][0]))
+    # Whatever order pygrib emits, row 0 of the raster is the northern row.
+    north_first = out["lats"][0][0] >= out["lats"][-1][0]
+    json_north_row = out["values"][0] if north_first else out["values"][-1]
+    for j, v in enumerate(json_north_row):
+        if v is None:
+            assert np.isnan(grid["values"][0, j])
+        else:
+            assert grid["values"][0, j] == pytest.approx(v, rel=1e-6)

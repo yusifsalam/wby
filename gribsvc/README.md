@@ -45,6 +45,7 @@ GRIB_DATA_DIR=./testdata uvicorn app.main:app --port 9090
 | GET    | `/grib/datasets` | files + their parameters/times |
 | POST   | `/grib/extract`  | JSON values |
 | POST   | `/grib/extract_series` | one bbox grid per requested hour, in one file pass |
+| POST   | `/grib/extract_raster` | one bbox grid as binary float32 (`X-Grid-*` headers carry the geometry) |
 | POST   | `/grib/render`   | `image/png` |
 
 ### Examples
@@ -76,6 +77,15 @@ curl -XPOST localhost:9090/grib/extract_series -H 'content-type: application/jso
   "step": 4,
   "times": ["2026-09-01T12:00:00Z", "2026-09-01T13:00:00Z"]
 }'
+
+# bbox extraction as a binary raster: little-endian float32 cells, NaN = masked,
+# row-major north-to-south; rows/cols/extent/valid time in X-Grid-* / X-Valid-Time
+# headers. What the Go server uses for radar, nowcast and GRIB grids.
+curl -XPOST localhost:9090/grib/extract_raster -H 'content-type: application/json' -d '{
+  "file": "radar_rr_20260901T160500Z.tif",
+  "param": "rr",
+  "bbox": {"min_lon": 19, "min_lat": 59, "max_lon": 32, "max_lat": 71.5}
+}' -D - --output frame.f32
 
 # rendered tile
 curl -XPOST localhost:9090/grib/render -H 'content-type: application/json' -d '{

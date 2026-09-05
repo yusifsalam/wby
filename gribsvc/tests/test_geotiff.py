@@ -93,3 +93,57 @@ def test_missing_sidecar(tmp_path):
     Image.fromarray(raw).save(path)
     with pytest.raises(GribError, match="sidecar"):
         geotiff.extract_bbox(path, "rr", (0.0, 0.0, 1.0, 1.0), step=1, at=None)
+
+
+def test_extract_bbox_raster_matches_json(radar_tif):
+    out = geotiff.extract_bbox(radar_tif, "rr", tuple(BBOX), step=1, at=None)
+    grid = geotiff.extract_bbox_raster(radar_tif, "rr", tuple(BBOX), step=1, at=None)
+    assert (grid["rows"], grid["cols"]) == (ROWS, COLS)
+    assert grid["valid_time"] == TIME and grid["units"] == "mm/h"
+    assert grid["values"].dtype == np.float32
+    # Same lattice extents as the JSON lattice's corner cells.
+    assert grid["max_lat"] == pytest.approx(out["lats"][0][0])
+    assert grid["min_lat"] == pytest.approx(out["lats"][-1][0])
+    assert grid["min_lon"] == pytest.approx(out["lons"][0][0])
+    assert grid["max_lon"] == pytest.approx(out["lons"][0][-1])
+    # Row 0 is north: the NE nodata cell is NaN, the SW zero cell stays 0.
+    assert np.isnan(grid["values"][0, COLS - 1])
+    assert grid["values"][ROWS - 1, 0] == 0.0
+    assert grid["values"][1, 1] == pytest.approx(1.5)
+
+
+def test_raster_endpoint_streams_float32(radar_tif, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app import raster
+    from app.main import app
+
+    monkeypatch.setenv("GRIB_DATA_DIR", str(radar_tif.parent))
+    client = TestClient(app)
+    resp = client.post(
+        "/grib/extract_raster",
+        json={
+            "file": radar_tif.name,
+            "param": "rr",
+            "bbox": {"min_lon": BBOX[0], "min_lat": BBOX[1], "max_lon": BBOX[2], "max_lat": BBOX[3]},
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"].startswith(raster.MEDIA_TYPE)
+    rows = int(resp.headers[raster.HEADER_ROWS])
+    cols = int(resp.headers[raster.HEADER_COLS])
+    assert (rows, cols) == (ROWS, COLS)
+    assert resp.headers[raster.HEADER_VALID_TIME] == TIME
+    values = np.frombuffer(resp.content, dtype="<f4").reshape(rows, cols)
+    assert values[1, 1] == pytest.approx(1.5)
+    assert np.isnan(values[0, cols - 1])
+
+    missing = client.post(
+        "/grib/extract_raster",
+        json={
+            "file": "radar_rr_19700101T0000Z.tif",
+            "param": "rr",
+            "bbox": {"min_lon": 19, "min_lat": 59, "max_lon": 32, "max_lat": 71},
+        },
+    )
+    assert missing.status_code == 404

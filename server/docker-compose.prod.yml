@@ -9,9 +9,12 @@ services:
   # Cap gribsvc so a runaway extract burst is OOM-killed in its cgroup (and
   # restarted via `restart: unless-stopped`) instead of thrashing the whole VPS.
   # memswap_limit == mem_limit keeps it out of swap if the host ever gains one.
+  # The CPU cap leaves the host's other core to the API server and Postgres
+  # while the 5-minute nowcast/warm cycle runs.
   gribsvc:
     mem_limit: 1g
     memswap_limit: 1g
+    cpus: 1.0
 
   server:
     networks:

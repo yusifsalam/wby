@@ -5,6 +5,7 @@ Endpoints:
   GET  /grib/datasets    list local files + their parameters/times
   POST /grib/extract     numeric values at points or over a bbox
   POST /grib/extract_series  one bbox grid per requested hour, in one file pass
+  POST /grib/extract_raster  one bbox grid as a binary float32 raster (see raster.py)
   POST /grib/render      colormapped PNG tile of a field over a bbox
   POST /nowcast/run      extrapolate radar frames into nowcast frames
 """
@@ -17,7 +18,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, model_validator
 
-from . import geotiff, grib, nowcast, render, sources
+from . import geotiff, grib, nowcast, raster, render, sources
 
 app = FastAPI(title="gribsvc", version="0.1.0")
 
@@ -110,6 +111,37 @@ def extract(req: ExtractRequest):
         raise HTTPException(status_code=422, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+class ExtractRasterRequest(BaseModel):
+    file: str
+    param: str
+    time: Optional[str] = None
+    bbox: BBox
+    step: int = 1
+
+
+@app.post("/grib/extract_raster")
+def extract_raster(req: ExtractRasterRequest):
+    """The bbox extract as little-endian float32 cells (NaN = masked), row-major
+    north-to-south, with the grid geometry in X-Grid-* headers. Same soft-miss
+    statuses as /grib/extract; a fraction of its CPU and payload."""
+    try:
+        path = sources.resolve(req.file)
+        at = grib.parse_time(req.time)
+        with _work_slots:
+            grid = _backend(path).extract_bbox_raster(
+                path, req.param, req.bbox.as_tuple(), req.step, at
+            )
+    except sources.SourceError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except grib.GribError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return Response(
+        content=raster.encode(grid), media_type=raster.MEDIA_TYPE, headers=raster.headers(grid)
+    )
 
 
 class ExtractSeriesRequest(BaseModel):

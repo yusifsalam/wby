@@ -2,10 +2,12 @@ package grib
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -113,24 +115,45 @@ func TestTemperatureSamplesSoftMiss(t *testing.T) {
 	}
 }
 
-func TestGridFlipsConvertsAndMasks(t *testing.T) {
-	// gribsvc rows are south-to-north (row 0 = lat 60.0). Grid must flip to
-	// north-to-south (row 0 = max lat), convert Kelvin->Celsius, and null the
-	// FMI fill sentinel.
-	const body = `{
-		"param":"2t","units":"K","valid_time":"2026-06-24T16:00:00Z",
-		"rows":2,"cols":2,
-		"lats":[[60.0,60.0],[60.1,60.1]],
-		"lons":[[24.0,24.1],[24.0,24.1]],
-		"values":[[293.15,9999.0],[283.15,300.65]]
-	}`
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(body))
+// rasterServer serves one binary raster (little-endian float32, north-to-south)
+// the way gribsvc's /grib/extract_raster does.
+func rasterServer(t *testing.T, rows, cols int, values []float32) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/grib/extract_raster" {
+			t.Errorf("unexpected path %q", r.URL.Path)
+		}
+		var req struct {
+			File  string `json:"file"`
+			Param string `json:"param"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.File == "" || req.Param == "" {
+			t.Errorf("bad request body: %v (%+v)", err, req)
+		}
+		h := w.Header()
+		h.Set("Content-Type", "application/octet-stream")
+		h.Set("X-Grid-Rows", strconv.Itoa(rows))
+		h.Set("X-Grid-Cols", strconv.Itoa(cols))
+		h.Set("X-Grid-Min-Lat", "60.0")
+		h.Set("X-Grid-Max-Lat", "60.1")
+		h.Set("X-Grid-Min-Lon", "24.0")
+		h.Set("X-Grid-Max-Lon", "24.1")
+		h.Set("X-Valid-Time", "2026-06-24T16:00:00Z")
+		body := make([]byte, 4*len(values))
+		for i, v := range values {
+			binary.LittleEndian.PutUint32(body[4*i:], math.Float32bits(v))
+		}
+		_, _ = w.Write(body)
 	}))
+}
+
+func TestGridConvertsAndMasksRaster(t *testing.T) {
+	// gribsvc already emits north-to-south rows. Grid must convert
+	// Kelvin->Celsius, null the FMI fill sentinel and keep NaN cells masked.
+	srv := rasterServer(t, 2, 2, []float32{283.15, 300.65, 293.15, 9999.0})
 	defer srv.Close()
 
-	grid, _, err := New(srv.URL, "f.grib2", "2t", 1).
+	grid, validTime, err := New(srv.URL, "f.grib2", "2t", 1).
 		Grid(context.Background(), 19, 59, 32, 71, time.Time{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -141,22 +164,69 @@ func TestGridFlipsConvertsAndMasks(t *testing.T) {
 	if grid.Rows != 2 || grid.Cols != 2 {
 		t.Fatalf("unexpected dims: %dx%d", grid.Rows, grid.Cols)
 	}
-	if grid.MinLat != 60.0 || grid.MaxLat != 60.1 {
-		t.Fatalf("unexpected lat bounds: %v..%v", grid.MinLat, grid.MaxLat)
+	if grid.MinLat != 60.0 || grid.MaxLat != 60.1 || grid.MinLon != 24.0 || grid.MaxLon != 24.1 {
+		t.Fatalf("unexpected bounds: %v..%v / %v..%v", grid.MinLat, grid.MaxLat, grid.MinLon, grid.MaxLon)
 	}
-	// Row 0 must now be the northern row (lat 60.1): 283.15K->10C, 300.65K->27.5C.
-	if math.Abs(float64(grid.Values[0])-10.0) > 1e-4 {
-		t.Fatalf("expected north-west cell 10.0C, got %v", grid.Values[0])
+	if validTime.IsZero() || !grid.ObservedAt.Equal(validTime) {
+		t.Fatalf("expected valid time from header, got %v / %v", validTime, grid.ObservedAt)
 	}
-	if math.Abs(float64(grid.Values[1])-27.5) > 1e-4 {
-		t.Fatalf("expected north-east cell 27.5C, got %v", grid.Values[1])
+	want := []float64{10.0, 27.5, 20.0, math.NaN()}
+	for i, w := range want {
+		got := float64(grid.Values[i])
+		if math.IsNaN(w) {
+			if !math.IsNaN(got) {
+				t.Fatalf("cell %d: expected fill sentinel to be NaN, got %v", i, got)
+			}
+			continue
+		}
+		if math.Abs(got-w) > 1e-4 {
+			t.Fatalf("cell %d: expected %v, got %v", i, w, got)
+		}
 	}
-	// Southern row (originally row 0): 293.15K->20C, then the fill sentinel -> NaN.
-	if math.Abs(float64(grid.Values[2])-20.0) > 1e-4 {
-		t.Fatalf("expected south-west cell 20.0C, got %v", grid.Values[2])
+}
+
+func TestGridForFileRadarKeepsUnitsAndNaN(t *testing.T) {
+	// Radar frames arrive in mm/h with nodata already NaN; no conversion applies.
+	srv := rasterServer(t, 1, 3, []float32{0, 1.5, float32(math.NaN())})
+	defer srv.Close()
+
+	grid, _, err := NewRadar(srv.URL, 1).
+		GridForFile(context.Background(), "radar_rr_20260624T1600Z.tif", 19, 59, 32, 71, time.Time{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if !math.IsNaN(float64(grid.Values[3])) {
-		t.Fatalf("expected south-east fill cell to be NaN, got %v", grid.Values[3])
+	if grid == nil || len(grid.Values) != 3 {
+		t.Fatalf("expected 3 cells, got %+v", grid)
+	}
+	if grid.Values[0] != 0 || grid.Values[1] != 1.5 || !math.IsNaN(float64(grid.Values[2])) {
+		t.Fatalf("unexpected values: %v", grid.Values)
+	}
+}
+
+func TestGridForFileSoftMiss(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"detail":"no such file"}`, http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	grid, _, err := NewRadar(srv.URL, 1).
+		GridForFile(context.Background(), "radar_rr_19700101T0000Z.tif", 19, 59, 32, 71, time.Time{})
+	if err != nil {
+		t.Fatalf("expected soft miss, got error: %v", err)
+	}
+	if grid != nil {
+		t.Fatalf("expected nil grid on soft miss, got %+v", grid)
+	}
+}
+
+func TestGridRejectsTruncatedRaster(t *testing.T) {
+	// Header claims 2x2 but the body carries 3 cells.
+	srv := rasterServer(t, 2, 2, []float32{1, 2, 3})
+	defer srv.Close()
+
+	if _, _, err := NewRadar(srv.URL, 1).
+		GridForFile(context.Background(), "radar_rr_20260624T1600Z.tif", 19, 59, 32, 71, time.Time{}); err == nil {
+		t.Fatal("expected an error for a truncated body")
 	}
 }
 

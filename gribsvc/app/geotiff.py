@@ -20,6 +20,7 @@ from typing import Optional
 import numpy as np
 from PIL import Image
 
+from . import raster
 from .grib import GribError
 
 
@@ -133,14 +134,14 @@ def extract_points(
     }
 
 
-def extract_bbox(
+def _subset(
     path: Path,
     param: str,
     bbox: tuple[float, float, float, float],
     step: int,
     at: Optional[datetime],
-) -> dict:
-    """Subset the raster to a bbox, mirroring grib.extract_bbox's response."""
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
+    """Load the raster and cut it (and its lat/lon lattice) to the bbox."""
     min_lon, min_lat, max_lon, max_lat = bbox
     values, meta = _load(path)
     _check_field(path, meta, param, at)
@@ -157,10 +158,18 @@ def extract_bbox(
     step = max(1, int(step))
     rs = slice(row_idx[0], row_idx[-1] + 1, step)
     cs = slice(col_idx[0], col_idx[-1] + 1, step)
-    sub = values[rs, cs]
-    sub_lats = lats[rs, cs]
-    sub_lons = lons[rs, cs]
+    return values[rs, cs], lats[rs, cs], lons[rs, cs], meta
 
+
+def extract_bbox(
+    path: Path,
+    param: str,
+    bbox: tuple[float, float, float, float],
+    step: int,
+    at: Optional[datetime],
+) -> dict:
+    """Subset the raster to a bbox, mirroring grib.extract_bbox's response."""
+    sub, sub_lats, sub_lons, meta = _subset(path, param, bbox, step, at)
     grid = np.where(np.isnan(sub), None, sub.astype(object))
     return {
         "param": param,
@@ -172,6 +181,18 @@ def extract_bbox(
         "lons": sub_lons.tolist(),
         "values": grid.tolist(),
     }
+
+
+def extract_bbox_raster(
+    path: Path,
+    param: str,
+    bbox: tuple[float, float, float, float],
+    step: int,
+    at: Optional[datetime],
+) -> dict:
+    """Subset the raster to a bbox as a binary-ready regular grid (see raster.py)."""
+    sub, sub_lats, sub_lons, meta = _subset(path, param, bbox, step, at)
+    return raster.regular_grid(sub, sub_lats, sub_lons, meta.get("time"), meta.get("units"))
 
 
 def field_grid(path: Path, param: str, at: Optional[datetime]):
