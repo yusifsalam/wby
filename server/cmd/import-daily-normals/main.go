@@ -1,8 +1,9 @@
 // import-daily-normals fetches a station's daily and hourly observation
 // history from the FMI open-data WFS, computes day-of-year climate normals for
 // a period, and upserts them into daily_climate_normals. Raw observations are
-// cached as CSV under -cache-dir (data/fmi-observations by default) so reruns
-// recompute without refetching.
+// cached as one CSV per station, product and calendar year under -cache-dir
+// (data/fmi-observations by default) so reruns and overlapping periods fetch
+// only the years not yet on disk.
 //
 //	DATABASE_URL=... go run ./cmd/import-daily-normals -fmisid 100971 -period 1991-2020
 //	DATABASE_URL=... go run ./cmd/import-daily-normals -from-climate-normals -period 1991-2020
@@ -33,7 +34,7 @@ func main() {
 	fromNormals := flag.Bool("from-climate-normals", false, "import every station that has official monthly normals for the period")
 	period := flag.String("period", "1991-2020", "normal period as YYYY-YYYY")
 	withHourly := flag.Bool("hourly", true, "also fetch hourly temperature, humidity and wind for the hour-of-day curves and feels-like")
-	cacheDir := flag.String("cache-dir", "../data/fmi-observations", "directory of per-station CSV observation caches; fetched data is written here and reused on later runs")
+	cacheDir := flag.String("cache-dir", "../data/fmi-observations", "directory of per-station, per-year CSV observation caches; fetched years are written here and reused by later runs and other periods")
 	flag.Parse()
 
 	dsn := os.Getenv("DATABASE_URL")
@@ -66,9 +67,6 @@ func main() {
 		slog.Error("period must be YYYY-YYYY", "period", *period)
 		os.Exit(1)
 	}
-	start := time.Date(startYear, 1, 1, 0, 0, 0, 0, time.UTC)
-	end := time.Date(endYear, 12, 31, 23, 0, 0, 0, time.UTC)
-
 	var ids []int
 	if *fromNormals {
 		ids, err = db.StationsWithClimateNormals(ctx, *period)
@@ -96,7 +94,7 @@ func main() {
 	t0 := time.Now()
 	for i, fmisid := range ids {
 		log := slog.With("fmisid", fmisid, "period", *period, "station", i+1, "of", len(ids))
-		switch err := importStation(ctx, client, db, log, fmisid, *period, start, end, *withHourly, *cacheDir); {
+		switch err := importStation(ctx, client, db, log, fmisid, *period, startYear, endYear, *withHourly, *cacheDir); {
 		case err == errSkipped:
 			skipped++
 		case err != nil:
@@ -116,21 +114,27 @@ func (s sentinel) Error() string { return string(s) }
 
 const errSkipped = sentinel("skipped")
 
-func importStation(ctx context.Context, client *fmi.Client, db *store.Store, log *slog.Logger, fmisid int, period string, start, end time.Time, withHourly bool, cacheDir string) error {
-	daily, err := loadDaily(ctx, client, log, cacheDir, fmisid, period, start, end)
+func importStation(ctx context.Context, client *fmi.Client, db *store.Store, log *slog.Logger, fmisid int, period string, startYear, endYear int, withHourly bool, cacheDir string) error {
+	start, _ := yearRange(startYear)
+	_, end := yearRange(endYear)
+	caches := newStationCaches(client, fmisid)
+	if err := migrateLegacyCache(log, cacheDir, fmisid, caches.daily, caches.hourly, caches.instant); err != nil {
+		return fmt.Errorf("migrate legacy cache: %w", err)
+	}
+	daily, err := caches.daily.load(ctx, log, cacheDir, fmisid, startYear, endYear)
 	if err != nil {
 		return err
 	}
 
 	var hourly []weather.HourlyRecord
 	if withHourly {
-		hourly, err = loadHourly(ctx, client, log, cacheDir, fmisid, period, start, end)
+		hourly, err = caches.hourly.load(ctx, log, cacheDir, fmisid, startYear, endYear)
 		if err != nil {
 			log.Warn("fetch hourly observations failed, continuing with daily only", "err", err)
 			hourly = nil
 		}
 		if years := tempWindYears(hourly, start, end); years < weather.NormalsMinHourlyYears {
-			instant, err := loadInstantHourly(ctx, client, log, cacheDir, fmisid, period, start, end)
+			instant, err := loadInstantHourly(ctx, client, log, caches.instant, cacheDir, fmisid, startYear, endYear)
 			if err != nil {
 				log.Warn("fetch instant hourly observations failed, continuing without", "err", err)
 			} else if len(instant) > 0 {
@@ -170,63 +174,74 @@ func importStation(ctx context.Context, client *fmi.Client, db *store.Store, log
 	return nil
 }
 
-func loadDaily(ctx context.Context, client *fmi.Client, log *slog.Logger, cacheDir string, fmisid int, period string, start, end time.Time) ([]weather.DailyRecord, error) {
-	path := dailyCachePath(cacheDir, fmisid, period)
-	if records, ok, err := readDailyCSV(path); err != nil {
-		return nil, err
-	} else if ok {
-		log.Info("loaded daily observations from cache", "records", len(records), "path", path)
-		return records, nil
+type stationCaches struct {
+	daily           yearCache[weather.DailyRecord]
+	hourly, instant yearCache[weather.HourlyRecord]
+}
+
+func newStationCaches(client *fmi.Client, fmisid int) stationCaches {
+	hourlyYear := func(r weather.HourlyRecord) int { return r.Time.UTC().Year() }
+	return stationCaches{
+		daily: yearCache[weather.DailyRecord]{
+			product: dailyProduct,
+			year:    func(r weather.DailyRecord) int { return r.Date.UTC().Year() },
+			read:    readDailyCSV,
+			write:   writeDailyCSV,
+			fetch: func(ctx context.Context, start, end time.Time) ([]weather.DailyRecord, error) {
+				return client.FetchDailyObservations(ctx, fmisid, start, end)
+			},
+		},
+		hourly: yearCache[weather.HourlyRecord]{
+			product: hourlyProduct,
+			year:    hourlyYear,
+			read:    readHourlyCSV,
+			write:   writeHourlyCSV,
+			fetch: func(ctx context.Context, start, end time.Time) ([]weather.HourlyRecord, error) {
+				return client.FetchHourlyObservations(ctx, fmisid, start, end)
+			},
+		},
+		instant: yearCache[weather.HourlyRecord]{
+			product: instantHourlyProduct,
+			year:    hourlyYear,
+			read:    readHourlyCSV,
+			write:   writeHourlyCSV,
+			fetch: func(ctx context.Context, start, end time.Time) ([]weather.HourlyRecord, error) {
+				return client.FetchInstantHourlyObservations(ctx, fmisid, start, end)
+			},
+		},
 	}
-	t0 := time.Now()
-	records, err := client.FetchDailyObservations(ctx, fmisid, start, end)
-	if err != nil {
-		return nil, err
-	}
-	log.Info("fetched daily observations", "records", len(records), "took", time.Since(t0).Round(time.Second))
-	if err := writeDailyCSV(path, records); err != nil {
-		return nil, fmt.Errorf("write daily cache: %w", err)
-	}
-	return records, nil
 }
 
 // loadInstantHourly fetches the on-the-hour fallback record for a station
-// whose hourly product is short. A one-week probe at the end of the period
-// decides whether the station has wind at all; without it an empty cache is
-// written so later runs skip the station.
-func loadInstantHourly(ctx context.Context, client *fmi.Client, log *slog.Logger, cacheDir string, fmisid int, period string, start, end time.Time) ([]weather.HourlyRecord, error) {
-	path := instantHourlyCachePath(cacheDir, fmisid, period)
-	if records, ok, err := readHourlyCSV(path); err != nil {
-		return nil, err
-	} else if ok {
-		log.Info("loaded instant hourly observations from cache", "records", len(records), "path", path)
-		return records, nil
-	}
-	probe, err := client.FetchInstantHourlyObservations(ctx, fmisid, end.Add(-7*24*time.Hour), end)
+// whose hourly product is short. When years are missing, a one-week probe at
+// the end of the period decides whether the station has wind at all; without
+// it the missing years are cached empty so later runs skip them.
+func loadInstantHourly(ctx context.Context, client *fmi.Client, log *slog.Logger, cache yearCache[weather.HourlyRecord], cacheDir string, fmisid, startYear, endYear int) ([]weather.HourlyRecord, error) {
+	missing, err := cache.missingYears(cacheDir, fmisid, startYear, endYear)
 	if err != nil {
 		return nil, err
 	}
-	hasWind := false
-	for _, r := range probe {
-		if r.WindSpeed != nil {
-			hasWind = true
-			break
+	if len(missing) > 0 {
+		_, end := yearRange(endYear)
+		probe, err := client.FetchInstantHourlyObservations(ctx, fmisid, end.Add(-7*24*time.Hour), end)
+		if err != nil {
+			return nil, err
+		}
+		hasWind := false
+		for _, r := range probe {
+			if r.WindSpeed != nil {
+				hasWind = true
+				break
+			}
+		}
+		if !hasWind {
+			log.Info("instant observations carry no wind, skipping fallback", "years", len(missing))
+			if err := cache.markEmpty(cacheDir, fmisid, missing); err != nil {
+				return nil, err
+			}
 		}
 	}
-	if !hasWind {
-		log.Info("instant observations carry no wind, skipping fallback")
-		return nil, writeHourlyCSV(path, nil)
-	}
-	t0 := time.Now()
-	records, err := client.FetchInstantHourlyObservations(ctx, fmisid, start, end)
-	if err != nil {
-		return nil, err
-	}
-	log.Info("fetched instant hourly observations", "records", len(records), "took", time.Since(t0).Round(time.Second))
-	if err := writeHourlyCSV(path, records); err != nil {
-		return nil, fmt.Errorf("write instant hourly cache: %w", err)
-	}
-	return records, nil
+	return cache.load(ctx, log, cacheDir, fmisid, startYear, endYear)
 }
 
 // tempWindYears is the record length, in year-equivalents, of hours within
@@ -267,24 +282,4 @@ func mergeHourly(base, extra []weather.HourlyRecord) []weather.HourlyRecord {
 	}
 	slices.SortFunc(out, func(a, b weather.HourlyRecord) int { return a.Time.Compare(b.Time) })
 	return out
-}
-
-func loadHourly(ctx context.Context, client *fmi.Client, log *slog.Logger, cacheDir string, fmisid int, period string, start, end time.Time) ([]weather.HourlyRecord, error) {
-	path := hourlyCachePath(cacheDir, fmisid, period)
-	if records, ok, err := readHourlyCSV(path); err != nil {
-		return nil, err
-	} else if ok {
-		log.Info("loaded hourly observations from cache", "records", len(records), "path", path)
-		return records, nil
-	}
-	t0 := time.Now()
-	records, err := client.FetchHourlyObservations(ctx, fmisid, start, end)
-	if err != nil {
-		return nil, err
-	}
-	log.Info("fetched hourly observations", "records", len(records), "took", time.Since(t0).Round(time.Second))
-	if err := writeHourlyCSV(path, records); err != nil {
-		return nil, fmt.Errorf("write hourly cache: %w", err)
-	}
-	return records, nil
 }
