@@ -1,11 +1,4 @@
-import {
-  formatMillimeters,
-  formatPercent,
-  formatPressure,
-  formatSpeed,
-  formatTemperature,
-  formatWindDirection,
-} from "./formatters";
+import type { MeasureKind } from "./formatters";
 import type { HourlyForecast } from "./weatherApi";
 
 export const HOURLY_METRIC_KEYS = [
@@ -24,7 +17,8 @@ export type HourlyMetricKey = (typeof HOURLY_METRIC_KEYS)[number];
 export type HourlyMetric = {
   key: HourlyMetricKey;
   label: string;
-  format: (hour: HourlyForecast) => string;
+  measure: MeasureKind;
+  value: (hour: HourlyForecast) => number | null | undefined;
 };
 
 // Display order of the rows under each hour. Adding a metric here also needs a
@@ -33,39 +27,51 @@ export const HOURLY_METRICS: readonly HourlyMetric[] = [
   {
     key: "feels",
     label: "Feels like",
-    format: (h) => formatTemperature(h.feels_like),
+    measure: "temperature",
+    value: (h) => h.feels_like,
   },
-  { key: "wind", label: "Wind", format: (h) => formatSpeed(h.wind_speed) },
-  { key: "gust", label: "Wind gusts", format: (h) => formatSpeed(h.wind_gust) },
+  { key: "wind", label: "Wind", measure: "speed", value: (h) => h.wind_speed },
+  {
+    key: "gust",
+    label: "Wind gusts",
+    measure: "speed",
+    value: (h) => h.wind_gust,
+  },
   {
     key: "direction",
     label: "Wind direction",
-    format: (h) => formatWindDirection(h.wind_direction),
+    measure: "direction",
+    value: (h) => h.wind_direction,
   },
   {
     key: "precip",
     label: "Precipitation",
-    format: (h) => formatMillimeters(h.precipitation_1h),
+    measure: "precipitation",
+    value: (h) => h.precipitation_1h,
   },
   {
     key: "pop",
     label: "Chance of rain",
-    format: (h) => formatPercent(h.pop),
+    measure: "percent",
+    value: (h) => h.pop,
   },
   {
     key: "humidity",
     label: "Humidity",
-    format: (h) => formatPercent(h.humidity),
+    measure: "percent",
+    value: (h) => h.humidity,
   },
   {
     key: "pressure",
     label: "Pressure",
-    format: (h) => formatPressure(h.pressure),
+    measure: "pressure",
+    value: (h) => h.pressure,
   },
   {
     key: "cloud",
     label: "Cloud cover",
-    format: (h) => formatPercent(h.cloud_cover),
+    measure: "percent",
+    value: (h) => h.cloud_cover,
   },
 ];
 

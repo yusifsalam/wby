@@ -1,0 +1,13 @@
+---
+// Renders a value in both unit systems; CSS shows one copy based on
+// <html data-units> (see .u-metric / .u-imperial in global.css). Identical
+// strings render once, so unit-less values add no markup.
+type Props = {
+  metric: string;
+  imperial: string;
+};
+
+const { metric, imperial } = Astro.props;
+---
+
+{metric === imperial ? metric : <><span class="u-metric">{metric}</span><span class="u-imperial">{imperial}</span></>}

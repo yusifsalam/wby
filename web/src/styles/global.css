@@ -128,6 +128,22 @@
     display: block;
   }
 
+  /* Unit system. Every unit-bearing value is rendered twice (UnitText.astro);
+     <html data-units="imperial"> (set pre-paint in BaseLayout, toggled by
+     UnitsToggle) shows the imperial copy. Metric shows by default and without
+     JS. */
+  .u-imperial {
+    display: none;
+  }
+
+  [data-units="imperial"] .u-metric {
+    display: none;
+  }
+
+  [data-units="imperial"] .u-imperial {
+    display: inline;
+  }
+
   /* Hourly metric rows. Which rows show is driven by the space-separated token
      list on <html data-hourly-metrics> (set pre-paint in BaseLayout from
      localStorage, updated by HourlySettings). With no saved selection, or

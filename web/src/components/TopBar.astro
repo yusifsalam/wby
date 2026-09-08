@@ -1,5 +1,6 @@
 ---
 import ThemeToggle from "./ThemeToggle.astro";
+import UnitsToggle from "./UnitsToggle.astro";
 
 type Props = {
   activeSlug?: string;
@@ -33,7 +34,8 @@ const navLink =
     <a class={navLink} href="/map" aria-current={mapActive ? "page" : undefined}>Map</a>
     <a class={navLink} href="/stats" aria-current={statsActive ? "page" : undefined}>Stats</a>
   </nav>
-  <div class="max-[820px]:col-start-2 max-[820px]:row-start-1 max-[820px]:justify-self-end">
+  <div class="flex items-center gap-1 max-[820px]:col-start-2 max-[820px]:row-start-1 max-[820px]:justify-self-end">
+    <UnitsToggle />
     <ThemeToggle />
   </div>
 </header>

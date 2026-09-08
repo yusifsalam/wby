@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { formatMeasure } from "./formatters";
 import {
   DEFAULT_HOURLY_METRICS,
   HOURLY_METRICS,
@@ -38,24 +39,25 @@ describe("hourly metric settings", () => {
   });
 
   it("formats hourly values and placeholders", () => {
-    const formatted = Object.fromEntries(
-      HOURLY_METRICS.map((metric) => [
-        metric.key,
-        metric.format({
-          time: "2026-08-22T12:00:00Z",
-          feels_like: -3.4,
-          wind_speed: 4.4,
-          wind_gust: 11.6,
-          wind_direction: 135,
-          precipitation_1h: 0.3,
-          pop: 35.4,
-          humidity: 80.6,
-          pressure: 1008.7,
-          cloud_cover: 62.2,
-        }),
+    const hour = {
+      time: "2026-08-22T12:00:00Z",
+      feels_like: -3.4,
+      wind_speed: 4.4,
+      wind_gust: 11.6,
+      wind_direction: 135,
+      precipitation_1h: 0.3,
+      pop: 35.4,
+      humidity: 80.6,
+      pressure: 1008.7,
+      cloud_cover: 62.2,
+    };
+    const metric = Object.fromEntries(
+      HOURLY_METRICS.map((m) => [
+        m.key,
+        formatMeasure(m.measure, m.value(hour)),
       ]),
     );
-    expect(formatted).toEqual({
+    expect(metric).toEqual({
       feels: "-3°",
       wind: "4 m/s",
       gust: "12 m/s",
@@ -66,8 +68,27 @@ describe("hourly metric settings", () => {
       pressure: "1009 hPa",
       cloud: "62%",
     });
-    for (const metric of HOURLY_METRICS) {
-      expect(metric.format({ time: "2026-08-22T12:00:00Z" })).toBe("--");
+    const imperial = Object.fromEntries(
+      HOURLY_METRICS.map((m) => [
+        m.key,
+        formatMeasure(m.measure, m.value(hour), "imperial"),
+      ]),
+    );
+    expect(imperial).toEqual({
+      feels: "26°",
+      wind: "10 mph",
+      gust: "26 mph",
+      direction: "SE",
+      precip: "0.01 in",
+      pop: "35%",
+      humidity: "81%",
+      pressure: "29.79 inHg",
+      cloud: "62%",
+    });
+    for (const m of HOURLY_METRICS) {
+      expect(
+        formatMeasure(m.measure, m.value({ time: "2026-08-22T12:00:00Z" })),
+      ).toBe("--");
     }
   });
 });

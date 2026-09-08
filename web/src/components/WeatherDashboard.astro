@@ -1,22 +1,13 @@
 ---
 import type { City } from "../lib/cities";
-import {
-  dayLabel,
-  formatMillimeters,
-  formatObservedTime,
-  formatPercent,
-  formatPressure,
-  formatSpeed,
-  formatTemperature,
-  formatVisibility,
-  hourLabel,
-} from "../lib/formatters";
+import { dayLabel, formatObservedTime, hourLabel, type MeasureKind } from "../lib/formatters";
 import { HOURLY_METRICS, type HourlyMetricKey } from "../lib/hourlyMetrics";
 import type { DailyForecast, HourlyForecast, WeatherResponse } from "../lib/weatherApi";
 import type { CacheResult } from "../lib/weatherCache";
 import { symbolAssetFile, symbolDescription } from "../lib/weatherSymbols";
 import Footer from "./Footer.astro";
 import HourlySettings from "./HourlySettings.astro";
+import Measure from "./Measure.astro";
 import PrecipitationMap from "./PrecipitationMap.astro";
 import TopBar from "./TopBar.astro";
 import WeatherSymbol from "./WeatherSymbol.astro";
@@ -42,15 +33,15 @@ const highs = daily.map((day) => day.high).filter((value): value is number => va
 const overallLow = lows.length > 0 ? Math.min(...lows) : 0;
 const overallHigh = highs.length > 0 ? Math.max(...highs) : 1;
 
-const details = [
-  ["Wind", formatSpeed(current.wind_speed)],
-  ["Gust", formatSpeed(current.wind_gust)],
-  ["Humidity", formatPercent(current.humidity)],
-  ["Dew point", formatTemperature(current.dew_point)],
-  ["Pressure", formatPressure(current.pressure)],
-  ["Precip 1h", formatMillimeters(current.precipitation_1h)],
-  ["Visibility", formatVisibility(current.visibility)],
-  ["Cloud cover", formatPercent(current.cloud_cover)],
+const details: [string, MeasureKind, number | null | undefined][] = [
+  ["Wind", "speed", current.wind_speed],
+  ["Gust", "speed", current.wind_gust],
+  ["Humidity", "percent", current.humidity],
+  ["Dew point", "temperature", current.dew_point],
+  ["Pressure", "pressure", current.pressure],
+  ["Precip 1h", "precipitation", current.precipitation_1h],
+  ["Visibility", "visibility", current.visibility],
+  ["Cloud cover", "percent", current.cloud_cover],
 ];
 
 function tempRangeStyle(day: DailyForecast): string {
@@ -93,10 +84,10 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
     <div>
       <p class="mb-3 text-[0.9rem] font-bold text-muted">{data.station.name}</p>
       <h1 class="mb-3 text-[clamp(3rem,10vw,7rem)] font-bold leading-[0.92]">{city.name}</h1>
-      <p class="text-[clamp(3.5rem,11vw,8rem)] font-[250] leading-[0.95]">{formatTemperature(current.temperature)}</p>
+      <p class="text-[clamp(3.5rem,11vw,8rem)] font-[250] leading-[0.95]"><Measure kind="temperature" value={current.temperature} /></p>
       {condition && <p class="mt-2.5 text-[clamp(1.15rem,2.2vw,1.5rem)] font-medium">{condition}</p>}
       <p class="mt-1.5 text-muted">
-        Feels like {formatTemperature(current.feels_like)} · Observed {formatObservedTime(current.observed_at, timeZone)}
+        Feels like <Measure kind="temperature" value={current.feels_like} /> · Observed {formatObservedTime(current.observed_at, timeZone)}
         {weather.state === "stale" ? " · cached data refreshing" : ""}
       </p>
     </div>
@@ -123,7 +114,7 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
           <article class="min-w-0 rounded-lg border border-line bg-surface-strong px-2 py-2.5">
             <time class="block text-[0.85rem] font-extrabold text-teal" datetime={hour.time}>{hourLabel(hour.time, timeZone)}</time>
             <WeatherSymbol code={hour.symbol} class="mt-2 h-9 w-9" />
-            <strong class="mt-1.5 mb-1.5 block text-[1.35rem] whitespace-nowrap">{formatTemperature(hour.temperature)}</strong>
+            <strong class="mt-1.5 mb-1.5 block text-[1.35rem] whitespace-nowrap"><Measure kind="temperature" value={hour.temperature} /></strong>
             <div class="text-[0.78rem] leading-[1.4] text-muted">
               {HOURLY_METRICS.map((metric) => (
                 <span class="hourly-metric items-center gap-1 whitespace-nowrap" data-metric={metric.key} title={metric.label}>
@@ -131,7 +122,7 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
                     <path d={metricIcons[metric.key]} />
                   </svg>
                   <span class="sr-only">{metric.label}: </span>
-                  {metric.format(hour)}
+                  <Measure kind={metric.measure} value={metric.value(hour)} />
                 </span>
               ))}
             </div>
@@ -155,10 +146,10 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
             <article class="grid min-h-12 grid-cols-[72px_36px_44px_minmax(90px,1fr)_44px_64px] items-center gap-3 border-t border-line first:border-t-0 max-[560px]:grid-cols-[56px_28px_36px_minmax(72px,1fr)_36px]">
               <time class="font-[750]" datetime={day.date}>{dayLabel(day.date, timeZone)}</time>
               <span class="flex h-9 items-center"><WeatherSymbol code={day.symbol} class="h-8 w-8" /></span>
-              <span class="text-right">{formatTemperature(day.low)}</span>
+              <span class="text-right"><Measure kind="temperature" value={day.low} /></span>
               <span class="temp-range" style={tempRangeStyle(day)}></span>
-              <span class="text-right font-[750] text-ink">{formatTemperature(day.high)}</span>
-              <span class="text-right text-muted max-[560px]:hidden">{formatMillimeters(day.precipitation_mm ?? day.precipitation_1h_sum)}</span>
+              <span class="text-right font-[750] text-ink"><Measure kind="temperature" value={day.high} /></span>
+              <span class="text-right text-muted max-[560px]:hidden"><Measure kind="precipitation" value={day.precipitation_mm ?? day.precipitation_1h_sum} /></span>
             </article>
           ))}
         </div>
@@ -171,10 +162,10 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
         <span class="text-muted">Latest</span>
       </div>
       <dl class="m-0 grid grid-cols-2 gap-2 px-4.5 pt-3.5 pb-4.5 max-[560px]:grid-cols-1">
-        {details.map(([label, value]) => (
+        {details.map(([label, kind, value]) => (
           <div class="min-h-21 rounded-lg border border-line bg-surface-strong p-3">
             <dt class="mb-2 text-[0.78rem] font-extrabold text-muted">{label}</dt>
-            <dd class="m-0 text-[1.2rem] font-[750]">{value}</dd>
+            <dd class="m-0 text-[1.2rem] font-[750]"><Measure kind={kind} value={value} /></dd>
           </div>
         ))}
       </dl>

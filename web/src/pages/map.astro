@@ -1,7 +1,29 @@
 ---
 import TopBar from "../components/TopBar.astro";
+import UnitText from "../components/UnitText.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import "maplibre-gl/dist/maplibre-gl.css";
+
+// Legend tick labels as [metric, imperial] pairs: °C/°F and mm/h ÷ 25.4 → in/h.
+const tempTicks = [
+  ["-40", "-40"],
+  ["0", "32"],
+  ["20", "68"],
+  ["40", "104"],
+];
+const rainTicks = [
+  ["0.1", "0.004"],
+  ["1", "0.04"],
+  ["5", "0.2"],
+  ["20+", "0.8+"],
+];
+const rainSteppedTicks = [
+  ["0.1", "0.004"],
+  ["0.5", "0.02"],
+  ["2.5", "0.1"],
+  ["10", "0.4"],
+  ["15+", "0.6+"],
+];
 ---
 
 <BaseLayout title="WBY · Map" description="Temperature and precipitation maps for Finland.">
@@ -71,25 +93,25 @@ import "maplibre-gl/dist/maplibre-gl.css";
     <!-- Legend -->
     <div class="pointer-events-none absolute bottom-16 left-3 z-10 rounded-lg border border-line bg-surface/90 px-3 py-2 shadow-panel backdrop-blur">
       <div id="legend-temperature" hidden>
-        <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Temperature °C</p>
+        <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Temperature <UnitText metric="°C" imperial="°F" /></p>
         <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#3a0a54,#00e5ff,#a8e05f,#ffb300,#8b0000)"></div>
         <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
-          <span>-40</span><span>0</span><span>20</span><span>40</span>
+          {tempTicks.map(([metric, imperial]) => <span><UnitText metric={metric} imperial={imperial} /></span>)}
         </div>
       </div>
       <!-- Shared by both precipitation layers: the 12h grid ramp (PRECIP_STOPS
            below) mirrors the FMI WMS radar palette of the 1h PNGs. -->
       <div id="legend-precipitation">
-        <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain mm/h</p>
+        <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain <UnitText metric="mm/h" imperial="in/h" /></p>
         <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#a8e0ff,#3fa0ff,#1436ff,#8b00ff,#ff00aa)"></div>
         <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
-          <span>0.1</span><span>1</span><span>5</span><span>20+</span>
+          {rainTicks.map(([metric, imperial]) => <span><UnitText metric={metric} imperial={imperial} /></span>)}
         </div>
       </div>
       <!-- FMI stepped classes (Mobile_dark): swatch colors and thresholds from
            the WMS legend, shown when the FMI ramp is active. -->
       <div id="legend-precipitation-stepped" hidden>
-        <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain mm/h</p>
+        <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain <UnitText metric="mm/h" imperial="in/h" /></p>
         <div class="flex h-2 w-48 overflow-hidden rounded">
           <span class="flex-1" style="background:#adf3fa"></span>
           <span class="flex-1" style="background:#86bef3"></span>
@@ -101,7 +123,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
           <span class="flex-1" style="background:#f14efb"></span>
         </div>
         <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
-          <span>0.1</span><span>0.5</span><span>2.5</span><span>10</span><span>15+</span>
+          {rainSteppedTicks.map(([metric, imperial]) => <span><UnitText metric={metric} imperial={imperial} /></span>)}
         </div>
       </div>
     </div>

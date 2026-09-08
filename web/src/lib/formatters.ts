@@ -1,13 +1,34 @@
-export function formatTemperature(value: number | null | undefined): string {
+import {
+  celsiusToFahrenheit,
+  hectopascalsToInchesHg,
+  METERS_PER_MILE,
+  metersPerSecondToMph,
+  metersToFeet,
+  metersToMiles,
+  millimetersToInches,
+  type UnitSystem,
+} from "./units";
+
+export function formatTemperature(
+  value: number | null | undefined,
+  system: UnitSystem = "metric",
+): string {
   if (value == null) {
     return "--";
   }
-  return `${Math.round(value)}°`;
+  const shown = system === "imperial" ? celsiusToFahrenheit(value) : value;
+  return `${Math.round(shown)}°`;
 }
 
-export function formatSpeed(value: number | null | undefined): string {
+export function formatSpeed(
+  value: number | null | undefined,
+  system: UnitSystem = "metric",
+): string {
   if (value == null) {
     return "--";
+  }
+  if (system === "imperial") {
+    return `${Math.round(metersPerSecondToMph(value))} mph`;
   }
   return `${Math.round(value)} m/s`;
 }
@@ -19,9 +40,22 @@ export function formatPercent(value: number | null | undefined): string {
   return `${Math.round(value)}%`;
 }
 
-export function formatMillimeters(value: number | null | undefined): string {
+export function formatPrecipitation(
+  value: number | null | undefined,
+  system: UnitSystem = "metric",
+): string {
   if (value == null) {
     return "--";
+  }
+  if (system === "imperial") {
+    const inches = millimetersToInches(value);
+    if (inches > 0 && inches < 0.005) {
+      return "<0.01 in";
+    }
+    if (Math.abs(Math.round(inches) - inches) < 0.005) {
+      return `${Math.round(inches)} in`;
+    }
+    return `${inches.toFixed(2)} in`;
   }
   if (Math.abs(Math.round(value) - value) < 0.05) {
     return `${Math.round(value)} mm`;
@@ -29,9 +63,15 @@ export function formatMillimeters(value: number | null | undefined): string {
   return `${value.toFixed(1)} mm`;
 }
 
-export function formatPressure(value: number | null | undefined): string {
+export function formatPressure(
+  value: number | null | undefined,
+  system: UnitSystem = "metric",
+): string {
   if (value == null) {
     return "--";
+  }
+  if (system === "imperial") {
+    return `${hectopascalsToInchesHg(value).toFixed(2)} inHg`;
   }
   return `${Math.round(value)} hPa`;
 }
@@ -47,14 +87,59 @@ export function formatWindDirection(value: number | null | undefined): string {
   return COMPASS_POINTS[index];
 }
 
-export function formatVisibility(value: number | null | undefined): string {
+export function formatVisibility(
+  value: number | null | undefined,
+  system: UnitSystem = "metric",
+): string {
   if (value == null) {
     return "--";
+  }
+  if (system === "imperial") {
+    if (value >= METERS_PER_MILE) {
+      return `${metersToMiles(value).toFixed(1)} mi`;
+    }
+    return `${Math.round(metersToFeet(value))} ft`;
   }
   if (value >= 1000) {
     return `${(value / 1000).toFixed(1)} km`;
   }
   return `${Math.round(value)} m`;
+}
+
+export const MEASURE_KINDS = [
+  "temperature",
+  "speed",
+  "precipitation",
+  "pressure",
+  "visibility",
+  "percent",
+  "direction",
+] as const;
+export type MeasureKind = (typeof MEASURE_KINDS)[number];
+
+// One entry point for every unit-bearing value so the Measure component can
+// render the same number in both systems.
+export function formatMeasure(
+  kind: MeasureKind,
+  value: number | null | undefined,
+  system: UnitSystem = "metric",
+): string {
+  switch (kind) {
+    case "temperature":
+      return formatTemperature(value, system);
+    case "speed":
+      return formatSpeed(value, system);
+    case "precipitation":
+      return formatPrecipitation(value, system);
+    case "pressure":
+      return formatPressure(value, system);
+    case "visibility":
+      return formatVisibility(value, system);
+    case "percent":
+      return formatPercent(value);
+    case "direction":
+      return formatWindDirection(value);
+  }
 }
 
 export function formatObservedTime(value: string, timeZone: string): string {

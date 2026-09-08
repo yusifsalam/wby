@@ -1,0 +1,49 @@
+---
+// Switches between metric and imperial units. The setting lives in
+// localStorage ("units") and is mirrored onto <html data-units> pre-paint by
+// BaseLayout; every unit-bearing value is rendered in both systems (UnitText)
+// and CSS picks the copy to show, so no re-render is needed.
+---
+
+<button
+  id="units-toggle"
+  type="button"
+  class="flex-none rounded-lg border border-transparent px-2 py-2 text-[0.9rem] font-[650] leading-[1.125rem] text-muted tabular-nums hover:border-line hover:bg-surface hover:text-ink"
+  aria-label="Measurement units"
+  title="Switch to Fahrenheit, mph and inches"
+>
+  <span class="u-metric">°C</span><span class="u-imperial">°F</span>
+</button>
+
+<script>
+  import { parseUnitSystem, UNITS_STORAGE_KEY, type UnitSystem } from "../lib/units";
+
+  const root = document.documentElement;
+  const button = document.getElementById("units-toggle");
+
+  function current(): UnitSystem {
+    return parseUnitSystem(root.dataset.units);
+  }
+
+  function apply(system: UnitSystem) {
+    if (system === "metric") delete root.dataset.units;
+    else root.dataset.units = system;
+    button?.setAttribute(
+      "title",
+      system === "metric"
+        ? "Switch to Fahrenheit, mph and inches"
+        : "Switch to Celsius, m/s and millimetres",
+    );
+    try {
+      if (system === "metric") localStorage.removeItem(UNITS_STORAGE_KEY);
+      else localStorage.setItem(UNITS_STORAGE_KEY, system);
+    } catch {
+      // Storage unavailable (private mode, quota); the page still updates.
+    }
+  }
+
+  apply(current());
+  button?.addEventListener("click", () => {
+    apply(current() === "metric" ? "imperial" : "metric");
+  });
+</script>

@@ -8,8 +8,10 @@ import type {
 import { LEADERBOARD_TIMEFRAMES } from "../lib/weatherApi";
 import type { CacheResult } from "../lib/weatherCache";
 import { formatRelativeTime } from "../lib/formatters";
-import TopBar from "./TopBar.astro";
+import { celsiusToFahrenheit, metersPerSecondToMph } from "../lib/units";
 import Footer from "./Footer.astro";
+import TopBar from "./TopBar.astro";
+import UnitText from "./UnitText.astro";
 
 type Props = {
   cities: readonly City[];
@@ -36,6 +38,19 @@ const typeMeta: Record<string, { title: string; accent: string }> = {
 
 function metaFor(entry: LeaderboardEntry): { title: string; accent: string } {
   return typeMeta[entry.type] ?? { title: entry.type, accent: "text-ink" };
+}
+
+// The API reports leaderboard values in metric with a unit label; convert the
+// two units it emits and pass anything else through unchanged.
+function imperialFor(entry: LeaderboardEntry): { value: string; unit: string } {
+  switch (entry.unit) {
+    case "°C":
+      return { value: celsiusToFahrenheit(entry.value).toFixed(1), unit: "°F" };
+    case "m/s":
+      return { value: metersPerSecondToMph(entry.value).toFixed(1), unit: "mph" };
+    default:
+      return { value: entry.value.toFixed(1), unit: entry.unit };
+  }
 }
 ---
 
@@ -64,13 +79,14 @@ function metaFor(entry: LeaderboardEntry): { title: string; accent: string } {
     <section class="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4.5">
       {entries.map((entry) => {
         const meta = metaFor(entry);
+        const imperial = imperialFor(entry);
         return (
           <article class="rounded-lg border border-line bg-surface/92 p-5.5 shadow-panel">
             <p class="mb-3 text-[0.78rem] font-extrabold uppercase tracking-[0.06em] text-muted">{meta.title}</p>
             <p class="text-[1.4rem] font-[750] leading-tight">{entry.station_name}</p>
             <p class="mt-3 flex items-baseline gap-1.5">
-              <span class={`text-[3rem] font-light leading-none ${meta.accent}`}>{entry.value.toFixed(1)}</span>
-              <span class="text-[1.1rem] text-muted">{entry.unit}</span>
+              <span class={`text-[3rem] font-light leading-none ${meta.accent}`}><UnitText metric={entry.value.toFixed(1)} imperial={imperial.value} /></span>
+              <span class="text-[1.1rem] text-muted"><UnitText metric={entry.unit} imperial={imperial.unit} /></span>
             </p>
             <p class="mt-3 text-[0.9rem] text-muted">
               Observed {formatRelativeTime(entry.observed_at)}

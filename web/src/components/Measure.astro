@@ -1,0 +1,13 @@
+---
+import { formatMeasure, type MeasureKind } from "../lib/formatters";
+import UnitText from "./UnitText.astro";
+
+type Props = {
+  kind: MeasureKind;
+  value: number | null | undefined;
+};
+
+const { kind, value } = Astro.props;
+---
+
+<UnitText metric={formatMeasure(kind, value, "metric")} imperial={formatMeasure(kind, value, "imperial")} />

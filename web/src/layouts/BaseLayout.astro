@@ -36,6 +36,9 @@ const {
           // CSS ([data-hourly-metrics~="key"]) and managed by HourlySettings.
           const metrics = localStorage.getItem("hourly-metrics");
           if (metrics != null) root.dataset.hourlyMetrics = metrics;
+          // Unit system: only "imperial" is stored; CSS (.u-metric/.u-imperial)
+          // picks which rendered copy of each value shows.
+          if (localStorage.getItem("units") === "imperial") root.dataset.units = "imperial";
         } catch {}
       })();
     </script>

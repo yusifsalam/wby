@@ -1,5 +1,6 @@
 ---
 import type { City } from "../lib/cities";
+import UnitText from "./UnitText.astro";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 // Precipitation radar widget: a non-interactive MapLibre map centred on the
@@ -11,6 +12,14 @@ type Props = {
 };
 
 const { city } = Astro.props;
+
+// Legend ticks as [mm/h, in/h] pairs, matching the map page's smooth ramp.
+const rainTicks = [
+  ["0.1", "0.004"],
+  ["1", "0.04"],
+  ["5", "0.2"],
+  ["20+", "0.8+"],
+];
 ---
 
 <section class="mt-4.5 rounded-lg border border-line bg-surface/92 shadow-panel" data-precip-widget>
@@ -28,10 +37,10 @@ const { city } = Astro.props;
     <div class="h-full w-full" data-precip-canvas aria-label={`Precipitation radar around ${city.name}`} role="img"></div>
 
     <div class="pointer-events-none absolute bottom-2 left-2 z-10 rounded-md border border-line bg-surface/90 px-2 py-1.5 backdrop-blur">
-      <p class="mb-1 text-[0.65rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain mm/h</p>
+      <p class="mb-1 text-[0.65rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain <UnitText metric="mm/h" imperial="in/h" /></p>
       <div class="h-1.5 w-32 rounded" style="background:linear-gradient(to right,#a8e0ff,#3fa0ff,#1436ff,#8b00ff,#ff00aa)"></div>
       <div class="mt-0.5 flex w-32 justify-between text-[0.6rem] font-[650] text-muted">
-        <span>0.1</span><span>1</span><span>5</span><span>20+</span>
+        {rainTicks.map(([metric, imperial]) => <span><UnitText metric={metric} imperial={imperial} /></span>)}
       </div>
     </div>
   </div>
