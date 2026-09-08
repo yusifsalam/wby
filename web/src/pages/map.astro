@@ -199,8 +199,35 @@ const rainSteppedTicks = [
     history.replaceState(null, "", url);
   }
 
+  // Ramp and opacity persist across visits; a ?ramp= URL still wins for the
+  // ramp so shared links open as intended.
+  const RAMP_STORAGE_KEY = "map-ramp";
+  const OPACITY_STORAGE_KEY = "map-opacity";
+  function readStored(key: string): string | null {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+  function writeStored(key: string, value: string | null) {
+    try {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    } catch {
+      // Storage unavailable (private mode, quota); the page still updates.
+    }
+  }
+  function storedOpacity(): number {
+    const raw = readStored(OPACITY_STORAGE_KEY);
+    const stored = raw === null ? NaN : Number(raw);
+    return Number.isFinite(stored) && stored >= 0 && stored <= 1 ? stored : 0.8;
+  }
+
   let layer: Layer = layerFromURL();
-  let opacity = 0.8;
+  let opacity = storedOpacity();
+  const opacityInput = document.getElementById("opacity") as HTMLInputElement;
+  opacityInput.value = String(Math.round(opacity * 100));
   // Index into the active layer's frame list. nowIndex means the live frame.
   let frameIndex = manifest[layer].nowIndex;
 
@@ -325,18 +352,19 @@ const rainSteppedTicks = [
 
   // The active precipitation color style, mirrored to ?ramp= like the layer.
   type PrecipRamp = "smooth" | "stepped";
-  function rampFromURL(): PrecipRamp {
-    return new URLSearchParams(window.location.search).get("ramp") === "stepped"
-      ? "stepped"
-      : "smooth";
+  function initialRamp(): PrecipRamp {
+    const fromURL = new URLSearchParams(window.location.search).get("ramp");
+    const chosen = fromURL ?? readStored(RAMP_STORAGE_KEY);
+    return chosen === "stepped" ? "stepped" : "smooth";
   }
-  function writeRampToURL(next: PrecipRamp) {
+  function writeRamp(next: PrecipRamp) {
     const url = new URL(window.location.href);
     if (next === "smooth") url.searchParams.delete("ramp");
     else url.searchParams.set("ramp", next);
     history.replaceState(null, "", url);
+    writeStored(RAMP_STORAGE_KEY, next === "smooth" ? null : next);
   }
-  let precipRamp: PrecipRamp = rampFromURL();
+  let precipRamp: PrecipRamp = initialRamp();
   const activePrecipRGBA = () =>
     precipRamp === "stepped" ? precipitationSteppedRGBA : precipitationRGBA;
 
@@ -744,7 +772,7 @@ const rainSteppedTicks = [
       const next = btn.dataset.ramp as PrecipRamp;
       if (next === precipRamp) return;
       precipRamp = next;
-      writeRampToURL(precipRamp);
+      writeRamp(precipRamp);
       syncLayerUI();
       // Frame caches are keyed by ramp, so a style switch re-rasterizes on
       // demand; warm the nearby frames and repaint the current one.
@@ -773,11 +801,14 @@ const rainSteppedTicks = [
   });
 
   // Opacity
-  document.getElementById("opacity")?.addEventListener("input", (event) => {
-    opacity = Number((event.target as HTMLInputElement).value) / 100;
+  opacityInput.addEventListener("input", () => {
+    opacity = Number(opacityInput.value) / 100;
     if (map.getLayer(OVERLAY_LAYER)) {
       map.setPaintProperty(OVERLAY_LAYER, "raster-opacity", opacity);
     }
+  });
+  opacityInput.addEventListener("change", () => {
+    writeStored(OPACITY_STORAGE_KEY, opacity === 0.8 ? null : String(opacity));
   });
 
   // Time scrubber. The slider indexes into the active layer's frame list, with
