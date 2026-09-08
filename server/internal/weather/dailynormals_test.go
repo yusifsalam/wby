@@ -140,8 +140,8 @@ func TestComputeDailyNormalsRecoversSeasonalCurve(t *testing.T) {
 		t.Errorf("January snow = %v, want 10", jan.SnowCm)
 	}
 	jul := findNormal(t, normals, 7, 15)
-	if math.Abs(*jul.FeelsLikeAvg-*jul.TempAvg) > 0.1 {
-		t.Errorf("July feels-like %.2f should match %.2f above 10°C", *jul.FeelsLikeAvg, *jul.TempAvg)
+	if d := *jul.TempAvg - *jul.FeelsLikeAvg; d < 1 || d > 4 {
+		t.Errorf("July feels-like %.2f should sit a little below %.2f at 5 m/s", *jul.FeelsLikeAvg, *jul.TempAvg)
 	}
 	if jul.SnowCm == nil || *jul.SnowCm != 0 {
 		t.Errorf("July snow = %v, want 0 (no-snow marker counts as zero)", jul.SnowCm)

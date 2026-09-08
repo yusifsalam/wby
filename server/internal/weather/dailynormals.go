@@ -223,7 +223,7 @@ func ComputeDailyNormals(fmisid int, period string, daily []DailyRecord, hourly 
 			extremes[date] = e
 		}
 		if r.Temp != nil && r.WindSpeed != nil {
-			f := *FeelsLike(r.Temp, r.WindSpeed)
+			f := *FeelsLike(r.Temp, r.WindSpeed, r.Humidity, nil)
 			addWindowed(&feelsCurve[h], idx, f, normalsHourlyWindow)
 			addWindowed(&feelsAvg, idx, f, normalsTempWindow)
 			if e.feelsN == 0 || f > e.feelsHigh {

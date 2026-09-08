@@ -171,7 +171,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 		},
 		Current: currentJSON{
 			Temperature:     result.Current.Observation.Temperature,
-			FeelsLike:       weather.FeelsLike(result.Current.Observation.Temperature, result.Current.Observation.WindSpeed),
+			FeelsLike:       result.Current.Observation.FeelsLike(),
 			WindSpeed:       result.Current.Observation.WindSpeed,
 			WindGust:        result.Current.Observation.WindGust,
 			WindDir:         result.Current.Observation.WindDir,
