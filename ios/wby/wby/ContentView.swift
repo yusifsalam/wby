@@ -93,7 +93,8 @@ struct ContentView: View {
                                 },
                                 onScrollOffsetChange: { offset in
                                     scrollModel.offsets[page.id] = offset
-                                }
+                                },
+                                onOpenMap: { showingMap = true }
                             )
                             .containerRelativeFrame(.horizontal)
                             .id(page.id)

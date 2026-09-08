@@ -8,6 +8,7 @@ struct WeatherPageView: View {
     let disableAutoLoad: Bool
     let onBackgroundUpdate: (WeatherScene, Double?, Double?) -> Void
     let onScrollOffsetChange: (CGFloat) -> Void
+    let onOpenMap: () -> Void
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -28,7 +29,8 @@ struct WeatherPageView: View {
         disableAutoLoad: Bool = false,
         initialWeather: WeatherResponse? = nil,
         onBackgroundUpdate: @escaping (WeatherScene, Double?, Double?) -> Void = { _, _, _ in },
-        onScrollOffsetChange: @escaping (CGFloat) -> Void = { _ in }
+        onScrollOffsetChange: @escaping (CGFloat) -> Void = { _ in },
+        onOpenMap: @escaping () -> Void = {}
     ) {
         self.location = location
         self.locationService = locationService
@@ -37,6 +39,7 @@ struct WeatherPageView: View {
         self._weather = State(initialValue: initialWeather)
         self.onBackgroundUpdate = onBackgroundUpdate
         self.onScrollOffsetChange = onScrollOffsetChange
+        self.onOpenMap = onOpenMap
     }
 
     // MARK: - Computed coordinate/name/elevation
@@ -114,6 +117,14 @@ struct WeatherPageView: View {
                         )
                         PrecipitationCard(forecasts: weather.dailyForecast, timeZone: weather.resolvedTimeZone)
                     }
+                    PrecipitationMapCard(
+                        coordinate: coordinate,
+                        weatherService: weatherService,
+                        timeZone: weather.resolvedTimeZone,
+                        refreshToken: lastUpdated,
+                        disableAutoLoad: disableAutoLoad,
+                        onOpenMap: onOpenMap
+                    )
                     HStack(alignment: .top, spacing: 12) {
                         VisibilityCard(current: weather.current)
                         HumidityCard(current: weather.current)
