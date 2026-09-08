@@ -21,4 +21,10 @@ const { cities, activeSlug } = Astro.props;
       </a>
     ))}
   </nav>
+  <p class="mt-4 text-[0.8rem] font-[550] text-muted">
+    Weather data from the{" "}
+    <a class="underline decoration-line underline-offset-2 hover:text-ink" href="https://en.ilmatieteenlaitos.fi/open-data">Finnish Meteorological Institute</a>,
+    licensed under{" "}
+    <a class="underline decoration-line underline-offset-2 hover:text-ink" href="https://en.ilmatieteenlaitos.fi/open-data-licence">CC BY 4.0</a>.
+  </p>
 </footer>
