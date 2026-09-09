@@ -42,6 +42,15 @@ describe("summarizeDay", () => {
     });
   });
 
+  it("totals precipitation over the hours shown rather than the daily row", () => {
+    const summary = summarizeDay({ date: "2026-09-09", precipitation_mm: 0.2 }, [
+      hour("2026-09-08T21:00:00Z", { precipitation_1h: 3.3 }),
+      hour("2026-09-08T22:00:00Z", { precipitation_1h: 2.5 }),
+      hour("2026-09-09T16:00:00Z", { precipitation_1h: 0.2 }),
+    ]);
+    expect(summary.precipitation).toBe(6);
+  });
+
   it("falls back to the hours when the daily row is empty", () => {
     const summary = summarizeDay({ date: "2026-09-10" }, [
       hour("2026-09-10T04:00:00Z", { temperature: 10, precipitation_1h: 0.5 }),

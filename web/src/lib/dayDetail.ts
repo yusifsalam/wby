@@ -36,8 +36,10 @@ export type DaySummary = {
   uvMax: number | null;
 };
 
-// High, low and the rain total come from the daily row the user clicked so
-// the sheet repeats the numbers they saw; the rest is derived from the hours.
+// High and low come from the daily row the user clicked so the sheet repeats
+// the numbers they saw. Precipitation is the total over the hours shown, so
+// it matches the histogram even for today, whose daily row only covers the
+// hours after the forecast was fetched. The rest is derived from the hours.
 export function summarizeDay(
   day: DailyForecast,
   hours: readonly HourlyForecast[],
@@ -47,9 +49,10 @@ export function summarizeDay(
     high: day.high ?? maxOf(temps),
     low: day.low ?? minOf(temps),
     precipitation:
+      sumOf(defined(hours.map((h) => h.precipitation_1h))) ??
       day.precipitation_mm ??
       day.precipitation_1h_sum ??
-      sumOf(defined(hours.map((h) => h.precipitation_1h))),
+      null,
     popMax: maxOf(defined(hours.map((h) => h.pop))),
     windAvg: day.wind_speed_avg ?? avgOf(defined(hours.map((h) => h.wind_speed))),
     gustMax:
