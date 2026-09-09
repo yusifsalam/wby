@@ -124,14 +124,17 @@ func (c *Client) FetchHourlyForecast(ctx context.Context, lat, lon float64, limi
 	return ParseHourlyForecast(data, hours)
 }
 
-func (c *Client) FetchUVForecast(ctx context.Context, lat, lon float64) ([]weather.UVDataPoint, error) {
+// FetchUVForecast returns hourly UV index points from start onwards. FMI's uv
+// producer covers today (from 00:00 UTC) and the following day, so two days of
+// steps from the local midnight span everything it has.
+func (c *Client) FetchUVForecast(ctx context.Context, lat, lon float64, start time.Time) ([]weather.UVDataPoint, error) {
 	if c.apiKey == "" {
 		return nil, nil
 	}
 
-	startTime := time.Now().UTC().Truncate(time.Hour).Format(time.RFC3339)
+	startTime := start.UTC().Truncate(time.Hour).Format(time.RFC3339)
 	reqURL := fmt.Sprintf(
-		"%s/fmi-apikey/%s/timeseries?param=epochtime,uvCumulated&producer=uv&format=json&latlon=%f,%f&timesteps=30&starttime=%s",
+		"%s/fmi-apikey/%s/timeseries?param=epochtime,uvCumulated&producer=uv&format=json&latlon=%f,%f&timesteps=48&starttime=%s",
 		c.timeseriesURL, c.apiKey, lat, lon, startTime,
 	)
 

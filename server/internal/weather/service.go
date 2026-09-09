@@ -53,7 +53,7 @@ type WeatherStore interface {
 type ForecastFetcher interface {
 	FetchForecast(ctx context.Context, lat, lon float64) (ForecastData, error)
 	FetchHourlyForecast(ctx context.Context, lat, lon float64, limit int) ([]HourlyForecast, error)
-	FetchUVForecast(ctx context.Context, lat, lon float64) ([]UVDataPoint, error)
+	FetchUVForecast(ctx context.Context, lat, lon float64, start time.Time) ([]UVDataPoint, error)
 }
 
 // WMSTileFetcher fetches a single rasterized WMS tile from FMI. The Service
@@ -196,7 +196,7 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 		slog.Warn("hourly forecast unavailable", "err", err, "lat", gridLat, "lon", gridLon)
 	}
 
-	uvPoints, uvFresh := s.getUVData(ctx, gridLat, gridLon)
+	uvPoints, uvFresh := s.getUVData(ctx, gridLat, gridLon, forecastTimezone)
 	if len(uvPoints) > 0 {
 		applyUVToHourly(uvPoints, hourly)
 		applyUVToDaily(uvPoints, forecast)
@@ -222,6 +222,7 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 		},
 		Hourly:   hourly,
 		Forecast: forecast,
+		UV:       uvPoints,
 		Timezone: forecastTimezone,
 	}, nil
 }
@@ -708,13 +709,13 @@ func hasExpandedForecastData(forecasts []DailyForecast) bool {
 // fetched from FMI (as opposed to served from the in-process cache). Only a
 // fresh fetch carries anything the persisted forecasts don't already have, so
 // callers persist on fresh only.
-func (s *Service) getUVData(ctx context.Context, gridLat, gridLon float64) ([]UVDataPoint, bool) {
+func (s *Service) getUVData(ctx context.Context, gridLat, gridLon float64, timezone string) ([]UVDataPoint, bool) {
 	cacheKey := fmt.Sprintf("uv:%.2f,%.2f", gridLat, gridLon)
 	if cached, ok := s.uvCache.Get(cacheKey); ok {
 		return cached, false
 	}
 
-	points, err := s.fmi.FetchUVForecast(ctx, gridLat, gridLon)
+	points, err := s.fmi.FetchUVForecast(ctx, gridLat, gridLon, startOfLocalDay(time.Now(), timezone))
 	if err != nil {
 		slog.Warn("UV forecast fetch failed", "err", err)
 		return nil, false
@@ -724,6 +725,15 @@ func (s *Service) getUVData(ctx context.Context, gridLat, gridLon float64) ([]UV
 		s.uvCache.Set(cacheKey, points)
 	}
 	return points, true
+}
+
+func startOfLocalDay(now time.Time, timezone string) time.Time {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	local := now.In(loc)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
 }
 
 func applyUVToHourly(uvPoints []UVDataPoint, hourly []HourlyForecast) {

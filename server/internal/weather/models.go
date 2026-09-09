@@ -115,6 +115,7 @@ type WeatherResponse struct {
 	Current  CurrentWeather
 	Hourly   []HourlyForecast
 	Forecast []DailyForecast
+	UV       []UVDataPoint
 	Timezone string
 }
 

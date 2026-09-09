@@ -55,7 +55,14 @@ type weatherJSON struct {
 	Current  currentJSON          `json:"current"`
 	Hourly   []hourlyForecastJSON `json:"hourly_forecast"`
 	Forecast []dailyForecastJSON  `json:"daily_forecast"`
+	UV       []uvPointJSON        `json:"uv_forecast"`
 	Timezone string               `json:"timezone"`
+}
+
+// Hourly UV index from the local midnight through the next day.
+type uvPointJSON struct {
+	Time time.Time `json:"time"`
+	UV   float64   `json:"uv"`
 }
 
 type stationJSON struct {
@@ -247,6 +254,10 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			CloudCover:  hfc.CloudCover,
 			PoP:         hfc.PoP,
 		})
+	}
+	resp.UV = make([]uvPointJSON, 0, len(result.UV))
+	for _, p := range result.UV {
+		resp.UV = append(resp.UV, uvPointJSON{Time: p.Time, UV: p.UVCumulated})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
