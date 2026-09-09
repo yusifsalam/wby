@@ -186,7 +186,7 @@ struct DailyNormalsComparison {
             avgs: avgs,
             xLabels: NormalsTemperatureChart.Data.dayLabels(count: days.count),
             todayIndex: todayIndex,
-            currentTemp: currentTemp,
+            currentTemp: nil,
             todayWeatherHigh: withForecastMarkers ? todayWeatherHigh : nil,
             todayWeatherLow: withForecastMarkers ? todayWeatherLow : nil
         )

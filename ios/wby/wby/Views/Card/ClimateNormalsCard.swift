@@ -126,7 +126,7 @@ struct ClimateNormalsCard: View {
             avgs: avgs,
             xLabels: NormalsTemperatureChart.Data.dayLabels(count: daysInMonth),
             todayIndex: todayIndex,
-            currentTemp: currentTemp,
+            currentTemp: nil,
             todayWeatherHigh: todayWeatherHigh,
             todayWeatherLow: todayWeatherLow
         )
