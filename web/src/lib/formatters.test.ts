@@ -61,6 +61,8 @@ describe("weather value formatters", () => {
     expect(formatMeasure("visibility", 3218.7, "imperial")).toBe("2.0 mi");
     expect(formatMeasure("percent", 50, "imperial")).toBe("50%");
     expect(formatMeasure("direction", 90, "imperial")).toBe("E");
+    expect(formatMeasure("index", 2.6, "imperial")).toBe("3");
+    expect(formatMeasure("index", null)).toBe("--");
     expect(formatMeasure("temperature", null, "imperial")).toBe("--");
   });
 

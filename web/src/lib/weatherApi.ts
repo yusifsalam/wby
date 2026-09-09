@@ -60,11 +60,18 @@ export type DailyForecast = {
   uv_index_avg?: number | null;
 };
 
+// Hourly UV index from the local midnight through the next day.
+export type UVPoint = {
+  time: string;
+  uv: number;
+};
+
 export type WeatherResponse = {
   station: StationInfo;
   current: CurrentConditions;
   hourly_forecast: HourlyForecast[];
   daily_forecast: DailyForecast[];
+  uv_forecast?: UVPoint[];
   timezone: string;
 };
 
@@ -86,7 +93,6 @@ export type LeaderboardResponse = {
   timeframe: string;
   leaderboard: LeaderboardEntry[];
 };
-
 
 type SignedFetchInput = {
   config: WebConfig;

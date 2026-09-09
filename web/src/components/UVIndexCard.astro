@@ -1,0 +1,105 @@
+---
+// Today's hourly UV index as a histogram in local time, headlined by the
+// day's peak. Renders nothing when the forecast has no points for today.
+import { formatObservedTime } from "../lib/formatters";
+import {
+  UV_BANDS,
+  UV_SCALE_MAX,
+  uvBarHeight,
+  uvColor,
+  uvDayBars,
+  uvDayPoints,
+  uvLevel,
+  uvPeak,
+} from "../lib/uvIndex";
+import type { UVPoint } from "../lib/weatherApi";
+
+type Props = {
+  points: readonly UVPoint[];
+  timeZone: string;
+};
+
+const { points, timeZone } = Astro.props;
+const now = new Date();
+const today = uvDayPoints(points, timeZone, now);
+const peak = uvPeak(today);
+const bars = peak ? uvDayBars(points, timeZone, now) : [];
+const peakTomorrow = uvPeak(uvDayPoints(points, timeZone, now, 1));
+
+function barStyle(uv: number | null): string | undefined {
+  if (uv == null) return undefined;
+  return `--uv-height:${uvBarHeight(uv)}%;--uv-color:${uvColor(uv)}`;
+}
+
+function barTitle(hour: number, uv: number | null): string {
+  const label = `${String(hour).padStart(2, "0")}:00`;
+  return uv == null ? `${label} · no data` : `${label} · UV ${Math.round(uv)} ${uvLevel(uv)}`;
+}
+
+const hourTicks = [0, 3, 6, 9, 12, 15, 18, 21];
+const boundaries = UV_BANDS.map((band) => Math.min(band.limit, UV_SCALE_MAX));
+const scaleTicks = Array.from({ length: UV_SCALE_MAX + 1 }, (_, value) => value);
+
+// Band names sit inside the plot, centred on their range.
+const bandLabels = UV_BANDS.map((band, i) => {
+  const from = i === 0 ? 0 : boundaries[i - 1];
+  const to = boundaries[i];
+  return { label: band.label, y: uvBarHeight(from === to ? to : (from + to) / 2) };
+});
+---
+
+{peak && (
+  <section class="mt-4.5 rounded-lg border border-line bg-surface/92 shadow-panel">
+    <div class="flex items-center justify-between gap-4 px-4.5 pt-4">
+      <h2 class="text-base font-bold">UV index</h2>
+      <span class="text-muted">Today</span>
+    </div>
+    <div class="px-4.5 pt-3.5 pb-4.5">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+        <p class="m-0">
+          <span class="text-[2.4rem] font-[750] leading-none">{Math.round(peak.value)}</span>
+          <span class="ml-2 text-[1.05rem] font-semibold">{uvLevel(peak.value)}</span>
+          {peak.value > 0 && (
+            <span class="ml-1.5 text-muted">· highest at {formatObservedTime(peak.time, timeZone)}</span>
+          )}
+        </p>
+        {peakTomorrow && (
+          <p class="m-0 text-muted">
+            Tomorrow up to <strong class="font-[750] text-ink">{Math.round(peakTomorrow.value)}</strong> · {uvLevel(peakTomorrow.value)}
+          </p>
+        )}
+      </div>
+
+      <div class="uv-chart mt-5" role="img" aria-label={`UV index by hour today, peaking at ${Math.round(peak.value)}`}>
+        <div class="uv-plot">
+          {boundaries.map((value) => (
+            <span class="uv-gridline" style={`--uv-y:${uvBarHeight(value)}%`} aria-hidden="true"></span>
+          ))}
+          {bandLabels.map((band) => (
+            <span class="uv-band-label" style={`--uv-y:${band.y}%`} aria-hidden="true">{band.label}</span>
+          ))}
+          <div class="uv-bars">
+            {bars.map((bar) => (
+              <span
+                class="uv-bar"
+                style={barStyle(bar.uv)}
+                title={barTitle(bar.hour, bar.uv)}
+                data-value={bar.uv != null && bar.uv >= 0.5 ? Math.round(bar.uv) : undefined}
+                data-past={bar.past ? "" : undefined}
+                data-current={bar.current ? "" : undefined}
+              ></span>
+            ))}
+          </div>
+        </div>
+        <div class="uv-axis" aria-hidden="true">
+          {scaleTicks.map((value) => (
+            <span style={`--uv-y:${uvBarHeight(value)}%`} data-minor={boundaries.includes(value) || value === 0 ? undefined : ""}>{value}</span>
+          ))}
+        </div>
+        <div class="uv-ticks" aria-hidden="true">
+          {hourTicks.map((hour) => <span>{String(hour).padStart(2, "0")}</span>)}
+        </div>
+      </div>
+    </div>
+  </section>
+)}

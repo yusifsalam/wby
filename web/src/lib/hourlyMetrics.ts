@@ -11,6 +11,7 @@ export const HOURLY_METRIC_KEYS = [
   "humidity",
   "pressure",
   "cloud",
+  "uv",
 ] as const;
 export type HourlyMetricKey = (typeof HOURLY_METRIC_KEYS)[number];
 
@@ -72,6 +73,12 @@ export const HOURLY_METRICS: readonly HourlyMetric[] = [
     label: "Cloud cover",
     measure: "percent",
     value: (h) => h.cloud_cover,
+  },
+  {
+    key: "uv",
+    label: "UV index",
+    measure: "index",
+    value: (h) => h.uv_cumulated,
   },
 ];
 

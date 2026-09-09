@@ -40,6 +40,13 @@ export function formatPercent(value: number | null | undefined): string {
   return `${Math.round(value)}%`;
 }
 
+export function formatIndex(value: number | null | undefined): string {
+  if (value == null) {
+    return "--";
+  }
+  return `${Math.round(value)}`;
+}
+
 export function formatPrecipitation(
   value: number | null | undefined,
   system: UnitSystem = "metric",
@@ -114,6 +121,7 @@ export const MEASURE_KINDS = [
   "visibility",
   "percent",
   "direction",
+  "index",
 ] as const;
 export type MeasureKind = (typeof MEASURE_KINDS)[number];
 
@@ -139,6 +147,8 @@ export function formatMeasure(
       return formatPercent(value);
     case "direction":
       return formatWindDirection(value);
+    case "index":
+      return formatIndex(value);
   }
 }
 

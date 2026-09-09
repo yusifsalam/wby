@@ -105,6 +105,134 @@
     );
   }
 
+  /* UV index histogram: one bar per local hour, height and colour set inline
+     via --uv-height / --uv-color (WHO band colours). Past hours are dimmed and
+     the current hour carries a marker under its bar. */
+  .uv-chart {
+    --uv-plot-height: 168px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+    padding-top: 18px;
+  }
+
+  /* Axis labels, band names and gridlines share the plot's coordinate system:
+     --uv-y is the value's height as a percentage of the plot, from the base. */
+  .uv-axis {
+    position: relative;
+    width: 1.4em;
+    height: var(--uv-plot-height);
+    font-size: 0.68rem;
+    color: var(--color-muted);
+  }
+
+  .uv-axis > span {
+    position: absolute;
+    left: 0;
+    bottom: var(--uv-y);
+    line-height: 1;
+    transform: translateY(50%);
+  }
+
+  .uv-plot {
+    position: relative;
+    height: var(--uv-plot-height);
+    border-bottom: 1px solid var(--color-line);
+  }
+
+  .uv-gridline {
+    position: absolute;
+    right: 0;
+    bottom: var(--uv-y);
+    left: 0;
+    border-top: 1px dashed var(--color-line);
+  }
+
+  .uv-band-label {
+    position: absolute;
+    left: 0;
+    bottom: var(--uv-y);
+    z-index: 1;
+    padding: 0 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--color-muted);
+    transform: translateY(50%);
+    pointer-events: none;
+  }
+
+  .uv-bars {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(24, minmax(0, 1fr));
+    align-items: end;
+    gap: 3px;
+    height: 100%;
+  }
+
+  .uv-bar {
+    position: relative;
+    display: block;
+    height: max(var(--uv-height, 0%), 3px);
+    border-radius: 3px 3px 0 0;
+    background: var(--uv-color, var(--color-line));
+  }
+
+  .uv-bar[data-value]::before {
+    content: attr(data-value);
+    position: absolute;
+    bottom: calc(100% + 3px);
+    left: 50%;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--color-muted);
+    transform: translateX(-50%);
+  }
+
+  .uv-bar[data-past] {
+    opacity: 0.45;
+  }
+
+  .uv-bar[data-current]::after {
+    content: "";
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--color-ink);
+    transform: translateX(-50%);
+  }
+
+  .uv-ticks {
+    display: grid;
+    grid-column: 1;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    margin-top: 6px;
+    font-size: 0.72rem;
+    color: var(--color-muted);
+  }
+
+  @media (max-width: 560px) {
+    .uv-chart {
+      --uv-plot-height: 120px;
+    }
+
+    .uv-axis > span[data-minor] {
+      display: none;
+    }
+
+    .uv-bars {
+      gap: 2px;
+    }
+
+    .uv-bar[data-value]::before {
+      font-size: 0.62rem;
+    }
+  }
+
   /* Theme toggle: show the icon matching the saved setting (data-theme-setting
      on <html>), defaulting to the auto icon before/without JS. */
   .theme-icon {
@@ -170,7 +298,8 @@
   [data-hourly-metrics~="pop"] .hourly-metric[data-metric="pop"],
   [data-hourly-metrics~="humidity"] .hourly-metric[data-metric="humidity"],
   [data-hourly-metrics~="pressure"] .hourly-metric[data-metric="pressure"],
-  [data-hourly-metrics~="cloud"] .hourly-metric[data-metric="cloud"] {
+  [data-hourly-metrics~="cloud"] .hourly-metric[data-metric="cloud"],
+  [data-hourly-metrics~="uv"] .hourly-metric[data-metric="uv"] {
     display: flex;
   }
 }

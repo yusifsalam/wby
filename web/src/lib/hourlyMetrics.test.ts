@@ -50,6 +50,7 @@ describe("hourly metric settings", () => {
       humidity: 80.6,
       pressure: 1008.7,
       cloud_cover: 62.2,
+      uv_cumulated: 2.6,
     };
     const metric = Object.fromEntries(
       HOURLY_METRICS.map((m) => [
@@ -67,6 +68,7 @@ describe("hourly metric settings", () => {
       humidity: "81%",
       pressure: "1009 hPa",
       cloud: "62%",
+      uv: "3",
     });
     const imperial = Object.fromEntries(
       HOURLY_METRICS.map((m) => [
@@ -84,6 +86,7 @@ describe("hourly metric settings", () => {
       humidity: "81%",
       pressure: "29.79 inHg",
       cloud: "62%",
+      uv: "3",
     });
     for (const m of HOURLY_METRICS) {
       expect(
