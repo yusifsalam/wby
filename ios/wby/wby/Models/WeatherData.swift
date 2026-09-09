@@ -5,6 +5,7 @@ nonisolated struct WeatherResponse: Codable {
     let current: CurrentConditions
     let hourlyForecast: [HourlyForecast]
     let dailyForecast: [DailyForecast]
+    let uvForecast: [UVPoint]
     let timezone: String
 
     enum CodingKeys: String, CodingKey {
@@ -12,14 +13,23 @@ nonisolated struct WeatherResponse: Codable {
         case current
         case hourlyForecast = "hourly_forecast"
         case dailyForecast = "daily_forecast"
+        case uvForecast = "uv_forecast"
         case timezone
     }
 
-    init(station: StationInfo, current: CurrentConditions, hourlyForecast: [HourlyForecast], dailyForecast: [DailyForecast], timezone: String) {
+    init(
+        station: StationInfo,
+        current: CurrentConditions,
+        hourlyForecast: [HourlyForecast],
+        dailyForecast: [DailyForecast],
+        uvForecast: [UVPoint] = [],
+        timezone: String
+    ) {
         self.station = station
         self.current = current
         self.hourlyForecast = hourlyForecast
         self.dailyForecast = dailyForecast
+        self.uvForecast = uvForecast
         self.timezone = timezone
     }
 
@@ -29,12 +39,33 @@ nonisolated struct WeatherResponse: Codable {
         current = try c.decode(CurrentConditions.self, forKey: .current)
         hourlyForecast = try c.decodeIfPresent([HourlyForecast].self, forKey: .hourlyForecast) ?? []
         dailyForecast = try c.decode([DailyForecast].self, forKey: .dailyForecast)
+        uvForecast = try c.decodeIfPresent([UVPoint].self, forKey: .uvForecast) ?? []
         timezone = try c.decode(String.self, forKey: .timezone)
     }
 
     var resolvedTimeZone: TimeZone {
         TimeZone(identifier: timezone) ?? TimeZone(identifier: "Europe/Helsinki")!
     }
+}
+
+/// The full hourly window (up to ten days) from `/v1/weather/hourly`; the
+/// weather response embeds only the next 12 hours.
+nonisolated struct HourlyForecastResponse: Codable {
+    let hourlyForecast: [HourlyForecast]
+    let timezone: String
+
+    enum CodingKeys: String, CodingKey {
+        case hourlyForecast = "hourly_forecast"
+        case timezone
+    }
+}
+
+/// Hourly UV index from the local midnight through the next day.
+struct UVPoint: Codable, Identifiable {
+    let time: Date
+    let uv: Double
+
+    var id: Date { time }
 }
 
 struct StationInfo: Codable {
@@ -367,10 +398,15 @@ struct DailyForecast: Codable, Identifiable {
 struct HourlyForecast: Codable, Identifiable {
     let time: Date
     let temperature: Double?
+    let feelsLike: Double?
     let windSpeed: Double?
     let windDirection: Double?
+    let windGust: Double?
     let humidity: Double?
     let precipitation1h: Double?
+    let pop: Double?
+    let pressure: Double?
+    let cloudCover: Double?
     let uvCumulated: Double?
     let symbol: String?
 
@@ -379,19 +415,29 @@ struct HourlyForecast: Codable, Identifiable {
     init(
         time: Date,
         temperature: Double?,
+        feelsLike: Double? = nil,
         windSpeed: Double? = nil,
         windDirection: Double? = nil,
+        windGust: Double? = nil,
         humidity: Double? = nil,
         precipitation1h: Double? = nil,
+        pop: Double? = nil,
+        pressure: Double? = nil,
+        cloudCover: Double? = nil,
         uvCumulated: Double? = nil,
         symbol: String?
     ) {
         self.time = time
         self.temperature = temperature
+        self.feelsLike = feelsLike
         self.windSpeed = windSpeed
         self.windDirection = windDirection
+        self.windGust = windGust
         self.humidity = humidity
         self.precipitation1h = precipitation1h
+        self.pop = pop
+        self.pressure = pressure
+        self.cloudCover = cloudCover
         self.uvCumulated = uvCumulated
         self.symbol = symbol
     }
@@ -399,10 +445,15 @@ struct HourlyForecast: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case time
         case temperature
+        case feelsLike = "feels_like"
         case windSpeed = "wind_speed"
         case windDirection = "wind_direction"
+        case windGust = "wind_gust"
         case humidity
         case precipitation1h = "precipitation_1h"
+        case pop
+        case pressure
+        case cloudCover = "cloud_cover"
         case uvCumulated = "uv_cumulated"
         case symbol
     }

@@ -19,6 +19,8 @@ struct WeatherPageView: View {
     @State private var isFetching = false
     @State private var lastUpdated: Date?
     @State private var errorMessage: String?
+    @State private var selectedDay: DailyForecast?
+    @State private var hourlyWindow: [HourlyForecast]?
 
     private static let staleAfter: TimeInterval = 10 * 60
 
@@ -104,7 +106,9 @@ struct WeatherPageView: View {
                             uvIndex: weather.hourlyForecast.compactMap(\.uvCumulated).first
                                 ?? weather.dailyForecast.compactMap(\.uvIndexAvg).first,
                             radiationGlobal: weather.current.resolvedRadiationGlobal
-                                ?? dailyResolvedRadiationGlobal(weather.dailyForecast)
+                                ?? dailyResolvedRadiationGlobal(weather.dailyForecast),
+                            uvForecast: weather.uvForecast,
+                            timeZone: weather.resolvedTimeZone
                         )
                     }
                     WindCard(current: weather.current)
@@ -188,6 +192,24 @@ struct WeatherPageView: View {
         .refreshable {
             await refresh()
         }
+        .sheet(item: $selectedDay) { day in
+            if let weather, let coordinate {
+                NavigationStack {
+                    DayDetailView(
+                        details: DayDetail.build(
+                            days: weather.dailyForecast,
+                            hours: hourlyWindow ?? weather.hourlyForecast,
+                            timeZone: weather.resolvedTimeZone
+                        ),
+                        initialDate: day.date,
+                        isLoadingHours: hourlyWindow == nil,
+                        coordinate: coordinate,
+                        elevationMeters: elevationMeters ?? 0
+                    )
+                }
+                .task { await loadHourlyWindow(coord: coordinate) }
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, !disableAutoLoad, !isFetching, isStale else { return }
             Task { await refresh() }
@@ -244,12 +266,18 @@ struct WeatherPageView: View {
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 8)
             ForEach(forecasts) { day in
-                DailyForecastCard(
-                    forecast: day,
-                    overallLow: forecasts.compactMap(\.low).min() ?? 0,
-                    overallHigh: forecasts.compactMap(\.high).max() ?? 0,
-                    timeZone: weather?.resolvedTimeZone ?? TimeZone(identifier: "Europe/Helsinki")!
-                )
+                Button {
+                    selectedDay = day
+                } label: {
+                    DailyForecastCard(
+                        forecast: day,
+                        overallLow: forecasts.compactMap(\.low).min() ?? 0,
+                        overallHigh: forecasts.compactMap(\.high).max() ?? 0,
+                        timeZone: weather?.resolvedTimeZone ?? TimeZone(identifier: "Europe/Helsinki")!
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
                 if day.id != forecasts.last?.id {
                     Divider().overlay(Color.primary.opacity(0.18))
                 }
@@ -291,6 +319,7 @@ struct WeatherPageView: View {
         do {
             let response = try await weatherService.fetchWeather(lat: coord.latitude, lon: coord.longitude)
             weather = response
+            hourlyWindow = nil
             lastUpdated = Date()
             errorMessage = nil
         } catch WeatherError.httpStatus(404, let message) {
@@ -319,6 +348,18 @@ struct WeatherPageView: View {
             climateNormals = try await weatherService.fetchClimateNormals(lat: coord.latitude, lon: coord.longitude)
         } catch {
             climateNormals = nil
+        }
+    }
+
+    /// The full ten-day hourly window is fetched lazily the first time a day
+    /// sheet opens and kept until the next weather refresh.
+    private func loadHourlyWindow(coord: CLLocationCoordinate2D) async {
+        guard hourlyWindow == nil else { return }
+        do {
+            let response = try await weatherService.fetchHourlyForecast(lat: coord.latitude, lon: coord.longitude)
+            hourlyWindow = response.hourlyForecast
+        } catch {
+            hourlyWindow = weather?.hourlyForecast ?? []
         }
     }
 
@@ -356,6 +397,39 @@ enum PreviewData {
             ))
         }
         return result
+    }
+
+    static func makeFullDay() -> [HourlyForecast] {
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "Europe/Helsinki")!
+        let start = calendar.startOfDay(for: Date())
+        return (0..<24).map { i in
+            let temp = 8 + 6 * sin(Double(i - 5) / 24 * .pi * 2)
+            return HourlyForecast(
+                time: calendar.date(byAdding: .hour, value: i, to: start)!,
+                temperature: temp,
+                feelsLike: temp - 2,
+                windSpeed: 3 + Double(i % 5),
+                windDirection: Double((i * 30) % 360),
+                windGust: 6 + Double(i % 7),
+                humidity: 70 + Double(i % 20),
+                precipitation1h: (13...16).contains(i) ? Double(16 - i) * 0.6 : 0,
+                pop: (12...17).contains(i) ? 60 : 5,
+                cloudCover: (11...17).contains(i) ? 85 : 20,
+                symbol: (13...16).contains(i) ? "38" : "2"
+            )
+        }
+    }
+
+    static func makeUVForecast() -> [UVPoint] {
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "Europe/Helsinki")!
+        let start = calendar.startOfDay(for: Date())
+        return (0..<48).map { i in
+            let hour = i % 24
+            let uv = hour >= 6 && hour <= 20 ? max(0, 6.5 * sin(Double(hour - 6) / 14 * .pi)) : 0
+            return UVPoint(time: calendar.date(byAdding: .hour, value: i, to: start)!, uv: uv)
+        }
     }
 
     static func makeDaily() -> [DailyForecast] {
@@ -398,6 +472,7 @@ enum PreviewData {
             current: current,
             hourlyForecast: makeHourly(),
             dailyForecast: makeDaily(),
+            uvForecast: makeUVForecast(),
             timezone: "Europe/Helsinki"
         )
     }

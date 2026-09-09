@@ -23,6 +23,17 @@ actor WeatherService {
         )
     }
 
+    func fetchHourlyForecast(lat: Double, lon: Double) async throws -> HourlyForecastResponse {
+        try await fetchJSON(
+            path: "v1/weather/hourly",
+            queryItems: [
+                URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
+                URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
+            ],
+            dateDecodingStrategy: .iso8601
+        )
+    }
+
     func fetchTemperatureSamples(at: Date? = nil) async throws -> TemperatureSamplesResponse {
         var queryItems: [URLQueryItem] = []
         if let at {

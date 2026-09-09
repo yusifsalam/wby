@@ -3,6 +3,10 @@ import SwiftUI
 struct UVIndexCard: View {
     let uvIndex: Double?
     let radiationGlobal: Double?
+    var uvForecast: [UVPoint] = []
+    var timeZone: TimeZone = TimeZone(identifier: "Europe/Helsinki")!
+
+    @State private var showingDetail = false
 
     // Fallback conversion when only global radiation is available.
     // This keeps card UX consistent (UV index + category) without showing units.
@@ -16,7 +20,34 @@ struct UVIndexCard: View {
         return nil
     }
 
+    private var hasDetail: Bool {
+        UVIndex.peak(UVIndex.dayPoints(uvForecast, timeZone: timeZone)) != nil
+    }
+
     var body: some View {
+        if hasDetail {
+            Button {
+                showingDetail = true
+            } label: {
+                card.overlay(alignment: .topTrailing) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(16)
+                }
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showingDetail) {
+                NavigationStack {
+                    UVIndexDetailView(points: uvForecast, timeZone: timeZone)
+                }
+            }
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
         HalfCard(
             title: "UV INDEX",
             icon: "sun.max",
@@ -102,7 +133,7 @@ struct UVIndexCard: View {
 #Preview {
     ZStack {
         Color.blue.opacity(0.4).ignoresSafeArea()
-        UVIndexCard(uvIndex: nil, radiationGlobal: 245)
+        UVIndexCard(uvIndex: nil, radiationGlobal: 245, uvForecast: PreviewData.makeUVForecast())
             .padding()
     }
 }
