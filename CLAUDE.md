@@ -131,8 +131,11 @@ Three stored queries used via the public WFS endpoint:
 
 The `symbol` field on hourly/daily forecasts is FMI's **SmartSymbol** code (1–77;
 `+100` = night variant, assigned by FMI), the same scheme the official FMI app
-uses. The daily symbol is the 15:00 local-time hour. `weather_symbol3_mode`
-carries the older `WeatherSymbol3` code for reference only.
+uses. The daily symbol is Apple-Weather-style: the most severe SmartSymbol of
+the daytime hours (07:00–18:59 local; thunder > hail > snow > sleet > freezing
+> rain > drizzle > fog > cloud > clear, ties to the hour nearest 15:00), always
+the day variant, so a rainy morning before a clear afternoon shows rain.
+`weather_symbol3_mode` carries the older `WeatherSymbol3` code for reference only.
 
 Radiation observations come from a separate query and are merged into the nearest station's data as a fallback when the primary station lacks a radiometer.
 

@@ -127,7 +127,7 @@ func TestParseForecast(t *testing.T) {
 		t.Error("expected humidity_avg to be set")
 	}
 	// The fixture's SmartSymbol series is 7 by day and 107 at night; the daily
-	// symbol must be the 15:00 Europe/Helsinki value, not a night code.
+	// symbol must be a day code.
 	if day.Symbol == nil || *day.Symbol != "7" {
 		t.Errorf("expected daily symbol 7, got %v", day.Symbol)
 	}
@@ -147,17 +147,39 @@ func TestRepresentativeSymbol(t *testing.T) {
 		return hourlyEntry{t: time.Date(2026, 2, 16, hourUTC, 0, 0, 0, time.UTC), val: val}
 	}
 
-	// 13:00 UTC is 15:00 in Helsinki (winter time).
+	// Helsinki is UTC+2 in February, so daytime 07:00–18:59 local is 05:00–16:59 UTC.
+	// A dry day: the most cloud cover wins, which here is 15:00 local.
 	entries := []hourlyEntry{at(6, 101), at(12, 4), at(13, 7), at(14, 1), at(20, 107)}
 	if got := representativeSymbol(entries, "2026-02-16", loc); got == nil || *got != "7" {
-		t.Errorf("expected exact 15:00 local pick 7, got %v", got)
+		t.Errorf("expected most severe daytime pick 7, got %v", got)
 	}
 
-	// Without a 15:00 entry, the nearest hour wins: 11:00 UTC is 13:00 local
-	// (2h away) versus 16:00 UTC at 18:00 local (3h away).
-	entries = []hourlyEntry{at(6, 101), at(11, 4), at(16, 1)}
+	// Equal severity is broken by closeness to 15:00 local: 11:00 UTC is
+	// 13:00 local (2h away) versus 16:00 UTC at 18:00 local (3h away).
+	entries = []hourlyEntry{at(6, 101), at(11, 4), at(16, 4)}
 	if got := representativeSymbol(entries, "2026-02-16", loc); got == nil || *got != "4" {
-		t.Errorf("expected nearest-hour pick 4, got %v", got)
+		t.Errorf("expected nearest-hour tie-break 4, got %v", got)
+	}
+
+	// A rainy morning before a clear afternoon warns about the rain, and a
+	// thundershower beats moderate rain.
+	entries = []hourlyEntry{at(5, 38), at(6, 74), at(7, 21), at(9, 1), at(13, 1), at(16, 2)}
+	if got := representativeSymbol(entries, "2026-02-16", loc); got == nil || *got != "74" {
+		t.Errorf("expected most severe daytime pick 74, got %v", got)
+	}
+
+	// Night-time precipitation does not override a dry daytime, but a night
+	// code that falls inside the daytime window counts as its day variant.
+	entries = []hourlyEntry{at(2, 139), at(5, 104), at(13, 1), at(20, 177)}
+	if got := representativeSymbol(entries, "2026-02-16", loc); got == nil || *got != "4" {
+		t.Errorf("expected daytime-only pick 4, got %v", got)
+	}
+
+	// With no daytime hours at all (the end of the forecast window), the hour
+	// nearest 15:00 local wins regardless of severity.
+	entries = []hourlyEntry{at(0, 138), at(3, 104)}
+	if got := representativeSymbol(entries, "2026-02-16", loc); got == nil || *got != "4" {
+		t.Errorf("expected nearest-hour fallback 4, got %v", got)
 	}
 
 	// Entries from other days are ignored.

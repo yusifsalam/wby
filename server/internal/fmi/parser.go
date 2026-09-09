@@ -593,34 +593,84 @@ func modeRoundedFloatPtr(values []float64) *float64 {
 	return &mode
 }
 
-// representativeSymbolHour is the local hour whose symbol stands for the
-// whole day, matching the official FMI app's daily symbol choice.
-const representativeSymbolHour = 15
+// Daytime window (local hours) whose symbols can stand for the whole day,
+// and the hour that breaks ties between equally severe symbols.
+const (
+	daytimeStartHour         = 7
+	daytimeEndHour           = 19
+	representativeSymbolHour = 15
+)
 
 // representativeSymbol picks the day's SmartSymbol from the hourly entries
 // that fall on dateKey (UTC date, the same bucketing as the other daily
-// aggregates): the entry at 15:00 local time, or the one nearest to it.
+// aggregates). Like Apple Weather it warns rather than describes: the most
+// severe symbol of the daytime hours wins, so a rainy morning before a clear
+// afternoon shows as rain. Ties go to the hour nearest 15:00 local. Days with
+// no daytime hours (the tail of the forecast window) fall back to the hour
+// nearest 15:00. The result is always the day variant.
 func representativeSymbol(entries []hourlyEntry, dateKey string, loc *time.Location) *string {
-	var best *hourlyEntry
-	bestDist := 0
-	for i := range entries {
-		e := &entries[i]
+	type candidate struct {
+		code, severity, dist int
+	}
+	var all, daytime []candidate
+	for _, e := range entries {
 		if e.t.Format("2006-01-02") != dateKey {
 			continue
 		}
-		dist := e.t.In(loc).Hour() - representativeSymbolHour
+		hour := e.t.In(loc).Hour()
+		dist := hour - representativeSymbolHour
 		if dist < 0 {
 			dist = -dist
 		}
-		if best == nil || dist < bestDist {
-			best, bestDist = e, dist
+		code := int(math.Round(e.val))
+		c := candidate{code: code, severity: symbolSeverity(code), dist: dist}
+		all = append(all, c)
+		if hour >= daytimeStartHour && hour < daytimeEndHour {
+			daytime = append(daytime, c)
 		}
 	}
-	if best == nil {
+	if len(all) == 0 {
 		return nil
 	}
-	s := strconv.Itoa(int(math.Round(best.val)))
+	pool := daytime
+	if len(pool) == 0 {
+		pool = all
+		for i := range pool {
+			pool[i].severity = 0
+		}
+	}
+	best := pool[0]
+	for _, c := range pool[1:] {
+		if c.severity > best.severity || c.severity == best.severity && c.dist < best.dist {
+			best = c
+		}
+	}
+	s := strconv.Itoa(best.code % 100)
 	return &s
+}
+
+// symbolSeverity ranks a SmartSymbol code for the daily pick: sky cover and
+// fog rank lowest, then drizzle, rain, freezing precipitation, sleet, snow,
+// hail and thunder. Within a precipitation family the code's last digit
+// already orders isolated < scattered < continuous and light < heavy.
+func symbolSeverity(code int) int {
+	code %= 100
+	family, sub := code/10, code%10
+	switch {
+	case code <= 9:
+		return code
+	case code == 11:
+		return 10
+	case family == 2 || family == 3:
+		return 20 + sub
+	case code == 14:
+		return 30
+	case code == 17:
+		return 31
+	case family >= 4 && family <= 7:
+		return family*10 + sub
+	}
+	return code
 }
 
 func circularMeanDegreesPtr(values []float64) *float64 {
