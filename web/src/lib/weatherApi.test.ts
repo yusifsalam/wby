@@ -3,6 +3,7 @@ import { cities } from "./cities";
 import {
   cacheControlHeader,
   fetchDailyClimateNormals,
+  fetchHourlyForecastForCity,
   fetchWeatherForCity,
   WeatherApiError,
 } from "./weatherApi";
@@ -159,5 +160,38 @@ describe("cacheControlHeader", () => {
     expect(cacheControlHeader({ ttlSeconds: 900, staleSeconds: 3600 })).toBe(
       "public, max-age=900, stale-while-revalidate=3600",
     );
+  });
+});
+
+describe("fetchHourlyForecastForCity", () => {
+  it("fetches the ten-day hourly window from the signed endpoint", async () => {
+    const calls: string[] = [];
+    const fetchImpl = async (url: string | URL | Request) => {
+      calls.push(String(url));
+      return new Response(
+        JSON.stringify({
+          hourly_forecast: [{ time: "2026-09-10T04:00:00Z", temperature: 12.5 }],
+          timezone: "Europe/Helsinki",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    };
+
+    const result = await fetchHourlyForecastForCity({
+      city: cities[0],
+      config: {
+        apiBaseUrl: "http://server:8080",
+        clientId: "web",
+        clientSecret: "test-secret",
+      },
+      timestamp: "1769500800",
+      fetchImpl,
+    });
+
+    expect(calls).toEqual([
+      "http://server:8080/v1/weather/hourly?lat=60.1699&lon=24.9384",
+    ]);
+    expect(result.hourly_forecast).toHaveLength(1);
+    expect(result.timezone).toBe("Europe/Helsinki");
   });
 });

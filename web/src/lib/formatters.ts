@@ -194,6 +194,26 @@ export function dayLabel(value: string, timeZone: string): string {
   }).format(new Date(`${value}T12:00:00Z`));
 }
 
+export function localHour(value: string, timeZone: string): number {
+  return Number.parseInt(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).format(new Date(value)),
+    10,
+  );
+}
+
+export function dayTitle(value: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date(`${value}T12:00:00Z`));
+}
+
 function timeFormatter(timeZone: string): Intl.DateTimeFormat {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone,

@@ -367,8 +367,10 @@
     --normals-low: #818cf8;
   }
 
-  /* Details dialog: native <dialog> opened by the card's Details button. */
-  .normals-dialog {
+  /* Details sheets: native <dialog>s opened from the normals card's Details
+     button and from the daily forecast rows. */
+  .normals-dialog,
+  .sheet-dialog {
     width: min(680px, calc(100% - 32px));
     max-height: calc(100dvh - 32px);
     margin: auto;
@@ -381,13 +383,273 @@
     box-shadow: var(--shadow-hero);
   }
 
-  .normals-dialog::backdrop {
+  /* Fixed height so switching days never resizes the sheet; the body scrolls. */
+  .sheet-dialog {
+    width: min(760px, calc(100% - 32px));
+    height: min(860px, calc(100dvh - 32px));
+  }
+
+  .normals-dialog::backdrop,
+  .sheet-dialog::backdrop {
     background: rgba(14, 21, 29, 0.55);
     backdrop-filter: blur(4px);
   }
 
-  html:has(.normals-dialog[open]) {
+  html:has(.normals-dialog[open], .sheet-dialog[open]) {
     overflow: hidden;
+  }
+
+  .sheet-nav {
+    display: flex;
+    padding: 8px;
+    color: var(--color-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-radius: 8px;
+  }
+
+  .sheet-nav:hover:not(:disabled) {
+    color: var(--color-ink);
+    background: var(--color-surface-strong);
+    border-color: var(--color-line);
+  }
+
+  .sheet-nav:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  /* Daily forecast rows open the day sheet. */
+  .day-row {
+    cursor: pointer;
+    transition: background-color 120ms ease;
+  }
+
+  .day-row:hover,
+  .day-row:focus-visible {
+    background: var(--color-surface-strong);
+    box-shadow: 0 0 0 6px var(--color-surface-strong);
+    border-color: transparent;
+    outline: none;
+  }
+
+  .day-row:hover + .day-row,
+  .day-row:focus-visible + .day-row {
+    border-color: transparent;
+  }
+
+  /* Day sheet charts: the temperature/feels-like curves are a stretched SVG,
+     the precipitation histogram below shares the hour axis; bars and labels
+     are HTML positioned by --x / --y / --h. */
+  .day-chart {
+    --day-temp-height: 150px;
+    --day-precip-height: 80px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+  }
+
+  .day-chart-title {
+    grid-column: 1 / -1;
+    margin: 14px 0 6px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--color-muted);
+  }
+
+  .day-chart-title:first-child {
+    margin-top: 0;
+  }
+
+  .day-plot {
+    position: relative;
+    border-bottom: 1px solid var(--color-line);
+  }
+
+  .day-plot--temp,
+  .day-axis--temp {
+    height: var(--day-temp-height);
+  }
+
+  .day-plot--precip,
+  .day-axis--precip {
+    height: var(--day-precip-height);
+  }
+
+  .day-plot > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .day-temp-line {
+    fill: none;
+    stroke: var(--color-coral);
+    stroke-width: 2.5px;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .day-feels-line {
+    fill: none;
+    stroke: var(--color-blue);
+    stroke-width: 1.5px;
+    stroke-dasharray: 4 4;
+    stroke-linejoin: round;
+    opacity: 0.7;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .day-gridline {
+    position: absolute;
+    right: 0;
+    bottom: var(--y);
+    left: 0;
+    border-top: 1px dashed var(--color-line);
+  }
+
+  .day-bar {
+    position: absolute;
+    bottom: 0;
+    left: var(--x);
+    width: var(--w);
+    height: var(--h);
+    background: var(--color-blue);
+    opacity: 0.75;
+    border-radius: 3px 3px 0 0;
+    transform: translateX(-50%);
+  }
+
+  /* Current time on today's charts, positioned by the sheet's script. */
+  .day-now {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--x);
+    width: 2px;
+    background: var(--color-ink);
+    opacity: 0.35;
+    transform: translateX(-50%);
+  }
+
+  .day-axis {
+    position: relative;
+    width: 3.4em;
+    font-size: 0.68rem;
+    color: var(--color-muted);
+  }
+
+  .day-axis > span {
+    position: absolute;
+    left: 0;
+    bottom: var(--y);
+    line-height: 1;
+    transform: translateY(50%);
+  }
+
+  .day-ticks {
+    position: relative;
+    grid-column: 1;
+    height: 1em;
+    margin-top: 6px;
+    font-size: 0.72rem;
+    line-height: 1;
+    color: var(--color-muted);
+  }
+
+  .day-ticks > span {
+    position: absolute;
+    left: var(--x);
+    transform: translateX(-50%);
+  }
+
+  .day-ticks > span[data-major] {
+    font-weight: 700;
+    color: var(--color-ink);
+  }
+
+  .day-legend {
+    display: flex;
+    gap: 14px;
+    grid-column: 1;
+    margin: 8px 0 0;
+    font-size: 0.72rem;
+    color: var(--color-muted);
+  }
+
+  .day-legend > span::before {
+    display: inline-block;
+    width: 14px;
+    height: 3px;
+    margin-right: 6px;
+    vertical-align: middle;
+    content: "";
+    border-radius: 2px;
+  }
+
+  .day-legend-temp::before {
+    background: var(--color-coral);
+  }
+
+  .day-legend-feels::before {
+    background: var(--color-blue);
+    opacity: 0.7;
+  }
+
+  .day-table {
+    width: 100%;
+    font-size: 0.9rem;
+    border-collapse: collapse;
+  }
+
+  .day-table th,
+  .day-table td {
+    padding: 6px 8px;
+    text-align: right;
+    white-space: nowrap;
+    border-top: 1px solid var(--color-line);
+  }
+
+  .day-table thead th {
+    padding-top: 0;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--color-muted);
+    border-top: 0;
+  }
+
+  .day-table th:first-child,
+  .day-table td:first-child {
+    text-align: left;
+    font-weight: 750;
+    color: var(--color-teal);
+  }
+
+  .day-table td:nth-child(2) {
+    width: 32px;
+    padding-right: 0;
+  }
+
+  .day-table tr[data-past] {
+    opacity: 0.45;
+  }
+
+  .day-table tr[data-current] > * {
+    background: var(--color-surface-strong);
+  }
+
+  @media (max-width: 560px) {
+    .day-chart {
+      --day-temp-height: 120px;
+      --day-precip-height: 64px;
+    }
+
+    .day-ticks > span:not([data-major]) {
+      display: none;
+    }
   }
 
   /* Daily/hourly switch: both charts are server-rendered, the radios pick

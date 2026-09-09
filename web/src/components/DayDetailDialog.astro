@@ -1,0 +1,257 @@
+---
+import { buildDayChart, summarizeDay } from "../lib/dayDetail";
+import { dayTitle, hourLabel, localHour, type MeasureKind } from "../lib/formatters";
+import type { DailyForecast, HourlyForecast } from "../lib/weatherApi";
+import { symbolDescription } from "../lib/weatherSymbols";
+import Measure from "./Measure.astro";
+import WeatherSymbol from "./WeatherSymbol.astro";
+
+type Props = {
+  days: DailyForecast[];
+  hoursByDate: Map<string, HourlyForecast[]>;
+  timeZone: string;
+};
+
+const { days, hoursByDate, timeZone } = Astro.props;
+
+type Panel = {
+  day: DailyForecast;
+  hours: HourlyForecast[];
+  stats: [string, MeasureKind, number | null][];
+  chart: ReturnType<typeof buildDayChart>;
+};
+
+const panels: Panel[] = days
+  .filter((day) => (hoursByDate.get(day.date)?.length ?? 0) > 0)
+  .map((day) => {
+    const hours = hoursByDate.get(day.date) ?? [];
+    const summary = summarizeDay(day, hours);
+    return {
+      day,
+      hours,
+      chart: buildDayChart(hours, (time) => localHour(time, timeZone)),
+      stats: [
+        ["High", "temperature", summary.high],
+        ["Low", "temperature", summary.low],
+        ["Precipitation", "precipitation", summary.precipitation],
+        ["Chance of rain", "percent", summary.popMax],
+        ["Wind", "speed", summary.windAvg],
+        ["Gusts", "speed", summary.gustMax],
+        ["Humidity", "percent", summary.humidityAvg],
+        ["UV index", "index", summary.uvMax],
+      ],
+    };
+  });
+
+// The wind arrow points where the wind blows *to*, as in the hourly card.
+function windArrowStyle(hour: HourlyForecast): string | undefined {
+  if (hour.wind_direction == null) return undefined;
+  return `transform:rotate(${Math.round(hour.wind_direction + 180) % 360}deg)`;
+}
+---
+
+{panels.length > 0 && (
+  <dialog class="sheet-dialog" data-day-dialog data-timezone={timeZone}>
+    <div class="sticky top-0 z-10 flex items-center justify-between gap-2 bg-surface px-4.5 pt-4.5 pb-2 max-[560px]:px-4 max-[560px]:pt-4">
+      <button type="button" class="sheet-nav" data-day-prev aria-label="Previous day" title="Previous day">
+        <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m15 6-6 6 6 6" />
+        </svg>
+      </button>
+      <button type="button" class="sheet-nav" data-day-next aria-label="Next day" title="Next day">
+        <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m9 6 6 6-6 6" />
+        </svg>
+      </button>
+      <span class="flex-1"></span>
+      <form method="dialog">
+        <button type="submit" class="sheet-nav" aria-label="Close" title="Close">
+          <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </form>
+    </div>
+
+    <div class="px-4.5 pb-4.5 max-[560px]:px-4 max-[560px]:pb-4">
+      {panels.map(({ day, hours, stats, chart }) => (
+        <section data-day-panel={day.date} hidden>
+          <header class="flex items-center gap-3">
+            <WeatherSymbol code={day.symbol} class="h-14 w-14 flex-none" />
+            <div class="min-w-0">
+              <h2 class="text-lg font-bold leading-tight" id={`day-title-${day.date}`}>{dayTitle(day.date, timeZone)}</h2>
+              <p class="m-0 text-muted">{symbolDescription(day.symbol) ?? "Forecast"}</p>
+            </div>
+          </header>
+
+          <dl class="m-0 mt-4 grid grid-cols-4 gap-2 max-[560px]:grid-cols-2">
+            {stats.map(([label, kind, value]) => (
+              <div class="rounded-lg border border-line bg-surface-strong px-3 py-2.5">
+                <dt class="mb-1 text-[0.72rem] font-extrabold text-muted">{label}</dt>
+                <dd class="m-0 text-[1.1rem] font-[750]"><Measure kind={kind} value={value} /></dd>
+              </div>
+            ))}
+          </dl>
+
+          {chart && (
+            <div class="day-chart mt-5" role="img" aria-label={`Temperature and precipitation by hour on ${dayTitle(day.date, timeZone)}`}>
+              {chart.temperature && (
+                <>
+                  <p class="day-chart-title">Temperature</p>
+                  <div class="day-plot day-plot--temp">
+                    {chart.temperature.ticks.map((tick) => (
+                      <span class="day-gridline" style={`--y:${tick.y}%`} aria-hidden="true"></span>
+                    ))}
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                      {chart.temperature.feelsPath && <path class="day-feels-line" d={chart.temperature.feelsPath} />}
+                      <path class="day-temp-line" d={chart.temperature.linePath} />
+                    </svg>
+                    <span class="day-now" data-day-now hidden aria-hidden="true"></span>
+                  </div>
+                  <div class="day-axis day-axis--temp" aria-hidden="true">
+                    {chart.temperature.ticks.map((tick) => (
+                      <span style={`--y:${tick.y}%`}><Measure kind="temperature" value={tick.value} /></span>
+                    ))}
+                  </div>
+                  <p class="day-legend" aria-hidden="true">
+                    <span class="day-legend-temp">Temperature</span>
+                    <span class="day-legend-feels">Feels like</span>
+                  </p>
+                </>
+              )}
+
+              <p class="day-chart-title">Precipitation</p>
+              <div class="day-plot day-plot--precip">
+                {chart.precipitation.ticks.map((tick) => (
+                  <span class="day-gridline" style={`--y:${tick.y}%`} aria-hidden="true"></span>
+                ))}
+                {chart.precipitation.bars.map((bar) => (
+                  <span class="day-bar" style={`--x:${bar.x}%;--w:${bar.width}%;--h:${bar.height}%`} title={`${bar.value} mm`} aria-hidden="true"></span>
+                ))}
+                <span class="day-now" data-day-now hidden aria-hidden="true"></span>
+              </div>
+              <div class="day-axis day-axis--precip" aria-hidden="true">
+                {chart.precipitation.ticks.map((tick) => (
+                  <span style={`--y:${tick.y}%`}><Measure kind="precipitation" value={tick.value} /></span>
+                ))}
+              </div>
+              <div class="day-ticks" aria-hidden="true">
+                {chart.hourLabels.map((tick) => (
+                  <span style={`--x:${tick.x}%`} data-major={tick.major ? "" : undefined}>{tick.label}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div class="mt-4 overflow-x-auto">
+            <table class="day-table">
+              <thead>
+                <tr>
+                  <th scope="col">Time</th>
+                  <th scope="col"><span class="sr-only">Conditions</span></th>
+                  <th scope="col">Temp</th>
+                  <th scope="col" class="max-[560px]:hidden">Feels</th>
+                  <th scope="col">Rain</th>
+                  <th scope="col" class="max-[560px]:hidden">Chance</th>
+                  <th scope="col">Wind</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hours.map((hour) => (
+                  <tr data-hour={hour.time}>
+                    <th scope="row"><time datetime={hour.time}>{hourLabel(hour.time, timeZone)}</time></th>
+                    <td><WeatherSymbol code={hour.symbol} class="h-7 w-7" /></td>
+                    <td class="font-[750]"><Measure kind="temperature" value={hour.temperature} /></td>
+                    <td class="text-muted max-[560px]:hidden"><Measure kind="temperature" value={hour.feels_like} /></td>
+                    <td><Measure kind="precipitation" value={hour.precipitation_1h} /></td>
+                    <td class="text-muted max-[560px]:hidden"><Measure kind="percent" value={hour.pop} /></td>
+                    <td>
+                      <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                        <Measure kind="speed" value={hour.wind_speed} />
+                        {hour.wind_direction != null && (
+                          <svg class="h-3 w-3 flex-none text-muted" style={windArrowStyle(hour)} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 19V5M5 12l7-7 7 7" />
+                          </svg>
+                        )}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+    </div>
+  </dialog>
+)}
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>("[data-day-dialog]");
+  const panels = Array.from(dialog?.querySelectorAll<HTMLElement>("[data-day-panel]") ?? []);
+  const dates = panels.map((panel) => panel.dataset.dayPanel ?? "");
+  const prev = dialog?.querySelector<HTMLButtonElement>("[data-day-prev]");
+  const next = dialog?.querySelector<HTMLButtonElement>("[data-day-next]");
+  const timeZone = dialog?.dataset.timezone || "Europe/Helsinki";
+  let index = 0;
+
+  // Elapsed hours are marked when the sheet opens, not at render time: the
+  // page is served from a cache, so the server's "now" may be stale.
+  function markNow(panel: HTMLElement) {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(now);
+    const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+    const today = `${part("year")}-${part("month")}-${part("day")}`;
+    const isToday = panel.dataset.dayPanel === today;
+    const x = ((Number(part("hour")) + Number(part("minute")) / 60) / 24) * 100;
+    for (const marker of panel.querySelectorAll<HTMLElement>("[data-day-now]")) {
+      marker.hidden = !isToday;
+      marker.style.setProperty("--x", `${x}%`);
+    }
+    const currentSlot = now.getTime() - (now.getTime() % 3_600_000);
+    for (const row of panel.querySelectorAll<HTMLElement>("tr[data-hour]")) {
+      const at = Date.parse(row.dataset.hour ?? "");
+      row.toggleAttribute("data-past", at < currentSlot);
+      row.toggleAttribute("data-current", at === currentSlot);
+    }
+  }
+
+  function show(target: number) {
+    if (!dialog || target < 0 || target >= panels.length) return;
+    index = target;
+    panels.forEach((panel, i) => {
+      panel.hidden = i !== index;
+    });
+    markNow(panels[index]);
+    dialog.setAttribute("aria-labelledby", `day-title-${dates[index]}`);
+    if (prev) prev.disabled = index === 0;
+    if (next) next.disabled = index === panels.length - 1;
+    dialog.scrollTop = 0;
+  }
+
+  for (const opener of document.querySelectorAll<HTMLElement>("[data-day-open]")) {
+    opener.addEventListener("click", () => {
+      const target = dates.indexOf(opener.dataset.dayOpen ?? "");
+      if (target < 0 || !dialog) return;
+      show(target);
+      dialog.showModal();
+    });
+  }
+  prev?.addEventListener("click", () => show(index - 1));
+  next?.addEventListener("click", () => show(index + 1));
+  dialog?.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  dialog?.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowLeft") show(index - 1);
+    if (event.key === "ArrowRight") show(index + 1);
+  });
+</script>

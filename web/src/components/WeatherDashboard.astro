@@ -1,5 +1,6 @@
 ---
 import type { City } from "../lib/cities";
+import { groupHoursByLocalDate } from "../lib/dayDetail";
 import { dayLabel, formatObservedTime, hourLabel, type MeasureKind } from "../lib/formatters";
 import { HOURLY_METRICS, type HourlyMetricKey } from "../lib/hourlyMetrics";
 import type {
@@ -11,6 +12,7 @@ import type {
 import type { CacheResult } from "../lib/weatherCache";
 import { symbolAssetFile, symbolDescription } from "../lib/weatherSymbols";
 import ClimateNormalsCard from "./ClimateNormalsCard.astro";
+import DayDetailDialog from "./DayDetailDialog.astro";
 import Footer from "./Footer.astro";
 import HourlySettings from "./HourlySettings.astro";
 import Measure from "./Measure.astro";
@@ -23,15 +25,18 @@ type Props = {
   city: City;
   cities: readonly City[];
   weather: CacheResult<WeatherResponse>;
+  hourlyWindow?: HourlyForecast[];
   normals?: DailyClimateNormalsResponse | null;
 };
 
-const { city, cities, weather, normals = null } = Astro.props;
+const { city, cities, weather, hourlyWindow = [], normals = null } = Astro.props;
 const data = weather.data;
 const current = data.current;
 const timeZone = data.timezone || "Europe/Helsinki";
 const hourly = data.hourly_forecast.slice(0, 12);
 const daily = data.daily_forecast.slice(0, 7);
+const hoursByDate = groupHoursByLocalDate(hourlyWindow, timeZone);
+const hasDayDetail = (day: DailyForecast) => (hoursByDate.get(day.date)?.length ?? 0) > 0;
 // Current conditions carry no symbol; use the first forecast hour like the iOS app.
 const primarySymbol = hourly[0]?.symbol ?? daily[0]?.symbol;
 const hasPrimarySymbol = symbolAssetFile(primarySymbol, "light") != null;
@@ -151,17 +156,28 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
           <span class="text-muted">{daily.length} days</span>
         </div>
         <div class="px-4.5 pt-2.5 pb-4.5">
-          {daily.map((day) => (
-            <article class="grid min-h-12 grid-cols-[72px_36px_44px_minmax(90px,1fr)_44px_64px] items-center gap-3 border-t border-line first:border-t-0 max-[560px]:grid-cols-[56px_28px_36px_minmax(72px,1fr)_36px]">
-              <time class="font-[750]" datetime={day.date}>{dayLabel(day.date, timeZone)}</time>
-              <span class="flex h-9 items-center"><WeatherSymbol code={day.symbol} class="h-8 w-8" /></span>
-              <span class="text-right"><Measure kind="temperature" value={day.low} /></span>
-              <span class="temp-range" style={tempRangeStyle(day)}></span>
-              <span class="text-right font-[750] text-ink"><Measure kind="temperature" value={day.high} /></span>
-              <span class="text-right text-muted max-[560px]:hidden"><Measure kind="precipitation" value={day.precipitation_mm ?? day.precipitation_1h_sum} /></span>
-            </article>
-          ))}
+          {daily.map((day) => {
+            const Row = hasDayDetail(day) ? "button" : "article";
+            return (
+              <Row
+                type={Row === "button" ? "button" : undefined}
+                data-day-open={Row === "button" ? day.date : undefined}
+                class:list={[
+                  "grid min-h-12 w-full grid-cols-[72px_36px_44px_minmax(90px,1fr)_44px_64px] items-center gap-3 border-t border-line text-left first:border-t-0 max-[560px]:grid-cols-[56px_28px_36px_minmax(72px,1fr)_36px]",
+                  Row === "button" && "day-row",
+                ]}
+              >
+                <time class="font-[750]" datetime={day.date}>{dayLabel(day.date, timeZone)}</time>
+                <span class="flex h-9 items-center"><WeatherSymbol code={day.symbol} class="h-8 w-8" /></span>
+                <span class="text-right"><Measure kind="temperature" value={day.low} /></span>
+                <span class="temp-range" style={tempRangeStyle(day)}></span>
+                <span class="text-right font-[750] text-ink"><Measure kind="temperature" value={day.high} /></span>
+                <span class="text-right text-muted max-[560px]:hidden"><Measure kind="precipitation" value={day.precipitation_mm ?? day.precipitation_1h_sum} /></span>
+              </Row>
+            );
+          })}
         </div>
+        <DayDetailDialog days={daily} hoursByDate={hoursByDate} timeZone={timeZone} />
       </section>
     )}
 

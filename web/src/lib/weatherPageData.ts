@@ -3,8 +3,10 @@ import { readWebConfig, type WebRuntimeConfig } from "./config";
 import {
   type DailyClimateNormalsResponse,
   fetchDailyClimateNormals,
+  fetchHourlyForecastForCity,
   fetchLeaderboard,
   fetchWeatherForCity,
+  type HourlyForecast,
   type LeaderboardResponse,
   type LeaderboardTimeframe,
   WeatherApiError,
@@ -13,6 +15,7 @@ import {
 import { type CacheResult, WeatherCache } from "./weatherCache";
 
 const caches = new Map<string, WeatherCache<WeatherResponse>>();
+const hourlyCaches = new Map<string, WeatherCache<HourlyForecast[]>>();
 const normalsCaches = new Map<
   string,
   WeatherCache<DailyClimateNormalsResponse | null>
@@ -22,6 +25,7 @@ const leaderboardCaches = new Map<string, WeatherCache<LeaderboardResponse>>();
 export type CityWeatherResult = {
   config: WebRuntimeConfig;
   weather: CacheResult<WeatherResponse>;
+  hourlyWindow: HourlyForecast[];
   normals: DailyClimateNormalsResponse | null;
 };
 
@@ -31,17 +35,39 @@ export async function getCityWeather(
 ): Promise<CityWeatherResult> {
   const config = readWebConfig(env);
   const cache = cacheFor(config);
-  const [weather, normals] = await Promise.all([
+  const [weather, hourlyWindow, normals] = await Promise.all([
     cache.get(city.slug, () =>
       fetchWeatherForCity({
         city,
         config,
       }),
     ),
+    getCityHourlyWindow(city, config),
     getCityNormals(city, config),
   ]);
 
-  return { config, weather, normals };
+  return { config, weather, hourlyWindow, normals };
+}
+
+// The ten-day hourly window only feeds the per-day detail sheets, so a
+// failure hides those for this render instead of failing the page.
+async function getCityHourlyWindow(
+  city: City,
+  config: WebRuntimeConfig,
+): Promise<HourlyForecast[]> {
+  const cache = cacheFromMap(hourlyCaches, config);
+  try {
+    const result = await cache.get(city.slug, async () => {
+      const response = await fetchHourlyForecastForCity({ city, config });
+      return response.hourly_forecast;
+    });
+    return result.data;
+  } catch (error) {
+    console.error(
+      `hourly window unavailable for ${city.slug}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return [];
+  }
 }
 
 // Climate normals are optional: a city without a station within range (404)

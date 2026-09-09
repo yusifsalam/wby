@@ -76,6 +76,13 @@ export type WeatherResponse = {
   timezone: string;
 };
 
+// The full hourly window (up to ten days) from /v1/weather/hourly; the
+// weather response above carries only the next 12 hours.
+export type HourlyForecastResponse = {
+  hourly_forecast: HourlyForecast[];
+  timezone: string;
+};
+
 // One calendar day's 1991–2020 normals from /v1/climate-normals/daily.
 export type DailyNormal = {
   month: number;
@@ -246,6 +253,24 @@ export async function fetchWeatherForCity({
   return signedGet<WeatherResponse>({
     config,
     path: "/v1/weather",
+    params: {
+      lat: formatCoordinate(city.latitude),
+      lon: formatCoordinate(city.longitude),
+    },
+    timestamp,
+    fetchImpl,
+  });
+}
+
+export async function fetchHourlyForecastForCity({
+  city,
+  config,
+  timestamp = String(Math.floor(Date.now() / 1000)),
+  fetchImpl = fetch,
+}: FetchWeatherInput): Promise<HourlyForecastResponse> {
+  return signedGet<HourlyForecastResponse>({
+    config,
+    path: "/v1/weather/hourly",
     params: {
       lat: formatCoordinate(city.latitude),
       lon: formatCoordinate(city.longitude),
