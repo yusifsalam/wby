@@ -46,9 +46,62 @@ func TestGetWeather_IncludesTimezoneFromService(t *testing.T) {
 	}
 }
 
+func TestGetHourlyForecast(t *testing.T) {
+	temp := 12.5
+	h := NewHandler(weatherServiceStub{
+		hourly: &weather.HourlyForecastResponse{
+			Hourly: []weather.HourlyForecast{
+				{Time: time.Date(2026, 9, 10, 4, 0, 0, 0, time.UTC), Temperature: &temp},
+			},
+			Timezone: "Europe/Helsinki",
+		},
+	})
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/weather/hourly?lat=60.1&lon=24.9", nil)
+	h.getHourlyForecast(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+	var resp struct {
+		Hourly []struct {
+			Time        string   `json:"time"`
+			Temperature *float64 `json:"temperature"`
+		} `json:"hourly_forecast"`
+		Timezone string `json:"timezone"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Timezone != "Europe/Helsinki" {
+		t.Fatalf("expected timezone Europe/Helsinki, got %q", resp.Timezone)
+	}
+	if len(resp.Hourly) != 1 || resp.Hourly[0].Temperature == nil || *resp.Hourly[0].Temperature != temp {
+		t.Fatalf("unexpected hourly payload: %+v", resp.Hourly)
+	}
+
+	rr = httptest.NewRecorder()
+	h.getHourlyForecast(rr, httptest.NewRequest(http.MethodGet, "/v1/weather/hourly?lat=x&lon=24.9", nil))
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400 for bad lat, got %d", rr.Code)
+	}
+}
+
 type weatherServiceStub struct {
 	weather *weather.WeatherResponse
+	hourly  *weather.HourlyForecastResponse
 	err     error
+}
+
+func (s weatherServiceStub) GetHourlyForecast(ctx context.Context, lat, lon float64) (*weather.HourlyForecastResponse, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	if s.hourly != nil {
+		return s.hourly, nil
+	}
+	return &weather.HourlyForecastResponse{}, nil
 }
 
 func (s weatherServiceStub) GetWeather(ctx context.Context, lat, lon float64) (*weather.WeatherResponse, error) {

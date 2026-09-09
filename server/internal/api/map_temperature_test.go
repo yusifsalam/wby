@@ -79,6 +79,10 @@ func (f fakeWeatherService) GetWeather(ctx context.Context, lat, lon float64) (*
 	panic("not used in this test")
 }
 
+func (f fakeWeatherService) GetHourlyForecast(ctx context.Context, lat, lon float64) (*weather.HourlyForecastResponse, error) {
+	panic("not used in this test")
+}
+
 func (f fakeWeatherService) GetTemperatureOverlay(ctx context.Context, req weather.MapOverlayRequest) (*weather.TemperatureOverlay, error) {
 	if f.err != nil {
 		return nil, f.err

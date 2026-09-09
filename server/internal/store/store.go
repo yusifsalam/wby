@@ -529,7 +529,7 @@ func (s *Store) UpsertHourlyForecasts(ctx context.Context, gridLat, gridLon floa
 	return nil
 }
 
-func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64, limit int) ([]weather.HourlyForecast, error) {
+func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64, from time.Time, limit int) ([]weather.HourlyForecast, error) {
 	if limit <= 0 {
 		limit = 12
 	}
@@ -537,10 +537,10 @@ func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64
 		`SELECT forecast_time, fetched_at, temperature, wind_speed, wind_direction, humidity, precipitation_1h, symbol, uv_cumulated,
 		        wind_gust, pressure, cloud_cover, pop, feels_like
 		 FROM hourly_forecasts
-		 WHERE grid_lat = $1 AND grid_lon = $2 AND forecast_time >= date_trunc('hour', NOW())
+		 WHERE grid_lat = $1 AND grid_lon = $2 AND forecast_time >= $3
 		 ORDER BY forecast_time
-		 LIMIT $3`,
-		gridLat, gridLon, limit,
+		 LIMIT $4`,
+		gridLat, gridLon, from.UTC().Truncate(time.Hour), limit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get hourly forecasts: %w", err)

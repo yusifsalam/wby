@@ -15,6 +15,7 @@ import (
 
 type WeatherService interface {
 	GetWeather(ctx context.Context, lat, lon float64) (*weather.WeatherResponse, error)
+	GetHourlyForecast(ctx context.Context, lat, lon float64) (*weather.HourlyForecastResponse, error)
 	GetTemperatureOverlay(ctx context.Context, req weather.MapOverlayRequest) (*weather.TemperatureOverlay, error)
 	GetTemperatureSamples(ctx context.Context) (*weather.TemperatureSamplesResponse, error)
 	GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*weather.TemperatureSamplesResponse, error)
@@ -37,6 +38,7 @@ func NewHandler(service WeatherService) *Handler {
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/weather", h.getWeather)
+	mux.HandleFunc("GET /v1/weather/hourly", h.getHourlyForecast)
 	mux.HandleFunc("GET /v1/map/temperature", h.getTemperatureOverlay)
 	mux.HandleFunc("GET /v1/map/temperature/samples", h.getTemperatureSamples)
 	mux.HandleFunc("GET /v1/map/precipitation", h.getPrecipitationOverlay)
@@ -238,8 +240,21 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			UVIndexAvg:                 f.UVIndexAvg,
 		})
 	}
-	for _, hfc := range result.Hourly {
-		resp.Hourly = append(resp.Hourly, hourlyForecastJSON{
+	resp.Hourly = hourlyForecastsJSON(result.Hourly)
+	resp.UV = make([]uvPointJSON, 0, len(result.UV))
+	for _, p := range result.UV {
+		resp.UV = append(resp.UV, uvPointJSON{Time: p.Time, UV: p.UVCumulated})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func hourlyForecastsJSON(hourly []weather.HourlyForecast) []hourlyForecastJSON {
+	out := make([]hourlyForecastJSON, 0, len(hourly))
+	for _, hfc := range hourly {
+		out = append(out, hourlyForecastJSON{
 			Time:        hfc.Time,
 			Temperature: hfc.Temperature,
 			FeelsLike:   hfc.FeelsLike,
@@ -255,14 +270,46 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			PoP:         hfc.PoP,
 		})
 	}
-	resp.UV = make([]uvPointJSON, 0, len(result.UV))
-	for _, p := range result.UV {
-		resp.UV = append(resp.UV, uvPointJSON{Time: p.Time, UV: p.UVCumulated})
+	return out
+}
+
+type hourlyForecastResponseJSON struct {
+	Hourly   []hourlyForecastJSON `json:"hourly_forecast"`
+	Timezone string               `json:"timezone"`
+}
+
+func (h *Handler) getHourlyForecast(w http.ResponseWriter, r *http.Request) {
+	lat, err := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
+	if err != nil {
+		writeJSONError(w, "invalid lat parameter", http.StatusBadRequest)
+		return
+	}
+	lon, err := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
+	if err != nil {
+		writeJSONError(w, "invalid lon parameter", http.StatusBadRequest)
+		return
+	}
+
+	result, err := h.service.GetHourlyForecast(r.Context(), lat, lon)
+	if err != nil {
+		if errors.Is(err, weather.ErrOutOfCoverage) {
+			writeJSONError(w, "no weather coverage for this location", http.StatusNotFound)
+			return
+		}
+		if isClientCanceled(r, err) {
+			return
+		}
+		slog.Error("get hourly forecast failed", "err", err, "lat", lat, "lon", lon)
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=300")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(hourlyForecastResponseJSON{
+		Hourly:   hourlyForecastsJSON(result.Hourly),
+		Timezone: result.Timezone,
+	})
 }
 
 func writeJSONError(w http.ResponseWriter, msg string, status int) {

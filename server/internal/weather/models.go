@@ -83,6 +83,17 @@ type DailyForecast struct {
 	UVIndexAvg                     *float64
 }
 
+// HourlyForecastHours is the hourly window fetched and stored per grid cell:
+// from the start of the local day through the ten days FMI's edited point
+// forecast covers at a one-hour step.
+const HourlyForecastHours = 11 * 24
+
+// HourlyForecastResponse is the full hourly window for a location.
+type HourlyForecastResponse struct {
+	Hourly   []HourlyForecast
+	Timezone string
+}
+
 type HourlyForecast struct {
 	Time        time.Time
 	FetchedAt   time.Time

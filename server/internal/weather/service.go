@@ -39,7 +39,7 @@ type WeatherStore interface {
 	GetObservationSamplesAtTimeInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time, limit int) ([]TemperatureSample, error)
 	GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]DailyForecast, error)
 	UpsertForecasts(ctx context.Context, forecasts []DailyForecast) error
-	GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64, limit int) ([]HourlyForecast, error)
+	GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64, from time.Time, limit int) ([]HourlyForecast, error)
 	UpsertHourlyForecasts(ctx context.Context, gridLat, gridLon float64, hourly []HourlyForecast) error
 	UpsertClimateNormals(ctx context.Context, normals []ClimateNormal) error
 	GetClimateNormals(ctx context.Context, fmisid int, period string) ([]ClimateNormal, error)
@@ -52,7 +52,7 @@ type WeatherStore interface {
 
 type ForecastFetcher interface {
 	FetchForecast(ctx context.Context, lat, lon float64) (ForecastData, error)
-	FetchHourlyForecast(ctx context.Context, lat, lon float64, limit int) ([]HourlyForecast, error)
+	FetchHourlyForecast(ctx context.Context, lat, lon float64, start time.Time, hours int) ([]HourlyForecast, error)
 	FetchUVForecast(ctx context.Context, lat, lon float64, start time.Time) ([]UVDataPoint, error)
 }
 
@@ -191,7 +191,7 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 	if err != nil {
 		return nil, fmt.Errorf("forecast: %w", err)
 	}
-	hourly, err := s.getHourlyForecast(ctx, gridLat, gridLon, 12)
+	hourly, err := s.getHourlyForecast(ctx, gridLat, gridLon, forecastTimezone)
 	if err != nil {
 		slog.Warn("hourly forecast unavailable", "err", err, "lat", gridLat, "lon", gridLon)
 	}
@@ -220,11 +220,46 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 			DistanceKM:  distKM,
 			Observation: obs,
 		},
-		Hourly:   hourly,
+		Hourly:   upcomingHours(hourly, time.Now(), weatherResponseHourlyHours),
 		Forecast: forecast,
 		UV:       uvPoints,
 		Timezone: forecastTimezone,
 	}, nil
+}
+
+// weatherResponseHourlyHours caps the hourly list embedded in GetWeather;
+// the full window, including today's elapsed hours, is served by
+// GetHourlyForecast.
+const weatherResponseHourlyHours = 12
+
+// upcomingHours returns up to n entries from the current hour onwards.
+func upcomingHours(hourly []HourlyForecast, now time.Time, n int) []HourlyForecast {
+	cutoff := now.Truncate(time.Hour)
+	start := 0
+	for start < len(hourly) && hourly[start].Time.Before(cutoff) {
+		start++
+	}
+	return hourly[start:min(len(hourly), start+n)]
+}
+
+func (s *Service) GetHourlyForecast(ctx context.Context, lat, lon float64) (*HourlyForecastResponse, error) {
+	if lon < finlandMinLon || lon > finlandMaxLon || lat < finlandMinLat || lat > finlandMaxLat {
+		return nil, ErrOutOfCoverage
+	}
+
+	gridLat, gridLon := snapToGrid(lat, lon)
+	_, timezone, err := s.getForecast(ctx, gridLat, gridLon)
+	if err != nil {
+		return nil, fmt.Errorf("forecast: %w", err)
+	}
+	hourly, err := s.getHourlyForecast(ctx, gridLat, gridLon, timezone)
+	if err != nil {
+		return nil, fmt.Errorf("hourly forecast: %w", err)
+	}
+	if uvPoints, _ := s.getUVData(ctx, gridLat, gridLon, timezone); len(uvPoints) > 0 {
+		applyUVToHourly(uvPoints, hourly)
+	}
+	return &HourlyForecastResponse{Hourly: hourly, Timezone: timezone}, nil
 }
 
 // currentConditions picks the station representing lat/lon (see
@@ -415,19 +450,22 @@ func normalizePlaceTimezone(value string) string {
 	return value
 }
 
-func (s *Service) getHourlyForecast(ctx context.Context, gridLat, gridLon float64, limit int) ([]HourlyForecast, error) {
-	cacheKey := fmt.Sprintf("%.2f,%.2f:%d", gridLat, gridLon, limit)
+// getHourlyForecast returns the hourly window from the start of the local
+// day, so today's elapsed hours are included.
+func (s *Service) getHourlyForecast(ctx context.Context, gridLat, gridLon float64, timezone string) ([]HourlyForecast, error) {
+	cacheKey := fmt.Sprintf("%.2f,%.2f", gridLat, gridLon)
 	if cached, ok := s.hourlyCache.Get(cacheKey); ok {
 		return cached, nil
 	}
 
-	persistedHourly, storeErr := s.store.GetHourlyForecasts(ctx, gridLat, gridLon, limit)
+	from := startOfLocalDay(time.Now(), timezone)
+	persistedHourly, storeErr := s.store.GetHourlyForecasts(ctx, gridLat, gridLon, from, HourlyForecastHours)
 	if storeErr == nil && len(persistedHourly) > 0 && isHourlyFresh(persistedHourly, 90*time.Minute) {
 		s.hourlyCache.Set(cacheKey, persistedHourly)
 		return persistedHourly, nil
 	}
 
-	hourly, err := s.fmi.FetchHourlyForecast(ctx, gridLat, gridLon, limit)
+	hourly, err := s.fmi.FetchHourlyForecast(ctx, gridLat, gridLon, from, HourlyForecastHours)
 	if err != nil {
 		if len(persistedHourly) > 0 {
 			slog.Warn("using stale persisted hourly forecast", "err", err, "lat", gridLat, "lon", gridLon)
