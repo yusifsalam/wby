@@ -233,6 +233,247 @@
     }
   }
 
+  /* Climate normals chart: the mean line and 10–90% band are a stretched SVG,
+     everything else (gridlines, markers, labels) is HTML positioned by inline
+     --x / --y percentages so text and dots keep their size. */
+  .normals-chart {
+    --normals-plot-height: 168px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+    padding-top: 14px;
+  }
+
+  .normals-plot {
+    position: relative;
+    height: var(--normals-plot-height);
+    border-bottom: 1px solid var(--color-line);
+  }
+
+  .normals-plot > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .normals-band {
+    fill: var(--color-blue);
+    opacity: 0.15;
+  }
+
+  .normals-line {
+    fill: none;
+    stroke: var(--color-blue);
+    stroke-width: 2px;
+    stroke-linejoin: round;
+    opacity: 0.8;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .normals-gridline {
+    position: absolute;
+    right: 0;
+    bottom: var(--y);
+    left: 0;
+    border-top: 1px dashed var(--color-line);
+  }
+
+  .normals-today-tick {
+    position: absolute;
+    bottom: var(--y);
+    left: var(--x);
+    width: 1px;
+    height: var(--h);
+    background: var(--color-ink);
+    opacity: 0.3;
+    transform: translateX(-50%);
+  }
+
+  .normals-marker {
+    position: absolute;
+    bottom: var(--y);
+    left: var(--x);
+    border-radius: 999px;
+    transform: translate(-50%, 50%);
+  }
+
+  .normals-marker--mean {
+    width: 6px;
+    height: 6px;
+    background: var(--color-blue);
+  }
+
+  .normals-marker--now {
+    width: 8px;
+    height: 8px;
+    background: var(--color-coral);
+    box-shadow: 0 0 0 2px var(--color-surface);
+  }
+
+  /* Forecast high/low on the daily curve: up/down triangles. */
+  .normals-marker--high,
+  .normals-marker--low {
+    width: 0;
+    height: 0;
+    border-right: 5px solid transparent;
+    border-left: 5px solid transparent;
+    border-radius: 0;
+  }
+
+  .normals-marker--high {
+    border-bottom: 9px solid var(--normals-high);
+  }
+
+  .normals-marker--low {
+    border-top: 9px solid var(--normals-low);
+  }
+
+  .normals-label {
+    position: absolute;
+    bottom: var(--y);
+    left: var(--x);
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    transform: translate(8px, 50%);
+  }
+
+  .normals-label[data-side="left"] {
+    transform: translate(calc(-100% - 8px), 50%);
+  }
+
+  .normals-label--now {
+    color: var(--color-coral);
+  }
+
+  .normals-label--high {
+    color: var(--normals-high);
+  }
+
+  .normals-label--low {
+    color: var(--normals-low);
+  }
+
+  .normals-chart {
+    --normals-high: #dc2626;
+    --normals-low: #4f46e5;
+  }
+
+  :root.dark .normals-chart {
+    --normals-high: #f87171;
+    --normals-low: #818cf8;
+  }
+
+  /* Details dialog: native <dialog> opened by the card's Details button. */
+  .normals-dialog {
+    width: min(680px, calc(100% - 32px));
+    max-height: calc(100dvh - 32px);
+    margin: auto;
+    padding: 0;
+    overflow-y: auto;
+    color: var(--color-ink);
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 16px;
+    box-shadow: var(--shadow-hero);
+  }
+
+  .normals-dialog::backdrop {
+    background: rgba(14, 21, 29, 0.55);
+    backdrop-filter: blur(4px);
+  }
+
+  html:has(.normals-dialog[open]) {
+    overflow: hidden;
+  }
+
+  /* Daily/hourly switch: both charts are server-rendered, the radios pick
+     which one shows (no JS needed). */
+  .normals-mode-switch {
+    display: inline-flex;
+    padding: 2px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 999px;
+  }
+
+  .normals-mode-switch > label {
+    padding: 3px 10px;
+    color: var(--color-muted);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .normals-mode-switch > label:has(input:checked) {
+    color: var(--color-ink);
+    background: var(--color-surface-strong);
+  }
+
+  .normals-mode-switch > label:has(input:focus-visible) {
+    outline: 2px solid var(--color-teal);
+  }
+
+  .normals-modes [data-mode="hourly"] {
+    display: none;
+  }
+
+  .normals-modes[data-default="hourly"] [data-mode="hourly"],
+  .normals-modes:has(input[value="hourly"]:checked) [data-mode="hourly"] {
+    display: block;
+  }
+
+  .normals-modes:has(input[value="hourly"]:checked) [data-mode="daily"] {
+    display: none;
+  }
+
+  .normals-axis {
+    position: relative;
+    width: 2em;
+    height: var(--normals-plot-height);
+    font-size: 0.68rem;
+    color: var(--color-muted);
+  }
+
+  .normals-axis > span {
+    position: absolute;
+    left: 0;
+    bottom: var(--y);
+    line-height: 1;
+    transform: translateY(50%);
+  }
+
+  .normals-ticks {
+    position: relative;
+    grid-column: 1;
+    height: 1em;
+    margin-top: 6px;
+    font-size: 0.72rem;
+    line-height: 1;
+    color: var(--color-muted);
+  }
+
+  .normals-ticks > span {
+    position: absolute;
+    left: var(--x);
+    transform: translateX(-50%);
+  }
+
+  .normals-ticks > span[data-today] {
+    font-weight: 700;
+    color: var(--color-ink);
+  }
+
+  @media (max-width: 560px) {
+    .normals-chart {
+      --normals-plot-height: 120px;
+    }
+  }
+
   /* Theme toggle: show the icon matching the saved setting (data-theme-setting
      on <html>), defaulting to the auto icon before/without JS. */
   .theme-icon {

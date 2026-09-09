@@ -57,6 +57,7 @@ export type DailyForecast = {
   humidity_avg?: number | null;
   precipitation_mm?: number | null;
   precipitation_1h_sum?: number | null;
+  hourly_maximum_gust_max?: number | null;
   uv_index_avg?: number | null;
 };
 
@@ -73,6 +74,59 @@ export type WeatherResponse = {
   daily_forecast: DailyForecast[];
   uv_forecast?: UVPoint[];
   timezone: string;
+};
+
+// One calendar day's 1991–2020 normals from /v1/climate-normals/daily.
+export type DailyNormal = {
+  month: number;
+  day: number;
+  temp_avg?: number | null;
+  temp_high?: number | null;
+  temp_low?: number | null;
+  feels_like_avg?: number | null;
+  feels_like_high?: number | null;
+  feels_like_low?: number | null;
+  wind_avg?: number | null;
+  wind_gust?: number | null;
+  humidity_avg?: number | null;
+  precip_mm?: number | null;
+  precip_days_pct?: number | null;
+  snow_cm?: number | null;
+};
+
+// Today's row plus 24-value curves indexed by UTC hour and the normal for the
+// current hour.
+export type DailyNormalToday = DailyNormal & {
+  temp_hourly?: number[] | null;
+  temp_hourly_p10?: number[] | null;
+  temp_hourly_p90?: number[] | null;
+  feels_like_hourly?: number[] | null;
+  wind_hourly?: number[] | null;
+  humidity_hourly?: number[] | null;
+  temp_now_normal?: number | null;
+  temp_diff?: number | null;
+  feels_like_now_normal?: number | null;
+  wind_now_normal?: number | null;
+  humidity_now_normal?: number | null;
+};
+
+export type PrecipitationToDate = {
+  station?: StationInfo | null;
+  today_observed_mm?: number | null;
+  today_normal_mm?: number | null;
+  month_to_date_observed_mm?: number | null;
+  month_to_date_normal_mm?: number | null;
+  month_normal_mm?: number | null;
+  observed_through?: string | null;
+};
+
+export type DailyClimateNormalsResponse = {
+  station: StationInfo;
+  hourly_station?: StationInfo | null;
+  period: string;
+  today: DailyNormalToday;
+  precipitation?: PrecipitationToDate | null;
+  daily: DailyNormal[];
 };
 
 export const LEADERBOARD_TIMEFRAMES = ["now", "1h", "24h", "3d", "7d"] as const;
@@ -157,12 +211,20 @@ export function jsonError(message: string, status: number): Response {
   });
 }
 
+export class WeatherApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(`Weather API failed with ${status}: ${message}`);
+    this.name = "WeatherApiError";
+    this.status = status;
+  }
+}
+
 async function signedGet<T>(input: SignedFetchInput): Promise<T> {
   const response = await signedFetch(input);
   if (!response.ok) {
-    throw new Error(
-      `Weather API failed with ${response.status}: ${await errorMessage(response)}`,
-    );
+    throw new WeatherApiError(response.status, await errorMessage(response));
   }
 
   return (await response.json()) as T;
@@ -184,6 +246,24 @@ export async function fetchWeatherForCity({
   return signedGet<WeatherResponse>({
     config,
     path: "/v1/weather",
+    params: {
+      lat: formatCoordinate(city.latitude),
+      lon: formatCoordinate(city.longitude),
+    },
+    timestamp,
+    fetchImpl,
+  });
+}
+
+export async function fetchDailyClimateNormals({
+  city,
+  config,
+  timestamp = String(Math.floor(Date.now() / 1000)),
+  fetchImpl = fetch,
+}: FetchWeatherInput): Promise<DailyClimateNormalsResponse> {
+  return signedGet<DailyClimateNormalsResponse>({
+    config,
+    path: "/v1/climate-normals/daily",
     params: {
       lat: formatCoordinate(city.latitude),
       lon: formatCoordinate(city.longitude),

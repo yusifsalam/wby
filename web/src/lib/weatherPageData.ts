@@ -1,20 +1,28 @@
-import { cities, type City } from "./cities";
+import { type City, cities } from "./cities";
 import { readWebConfig, type WebRuntimeConfig } from "./config";
-import { WeatherCache, type CacheResult } from "./weatherCache";
 import {
+  type DailyClimateNormalsResponse,
+  fetchDailyClimateNormals,
   fetchLeaderboard,
   fetchWeatherForCity,
   type LeaderboardResponse,
   type LeaderboardTimeframe,
+  WeatherApiError,
   type WeatherResponse,
 } from "./weatherApi";
+import { type CacheResult, WeatherCache } from "./weatherCache";
 
 const caches = new Map<string, WeatherCache<WeatherResponse>>();
+const normalsCaches = new Map<
+  string,
+  WeatherCache<DailyClimateNormalsResponse | null>
+>();
 const leaderboardCaches = new Map<string, WeatherCache<LeaderboardResponse>>();
 
 export type CityWeatherResult = {
   config: WebRuntimeConfig;
   weather: CacheResult<WeatherResponse>;
+  normals: DailyClimateNormalsResponse | null;
 };
 
 export async function getCityWeather(
@@ -23,14 +31,45 @@ export async function getCityWeather(
 ): Promise<CityWeatherResult> {
   const config = readWebConfig(env);
   const cache = cacheFor(config);
-  const weather = await cache.get(city.slug, () =>
-    fetchWeatherForCity({
-      city,
-      config,
-    }),
-  );
+  const [weather, normals] = await Promise.all([
+    cache.get(city.slug, () =>
+      fetchWeatherForCity({
+        city,
+        config,
+      }),
+    ),
+    getCityNormals(city, config),
+  ]);
 
-  return { config, weather };
+  return { config, weather, normals };
+}
+
+// Climate normals are optional: a city without a station within range (404)
+// is cached as "none", and any other failure just hides the card for this
+// render without poisoning the cache.
+async function getCityNormals(
+  city: City,
+  config: WebRuntimeConfig,
+): Promise<DailyClimateNormalsResponse | null> {
+  const cache = normalsCacheFor(config);
+  try {
+    const result = await cache.get(city.slug, async () => {
+      try {
+        return await fetchDailyClimateNormals({ city, config });
+      } catch (error) {
+        if (error instanceof WeatherApiError && error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+    });
+    return result.data;
+  } catch (error) {
+    console.error(
+      `climate normals unavailable for ${city.slug}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
 }
 
 export type LeaderboardResult = {
@@ -64,6 +103,12 @@ export async function getLeaderboard(
 
 function cacheFor(config: WebRuntimeConfig): WeatherCache<WeatherResponse> {
   return cacheFromMap(caches, config);
+}
+
+function normalsCacheFor(
+  config: WebRuntimeConfig,
+): WeatherCache<DailyClimateNormalsResponse | null> {
+  return cacheFromMap(normalsCaches, config);
 }
 
 function leaderboardCacheFor(

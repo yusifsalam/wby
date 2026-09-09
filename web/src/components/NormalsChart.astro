@@ -1,0 +1,74 @@
+---
+// The normals temperature curve: mean line with its band as a stretched SVG,
+// gridlines, axis and markers as positioned HTML (see .normals-* in global.css).
+import type { NormalsChart } from "../lib/normals";
+import Measure from "./Measure.astro";
+
+type Props = {
+  chart: NormalsChart;
+  label: string;
+  currentTemp: number | null | undefined;
+  forecastHigh?: number | null;
+  forecastLow?: number | null;
+};
+
+const { chart, label, currentTemp, forecastHigh, forecastLow } = Astro.props;
+
+function at(marker: { x: number; y: number }): string {
+  return `--x:${marker.x}%;--y:${marker.y}%`;
+}
+---
+
+<div class="normals-chart" role="img" aria-label={label}>
+  <div class="normals-plot">
+    {chart.ticks.map((tick) => (
+      <span class="normals-gridline" style={`--y:${tick.y}%`} aria-hidden="true"></span>
+    ))}
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      {chart.bandPath && <path class="normals-band" d={chart.bandPath} />}
+      <path class="normals-line" d={chart.linePath} />
+    </svg>
+    {chart.today.highY != null && chart.today.lowY != null && (
+      <span
+        class="normals-today-tick"
+        style={`--x:${chart.today.x}%;--y:${chart.today.lowY}%;--h:${chart.today.highY - chart.today.lowY}%`}
+        aria-hidden="true"
+      ></span>
+    )}
+    <span class="normals-marker normals-marker--mean" style={at({ x: chart.today.x, y: chart.today.meanY })} aria-hidden="true"></span>
+    {chart.forecastHigh && forecastHigh != null && (
+      <>
+        <span class="normals-marker normals-marker--high" style={at(chart.forecastHigh)} aria-hidden="true"></span>
+        <span class="normals-label normals-label--high" style={at(chart.forecastHigh)} data-side={chart.forecastHigh.side} aria-hidden="true">
+          H <Measure kind="temperature" value={forecastHigh} />
+        </span>
+      </>
+    )}
+    {chart.forecastLow && forecastLow != null && (
+      <>
+        <span class="normals-marker normals-marker--low" style={at(chart.forecastLow)} aria-hidden="true"></span>
+        <span class="normals-label normals-label--low" style={at(chart.forecastLow)} data-side={chart.forecastLow.side} aria-hidden="true">
+          L <Measure kind="temperature" value={forecastLow} />
+        </span>
+      </>
+    )}
+    {chart.now && currentTemp != null && (
+      <>
+        <span class="normals-marker normals-marker--now" style={at(chart.now)} aria-hidden="true"></span>
+        <span class="normals-label normals-label--now" style={at(chart.now)} data-side={chart.now.side} aria-hidden="true">
+          Now <Measure kind="temperature" value={currentTemp} />
+        </span>
+      </>
+    )}
+  </div>
+  <div class="normals-axis" aria-hidden="true">
+    {chart.ticks.map((tick) => (
+      <span style={`--y:${tick.y}%`}><Measure kind="temperature" value={tick.value} /></span>
+    ))}
+  </div>
+  <div class="normals-ticks" aria-hidden="true">
+    {chart.labels.map((tick) => (
+      <span style={`--x:${tick.x}%`} data-today={tick.today ? "" : undefined}>{tick.label}</span>
+    ))}
+  </div>
+</div>

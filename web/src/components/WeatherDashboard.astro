@@ -2,9 +2,15 @@
 import type { City } from "../lib/cities";
 import { dayLabel, formatObservedTime, hourLabel, type MeasureKind } from "../lib/formatters";
 import { HOURLY_METRICS, type HourlyMetricKey } from "../lib/hourlyMetrics";
-import type { DailyForecast, HourlyForecast, WeatherResponse } from "../lib/weatherApi";
+import type {
+  DailyClimateNormalsResponse,
+  DailyForecast,
+  HourlyForecast,
+  WeatherResponse,
+} from "../lib/weatherApi";
 import type { CacheResult } from "../lib/weatherCache";
 import { symbolAssetFile, symbolDescription } from "../lib/weatherSymbols";
+import ClimateNormalsCard from "./ClimateNormalsCard.astro";
 import Footer from "./Footer.astro";
 import HourlySettings from "./HourlySettings.astro";
 import Measure from "./Measure.astro";
@@ -17,9 +23,10 @@ type Props = {
   city: City;
   cities: readonly City[];
   weather: CacheResult<WeatherResponse>;
+  normals?: DailyClimateNormalsResponse | null;
 };
 
-const { city, cities, weather } = Astro.props;
+const { city, cities, weather, normals = null } = Astro.props;
 const data = weather.data;
 const current = data.current;
 const timeZone = data.timezone || "Europe/Helsinki";
@@ -175,6 +182,8 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
   </section>
 
   <UVIndexCard points={data.uv_forecast ?? []} timeZone={timeZone} />
+
+  <ClimateNormalsCard normals={normals} weather={data} timeZone={timeZone} />
 
   <Footer cities={cities} activeSlug={city.slug} />
 </main>

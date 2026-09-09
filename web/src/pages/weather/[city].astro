@@ -33,7 +33,7 @@ if (!city) {
 
 <BaseLayout title={`WBY · ${city?.name ?? "Not found"}`}>
   {city && result ? (
-    <WeatherDashboard city={city} cities={cities} weather={result.weather} />
+    <WeatherDashboard city={city} cities={cities} weather={result.weather} normals={result.normals} />
   ) : (
     <WeatherUnavailable
       cities={cities}

@@ -1,0 +1,203 @@
+---
+// Today against the station's 1991–2020 normals: the current temperature
+// versus this hour's normal, the day's normal curve with the now marker, and
+// the forecast high/low and observed feels-like/wind against their normals.
+// "Details" opens a dialog with the full stat grid, a daily/hourly chart
+// switch and the forecast high/low on the daily curve, like the iOS sheet.
+import { formatTemperature } from "../lib/formatters";
+import {
+  buildNormalsChart,
+  formatStat,
+  headlineText,
+  type NormalsChart as NormalsChartData,
+  type NormalsHeadline,
+  normalsDailySeries,
+  normalsDetailStats,
+  normalsHeadline,
+  normalsHourlySeries,
+  normalsSummaryStats,
+  todayForecast,
+} from "../lib/normals";
+import type { DailyClimateNormalsResponse, WeatherResponse } from "../lib/weatherApi";
+import Measure from "./Measure.astro";
+import NormalsChart from "./NormalsChart.astro";
+import NormalsStat from "./NormalsStat.astro";
+import UnitText from "./UnitText.astro";
+
+type Props = {
+  normals: DailyClimateNormalsResponse | null;
+  weather: WeatherResponse;
+  timeZone: string;
+};
+
+const { normals, weather, timeZone } = Astro.props;
+const now = new Date();
+const current = weather.current;
+const forecast = todayForecast(weather.daily_forecast, timeZone, now);
+
+const hourly = normals ? normalsHourlySeries(normals, timeZone, now) : null;
+const daily = normals ? normalsDailySeries(normals, timeZone, now) : null;
+const cardSeries = hourly ?? daily;
+const cardNowTemp = hourly ? current.temperature : null;
+const chart = cardSeries ? buildNormalsChart(cardSeries, cardNowTemp) : null;
+const hourlyChart = hourly ? buildNormalsChart(hourly, current.temperature) : null;
+const dailyChart = daily
+  ? buildNormalsChart(daily, null, { high: forecast?.high, low: forecast?.low })
+  : null;
+
+const headline = normals ? normalsHeadline(current.temperature, normals.today.temp_now_normal) : null;
+const detailHeadline = normals ? normalsHeadline(current.temperature, normals.today.temp_now_normal, 1) : null;
+const stats = normals ? normalsSummaryStats(normals, current, forecast) : [];
+const detailStats = normals ? normalsDetailStats(normals, current, forecast) : [];
+
+const toneClass = {
+  warm: "text-red-600 dark:text-red-400",
+  cold: "text-blue-600 dark:text-blue-400",
+  even: "text-muted",
+};
+
+function chartLabel(data: NormalsChartData, head: NormalsHeadline | null): string {
+  const span = data.mode === "hourly" ? "by hour today" : "by day this month";
+  const range = `${formatTemperature(data.min)} to ${formatTemperature(data.max)}`;
+  const nowText = head ? `, now ${formatTemperature(head.current)} against a normal ${formatTemperature(head.normal)}` : "";
+  return `Normal temperature ${span}, ${range}${nowText}`;
+}
+
+let footnote = "";
+if (normals) {
+  footnote = `Normals are ${normals.period} averages for ${normals.station.name}. Each day is averaged over a window of surrounding days across the period.`;
+  if (normals.hourly_station && normals.hourly_station.name !== normals.station.name) {
+    footnote += ` The hourly curve comes from ${normals.hourly_station.name}, rebased to today's mean.`;
+  }
+  const gauge = normals.precipitation?.station;
+  if (gauge && gauge.name !== normals.station.name) {
+    footnote += ` Observed precipitation is from the nearest gauge, ${gauge.name}.`;
+  }
+}
+---
+
+{normals && chart && (
+  <section class="mt-4.5 rounded-lg border border-line bg-surface/92 shadow-panel" data-normals>
+    <div class="flex items-center justify-between gap-4 px-4.5 pt-4">
+      <h2 class="text-base font-bold">Climate normals</h2>
+      <button
+        type="button"
+        class="flex cursor-pointer items-center gap-1 rounded-lg border border-transparent px-2 py-1 text-muted hover:border-line hover:bg-surface hover:text-ink"
+        data-normals-open
+      >
+        Details
+        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m9 6 6 6-6 6" />
+        </svg>
+      </button>
+    </div>
+    <div class="px-4.5 pt-3.5 pb-4.5">
+      {headline && (
+        <div>
+          <p class="m-0">
+            <span class="text-[2.4rem] font-[750] leading-none"><Measure kind="temperature" value={headline.current} /></span>
+            <span class="ml-2 text-muted">now · normally <Measure kind="temperature" value={headline.normal} /></span>
+          </p>
+          <p class={`m-0 mt-1.5 font-semibold ${toneClass[headline.tone]}`}>
+            <UnitText metric={headlineText(headline.diff, "metric")} imperial={headlineText(headline.diff, "imperial")} />
+          </p>
+        </div>
+      )}
+
+      <div class="mt-5">
+        <NormalsChart chart={chart} label={chartLabel(chart, hourly ? headline : null)} currentTemp={cardNowTemp} />
+      </div>
+
+      {stats.length > 0 && (
+        <dl class="m-0 mt-5 grid grid-cols-4 gap-2 max-[560px]:grid-cols-2">
+          {stats.map((stat) => <NormalsStat stat={stat} />)}
+        </dl>
+      )}
+
+      <p class="m-0 mt-3.5 text-[0.78rem] text-muted">{normals.station.name} · {normals.period}</p>
+    </div>
+
+    <dialog class="normals-dialog" aria-labelledby="normals-dialog-title" data-normals-dialog>
+      <div class="p-4.5 max-[560px]:p-4">
+        <div class="flex items-center justify-between gap-4">
+          <h2 id="normals-dialog-title" class="text-lg font-bold">Climate normals</h2>
+          <form method="dialog">
+            <button
+              type="submit"
+              class="flex cursor-pointer rounded-lg border border-transparent p-2 text-muted hover:border-line hover:bg-surface-strong hover:text-ink"
+              aria-label="Close"
+              title="Close"
+            >
+              <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </form>
+        </div>
+
+        {detailHeadline && (
+          <div class="mt-4">
+            <p class="m-0">
+              <span class="text-[2rem] font-[750] leading-none">
+                <UnitText metric={formatStat("temperature", detailHeadline.current, "metric", 1)} imperial={formatStat("temperature", detailHeadline.current, "imperial", 1)} />
+              </span>
+              <span class="ml-2 text-muted">
+                now · normally <UnitText metric={formatStat("temperature", detailHeadline.normal, "metric", 1)} imperial={formatStat("temperature", detailHeadline.normal, "imperial", 1)} />
+              </span>
+            </p>
+            <p class={`m-0 mt-1.5 font-semibold ${toneClass[detailHeadline.tone]}`}>
+              <UnitText metric={headlineText(detailHeadline.diff, "metric", 1)} imperial={headlineText(detailHeadline.diff, "imperial", 1)} />
+            </p>
+          </div>
+        )}
+
+        {(dailyChart || hourlyChart) && (
+          <div class="normals-modes mt-5 rounded-lg border border-line bg-surface-strong p-3" data-default={dailyChart ? "daily" : "hourly"}>
+            <div class="flex items-center justify-between gap-4">
+              <p class="m-0 font-semibold">
+                {dailyChart && <span data-mode="daily">This month, by day</span>}
+                {hourlyChart && <span data-mode="hourly">Typical day, by hour</span>}
+              </p>
+              {dailyChart && hourlyChart && (
+                <fieldset class="normals-mode-switch m-0 border-0 p-0">
+                  <legend class="sr-only">Chart mode</legend>
+                  <label><input type="radio" name="normals-mode" value="daily" class="sr-only" checked />Daily</label>
+                  <label><input type="radio" name="normals-mode" value="hourly" class="sr-only" />Hourly</label>
+                </fieldset>
+              )}
+            </div>
+            {dailyChart && (
+              <div class="mt-2" data-mode="daily">
+                <NormalsChart chart={dailyChart} label={chartLabel(dailyChart, null)} currentTemp={null} forecastHigh={forecast?.high} forecastLow={forecast?.low} />
+              </div>
+            )}
+            {hourlyChart && (
+              <div class="mt-2" data-mode="hourly">
+                <NormalsChart chart={hourlyChart} label={chartLabel(hourlyChart, detailHeadline)} currentTemp={current.temperature} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {detailStats.length > 0 && (
+          <dl class="m-0 mt-4 grid grid-cols-2 gap-2 max-[420px]:grid-cols-1">
+            {detailStats.map((stat) => <NormalsStat stat={stat} decimals={1} />)}
+          </dl>
+        )}
+
+        <p class="m-0 mt-4 text-[0.78rem] leading-relaxed text-muted">{footnote}</p>
+      </div>
+    </dialog>
+  </section>
+)}
+
+<script>
+  const section = document.querySelector<HTMLElement>("[data-normals]");
+  const dialog = section?.querySelector<HTMLDialogElement>("[data-normals-dialog]");
+  section?.querySelector("[data-normals-open]")?.addEventListener("click", () => {
+    dialog?.showModal();
+  });
+  dialog?.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+</script>

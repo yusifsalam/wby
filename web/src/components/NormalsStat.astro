@@ -1,0 +1,47 @@
+---
+// One stat tile: label, the current value with its signed delta against the
+// normal, and the normal (plus any extra detail) beneath.
+import { deltaTone, formatDelta, formatStat, type NormalStat } from "../lib/normals";
+import UnitText from "./UnitText.astro";
+
+type Props = {
+  stat: NormalStat;
+  decimals?: number;
+};
+
+const { stat, decimals = 0 } = Astro.props;
+
+const toneClass = {
+  warm: "text-red-600 dark:text-red-400",
+  cold: "text-blue-600 dark:text-blue-400",
+  even: "text-muted",
+};
+---
+
+<div class="min-w-0 rounded-lg border border-line bg-surface-strong p-3">
+  <dt class="mb-1.5 text-[0.78rem] font-extrabold text-muted">{stat.label}</dt>
+  <dd class="m-0 flex flex-wrap items-baseline gap-x-1.5">
+    <span class="text-[1.2rem] font-[750]">
+      <UnitText metric={formatStat(stat.kind, stat.value, "metric", decimals)} imperial={formatStat(stat.kind, stat.value, "imperial", decimals)} />
+    </span>
+    {stat.delta != null && (
+      <span class={`text-[0.78rem] font-bold ${toneClass[deltaTone(stat.kind, stat.delta, decimals)]}`}>
+        <UnitText metric={formatDelta(stat.kind, stat.delta, "metric", decimals)} imperial={formatDelta(stat.kind, stat.delta, "imperial", decimals)} />
+      </span>
+    )}
+  </dd>
+  <dd class="m-0 text-[0.78rem] text-muted">
+    {stat.delta == null ? (
+      "normal"
+    ) : (
+      <>normally <UnitText metric={formatStat(stat.kind, stat.normal, "metric", decimals)} imperial={formatStat(stat.kind, stat.normal, "imperial", decimals)} /></>
+    )}
+    {stat.extra && (
+      <>
+        {" · "}{stat.extra.prefix}{" "}
+        <UnitText metric={formatStat(stat.extra.kind, stat.extra.value, "metric", stat.extra.kind === "percent" ? 0 : decimals)} imperial={formatStat(stat.extra.kind, stat.extra.value, "imperial", stat.extra.kind === "percent" ? 0 : decimals)} />
+        {stat.extra.suffix ?? ""}
+      </>
+    )}
+  </dd>
+</div>
