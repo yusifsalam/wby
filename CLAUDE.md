@@ -129,6 +129,14 @@ Three stored queries used via the public WFS endpoint:
 | `fmi::observations::radiation::timevaluepair` | Radiation data (merged by station/time) |
 | `fmi::forecast::edited::weather::scandinavia::point::timevaluepair` | Point forecasts (Harmonie model, 11-day window). Requests an explicit `parameters` list (`forecastParameters` in `client.go`): FMI's defaults plus `SmartSymbol` |
 
+Daily forecasts are bucketed by the place's **local calendar day** (Europe/Helsinki;
+the app covers Finland only), fetched from local midnight so today's aggregates
+include the elapsed hours. `DailyForecast.Date` carries the calendar date only
+(UTC midnight) and consumers that need instants convert it with the place
+timezone. Hourly forecasts are fetched and stored from local midnight through
+FMI's ten-day window; `/v1/weather` embeds the next 12 hours and
+`/v1/weather/hourly` returns the full window.
+
 The `symbol` field on hourly/daily forecasts is FMI's **SmartSymbol** code (1–77;
 `+100` = night variant, assigned by FMI), the same scheme the official FMI app
 uses. The daily symbol is Apple-Weather-style: the most severe SmartSymbol of

@@ -16,7 +16,7 @@ func TestWidenWithObservedRange(t *testing.T) {
 	}
 
 	var windows [][2]time.Time
-	out := widenWithObservedRange(forecast, now, func(from, to time.Time) (*float64, *float64, error) {
+	out := widenWithObservedRange(forecast, now, time.UTC, func(from, to time.Time) (*float64, *float64, error) {
 		windows = append(windows, [2]time.Time{from, to})
 		return f(7.5), f(21), nil
 	})
@@ -40,7 +40,7 @@ func TestWidenWithObservedRangeKeepsForecastWhenObservedIsNarrower(t *testing.T)
 	today := time.Date(2026, 9, 3, 0, 0, 0, 0, time.UTC)
 	forecast := []DailyForecast{{Date: today, TempHigh: f(14), TempLow: f(6)}}
 
-	out := widenWithObservedRange(forecast, today.Add(8*time.Hour), func(from, to time.Time) (*float64, *float64, error) {
+	out := widenWithObservedRange(forecast, today.Add(8*time.Hour), time.UTC, func(from, to time.Time) (*float64, *float64, error) {
 		return f(9), f(11), nil
 	})
 	if *out[0].TempHigh != 14 || *out[0].TempLow != 6 {
@@ -54,7 +54,7 @@ func TestWidenWithObservedRangePastDayUsesFullWindow(t *testing.T) {
 	forecast := []DailyForecast{{Date: yesterday, TempHigh: f(14), TempLow: f(12)}}
 
 	var window [2]time.Time
-	out := widenWithObservedRange(forecast, yesterday.Add(26*time.Hour), func(from, to time.Time) (*float64, *float64, error) {
+	out := widenWithObservedRange(forecast, yesterday.Add(26*time.Hour), time.UTC, func(from, to time.Time) (*float64, *float64, error) {
 		window = [2]time.Time{from, to}
 		return nil, nil, nil
 	})
@@ -71,7 +71,7 @@ func TestWidenWithObservedRangeLookupErrorReturnsInput(t *testing.T) {
 	today := time.Date(2026, 9, 3, 0, 0, 0, 0, time.UTC)
 	forecast := []DailyForecast{{Date: today, TempHigh: f(14), TempLow: f(12)}}
 
-	out := widenWithObservedRange(forecast, today.Add(time.Hour), func(from, to time.Time) (*float64, *float64, error) {
+	out := widenWithObservedRange(forecast, today.Add(time.Hour), time.UTC, func(from, to time.Time) (*float64, *float64, error) {
 		return nil, nil, errors.New("db down")
 	})
 	if *out[0].TempHigh != 14 || *out[0].TempLow != 12 {

@@ -447,7 +447,9 @@ func (s *Store) UpsertForecasts(ctx context.Context, forecasts []weather.DailyFo
 	return nil
 }
 
-func (s *Store) GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]weather.DailyForecast, error) {
+// GetForecasts returns the stored daily forecasts from the calendar day of
+// `from` (in its own location) onwards.
+func (s *Store) GetForecasts(ctx context.Context, gridLat, gridLon float64, from time.Time) ([]weather.DailyForecast, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT grid_lat, grid_lon, forecast_for, fetched_at, temp_high, temp_low,
 		        temp_avg, wind_speed, wind_direction, humidity_avg, precip_mm, precipitation_1h_sum, symbol,
@@ -458,10 +460,10 @@ func (s *Store) GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]w
 		        radiation_global_avg, radiation_lw_avg, weather_number_mode, weather_symbol3_mode, wind_ums_avg, wind_vms_avg, wind_vector_ms_avg,
 		        uv_index_avg
 		 FROM forecasts
-		 WHERE grid_lat = $1 AND grid_lon = $2 AND forecast_for >= CURRENT_DATE
+		 WHERE grid_lat = $1 AND grid_lon = $2 AND forecast_for >= $3
 		 ORDER BY forecast_for
 		 LIMIT 11`,
-		gridLat, gridLon,
+		gridLat, gridLon, from,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get forecasts: %w", err)

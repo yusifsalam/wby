@@ -37,7 +37,7 @@ type WeatherStore interface {
 	ObservedTemperatureRange(ctx context.Context, fmisid int, from, to time.Time) (low, high *float64, err error)
 	GetLatestTemperatureSamplesInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, limit int) ([]TemperatureSample, error)
 	GetObservationSamplesAtTimeInBBox(ctx context.Context, minLon, minLat, maxLon, maxLat float64, at time.Time, limit int) ([]TemperatureSample, error)
-	GetForecasts(ctx context.Context, gridLat, gridLon float64) ([]DailyForecast, error)
+	GetForecasts(ctx context.Context, gridLat, gridLon float64, from time.Time) ([]DailyForecast, error)
 	UpsertForecasts(ctx context.Context, forecasts []DailyForecast) error
 	GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64, from time.Time, limit int) ([]HourlyForecast, error)
 	UpsertHourlyForecasts(ctx context.Context, gridLat, gridLon float64, hourly []HourlyForecast) error
@@ -196,10 +196,11 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 		slog.Warn("hourly forecast unavailable", "err", err, "lat", gridLat, "lon", gridLon)
 	}
 
+	loc := placeLocation(forecastTimezone)
 	uvPoints, uvFresh := s.getUVData(ctx, gridLat, gridLon, forecastTimezone)
 	if len(uvPoints) > 0 {
 		applyUVToHourly(uvPoints, hourly)
-		applyUVToDaily(uvPoints, forecast)
+		applyUVToDaily(uvPoints, forecast, loc)
 		if uvFresh {
 			if err := s.store.UpsertHourlyForecasts(ctx, gridLat, gridLon, hourly); err != nil {
 				slog.Warn("failed to persist UV-enriched hourly forecasts", "err", err)
@@ -210,7 +211,7 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 		}
 	}
 
-	forecast = widenWithObservedRange(forecast, time.Now().UTC(), func(from, to time.Time) (*float64, *float64, error) {
+	forecast = widenWithObservedRange(forecast, time.Now(), loc, func(from, to time.Time) (*float64, *float64, error) {
 		return s.store.ObservedTemperatureRange(ctx, station.FMISID, from, to)
 	})
 
@@ -414,7 +415,7 @@ func (s *Service) getForecast(ctx context.Context, gridLat, gridLon float64) ([]
 		}
 	}
 
-	forecasts, err := s.store.GetForecasts(ctx, gridLat, gridLon)
+	forecasts, err := s.store.GetForecasts(ctx, gridLat, gridLon, startOfLocalDay(time.Now(), s.cachedTimezoneForKey(cacheKey)))
 	if err == nil && len(forecasts) > 0 && isFresh(forecasts, 3*time.Hour) && hasExpandedForecastData(forecasts) {
 		s.forecastCache.Set(cacheKey, forecasts)
 		return forecasts, s.cachedTimezoneForKey(cacheKey), nil
@@ -685,14 +686,17 @@ func temperatureGridResponse(grid *FieldGrid) *TemperatureSamplesResponse {
 // with what the station has observed so far. Forecast days are UTC buckets
 // starting at the current hour, so today's range alone only covers the hours
 // still ahead.
-func widenWithObservedRange(forecast []DailyForecast, now time.Time, observed func(from, to time.Time) (low, high *float64, err error)) []DailyForecast {
+// widenWithObservedRange folds the observed temperature range of each day's
+// elapsed hours into its forecast high/low. Date is a calendar date; the
+// day's span runs from its local midnight in loc.
+func widenWithObservedRange(forecast []DailyForecast, now time.Time, loc *time.Location, observed func(from, to time.Time) (low, high *float64, err error)) []DailyForecast {
 	out := slices.Clone(forecast)
 	for i := range out {
-		start := out[i].Date
+		start := time.Date(out[i].Date.Year(), out[i].Date.Month(), out[i].Date.Day(), 0, 0, 0, 0, loc)
 		if !start.Before(now) {
 			continue
 		}
-		end := start.Add(24 * time.Hour)
+		end := start.AddDate(0, 0, 1)
 		if end.After(now) {
 			end = now
 		}
@@ -765,13 +769,17 @@ func (s *Service) getUVData(ctx context.Context, gridLat, gridLon float64, timez
 	return points, true
 }
 
-func startOfLocalDay(now time.Time, timezone string) time.Time {
+func placeLocation(timezone string) *time.Location {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
-		loc = time.UTC
+		return time.UTC
 	}
-	local := now.In(loc)
-	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
+	return loc
+}
+
+func startOfLocalDay(now time.Time, timezone string) time.Time {
+	local := now.In(placeLocation(timezone))
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, local.Location())
 }
 
 func applyUVToHourly(uvPoints []UVDataPoint, hourly []HourlyForecast) {
@@ -786,14 +794,14 @@ func applyUVToHourly(uvPoints []UVDataPoint, hourly []HourlyForecast) {
 	}
 }
 
-func applyUVToDaily(uvPoints []UVDataPoint, forecasts []DailyForecast) {
+func applyUVToDaily(uvPoints []UVDataPoint, forecasts []DailyForecast, loc *time.Location) {
 	type dailyUV struct {
 		sum   float64
 		count int
 	}
 	byDate := make(map[string]*dailyUV)
 	for _, p := range uvPoints {
-		date := p.Time.UTC().Format("2006-01-02")
+		date := p.Time.In(loc).Format("2006-01-02")
 		d, ok := byDate[date]
 		if !ok {
 			d = &dailyUV{}

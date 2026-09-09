@@ -77,7 +77,7 @@ func (c *Client) FetchObservations(ctx context.Context) (*ObservationResult, err
 }
 
 func (c *Client) FetchForecast(ctx context.Context, lat, lon float64) (weather.ForecastData, error) {
-	start, end := forecastTimeWindowUTC(forecastDays)
+	start, end := forecastTimeWindow(forecastDays)
 
 	params := url.Values{
 		"service":        {"WFS"},
@@ -184,14 +184,21 @@ func (c *Client) FetchUVForecast(ctx context.Context, lat, lon float64, start ti
 	return points, nil
 }
 
-func forecastTimeWindowUTC(days int) (start, end string) {
+// forecastTimeWindow spans today from local midnight (so today's aggregates
+// cover the elapsed hours too) through the next days-1 days. The app covers
+// Finland only, so the place timezone is known before the response names it.
+func forecastTimeWindow(days int) (start, end string) {
 	if days < 1 {
 		days = 1
 	}
-	startTime := time.Now().UTC().Truncate(time.Hour)
-	// Inclusive window: today + next (days-1) days.
+	loc, err := time.LoadLocation(weather.DefaultPlaceTimezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	now := time.Now().In(loc)
+	startTime := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 	endTime := startTime.AddDate(0, 0, days-1)
-	return startTime.Format(time.RFC3339), endTime.Format(time.RFC3339)
+	return startTime.UTC().Format(time.RFC3339), endTime.UTC().Format(time.RFC3339)
 }
 
 func (c *Client) FetchClimateNormals(ctx context.Context, fmisids string) ([]byte, error) {

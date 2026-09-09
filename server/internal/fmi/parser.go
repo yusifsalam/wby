@@ -272,20 +272,22 @@ func ParseForecast(data []byte, gridLat, gridLon float64) (weather.ForecastData,
 		b.values[param] = append(b.values[param], value)
 	}
 
-	for param, entries := range params {
-		for _, e := range entries {
-			addValue(e.t.Format("2006-01-02"), param, e.val)
-		}
-	}
-	// params is a map, so days were discovered in random order.
-	slices.Sort(dayOrder)
-
 	loc := time.UTC
 	if timezone != "" {
 		if l, err := time.LoadLocation(timezone); err == nil {
 			loc = l
 		}
 	}
+
+	// Days are the place's local calendar days. Date carries the calendar
+	// date only (UTC midnight), which is also how the store hands it back.
+	for param, entries := range params {
+		for _, e := range entries {
+			addValue(e.t.In(loc).Format("2006-01-02"), param, e.val)
+		}
+	}
+	// params is a map, so days were discovered in random order.
+	slices.Sort(dayOrder)
 
 	now := time.Now()
 	var forecasts []weather.DailyForecast
@@ -602,8 +604,8 @@ const (
 )
 
 // representativeSymbol picks the day's SmartSymbol from the hourly entries
-// that fall on dateKey (UTC date, the same bucketing as the other daily
-// aggregates). Like Apple Weather it warns rather than describes: the most
+// that fall on dateKey (a local calendar day, the same bucketing as the other
+// daily aggregates). Like Apple Weather it warns rather than describes: the most
 // severe symbol of the daytime hours wins, so a rainy morning before a clear
 // afternoon shows as rain. Ties go to the hour nearest 15:00 local. Days with
 // no daytime hours (the tail of the forecast window) fall back to the hour
@@ -614,10 +616,11 @@ func representativeSymbol(entries []hourlyEntry, dateKey string, loc *time.Locat
 	}
 	var all, daytime []candidate
 	for _, e := range entries {
-		if e.t.Format("2006-01-02") != dateKey {
+		local := e.t.In(loc)
+		if local.Format("2006-01-02") != dateKey {
 			continue
 		}
-		hour := e.t.In(loc).Hour()
+		hour := local.Hour()
 		dist := hour - representativeSymbolHour
 		if dist < 0 {
 			dist = -dist
