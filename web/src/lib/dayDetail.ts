@@ -33,7 +33,7 @@ export type DaySummary = {
   windAvg: number | null;
   gustMax: number | null;
   humidityAvg: number | null;
-  uvMax: number | null;
+  cloudCoverAvg: number | null;
 };
 
 // High and low come from the daily row the user clicked so the sheet repeats
@@ -54,13 +54,16 @@ export function summarizeDay(
       day.precipitation_1h_sum ??
       null,
     popMax: maxOf(defined(hours.map((h) => h.pop))),
-    windAvg: day.wind_speed_avg ?? avgOf(defined(hours.map((h) => h.wind_speed))),
+    windAvg:
+      day.wind_speed_avg ?? avgOf(defined(hours.map((h) => h.wind_speed))),
     gustMax:
       day.hourly_maximum_gust_max ??
       maxOf(defined(hours.map((h) => h.wind_gust))),
     humidityAvg:
       day.humidity_avg ?? avgOf(defined(hours.map((h) => h.humidity))),
-    uvMax: maxOf(defined(hours.map((h) => h.uv_cumulated))),
+    cloudCoverAvg:
+      day.total_cloud_cover_avg ??
+      avgOf(defined(hours.map((h) => h.cloud_cover))),
   };
 }
 
@@ -136,7 +139,9 @@ function temperatureChart(
     hours.forEach((hour, i) => {
       const value = pick(hour);
       if (value == null) return;
-      parts.push(`${parts.length === 0 ? "M" : "L"}${fmt(x(i))},${fmt(100 - y(value))}`);
+      parts.push(
+        `${parts.length === 0 ? "M" : "L"}${fmt(x(i))},${fmt(100 - y(value))}`,
+      );
     });
     return parts.length > 1 ? parts.join("") : "";
   };

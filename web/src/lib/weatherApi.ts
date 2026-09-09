@@ -58,6 +58,7 @@ export type DailyForecast = {
   precipitation_mm?: number | null;
   precipitation_1h_sum?: number | null;
   hourly_maximum_gust_max?: number | null;
+  total_cloud_cover_avg?: number | null;
   uv_index_avg?: number | null;
 };
 
