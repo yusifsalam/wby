@@ -670,6 +670,23 @@ func pruneWarmCache[V any](cache *Cache[V], key func(time.Time) string, hours []
 	})
 }
 
+// pruneWarmCachePrefix drops entries under one key prefix that fall outside the
+// warmed window, leaving other key families in the same cache untouched. The
+// radar and nowcast frames share a cache, so each prunes only its own.
+func pruneWarmCachePrefix[V any](cache *Cache[V], prefix string, key func(time.Time) string, frames []time.Time) {
+	keep := make(map[string]struct{}, len(frames))
+	for _, at := range frames {
+		keep[key(at)] = struct{}{}
+	}
+	cache.DeleteIf(func(k string) bool {
+		if !strings.HasPrefix(k, prefix) {
+			return false
+		}
+		_, ok := keep[k]
+		return !ok
+	})
+}
+
 // temperatureGridResponse builds a samples response carrying the dense GRIB
 // raster (Samples left empty; clients use Grid). Min/max are over valid cells.
 func temperatureGridResponse(grid *FieldGrid) *TemperatureSamplesResponse {

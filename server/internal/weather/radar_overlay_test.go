@@ -126,6 +126,69 @@ func TestNowcastGridServesCacheOnly(t *testing.T) {
 	}
 }
 
+func cacheLen[V any](c *Cache[V]) int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.m)
+}
+
+func TestWarmRadarGridsPrunesFramesLeftByEarlierCycles(t *testing.T) {
+	s := newRadarTestService()
+	s.SetRadarPrecipitationSource(&fakeRadarSource{frames: map[string]*FieldGrid{}})
+
+	base := time.Now().UTC().Truncate(radarFrameStep)
+	// A day of frames the warm window has long since slid past.
+	for i := 1; i <= 288; i++ {
+		at := base.Add(-time.Duration(i) * radarFrameStep)
+		s.radarPrecipCache.Set(radarGridKey(at), &PrecipitationForecastGrid{})
+	}
+	nowcastAt := base.Add(2 * radarFrameStep)
+	s.radarPrecipCache.Set(nowcastGridKey(nowcastAt), &PrecipitationForecastGrid{})
+
+	s.WarmRadarGrids(context.Background())
+
+	frames := int(RadarObsSpan / radarFrameStep)
+	wantMax := frames + radarPruneSlackFrames + 1 // warmed window + slack
+	if got := cacheLen(s.radarPrecipCache); got > wantMax+1 {
+		t.Fatalf("cache holds %d entries after prune, want at most %d", got, wantMax+1)
+	}
+	if _, ok := s.radarPrecipCache.Get(nowcastGridKey(nowcastAt)); !ok {
+		t.Fatal("radar prune dropped a nowcast frame")
+	}
+
+	// Frames the walk-back can still reach must survive.
+	keep := base.Add(-RadarObsSpan)
+	s.radarPrecipCache.Set(radarGridKey(keep), &PrecipitationForecastGrid{})
+	s.WarmRadarGrids(context.Background())
+	if _, ok := s.radarPrecipCache.Get(radarGridKey(keep)); !ok {
+		t.Fatalf("prune dropped in-window frame %s", keep)
+	}
+}
+
+func TestWarmNowcastGridsPrunesFramesLeftByEarlierCycles(t *testing.T) {
+	s := newRadarTestService()
+	s.SetRadarPrecipitationSource(&fakeRadarSource{frames: map[string]*FieldGrid{}})
+
+	base := time.Now().UTC().Truncate(radarFrameStep)
+	for i := 1; i <= 288; i++ {
+		at := base.Add(time.Duration(i) * radarFrameStep)
+		s.radarPrecipCache.Set(nowcastGridKey(at), &PrecipitationForecastGrid{})
+	}
+	radarAt := base.Add(-2 * radarFrameStep)
+	s.radarPrecipCache.Set(radarGridKey(radarAt), &PrecipitationForecastGrid{})
+
+	s.WarmNowcastGrids(context.Background())
+
+	frames := int(RadarNowcastSpan / radarFrameStep)
+	wantMax := frames + 3 // base-1 through base+frames+1
+	if got := cacheLen(s.radarPrecipCache); got > wantMax+1 {
+		t.Fatalf("cache holds %d entries after prune, want at most %d", got, wantMax+1)
+	}
+	if _, ok := s.radarPrecipCache.Get(radarGridKey(radarAt)); !ok {
+		t.Fatal("nowcast prune dropped a radar frame")
+	}
+}
+
 func TestObservationGridRejectsOutOfWindowTargets(t *testing.T) {
 	s := newRadarTestService()
 	s.SetRadarPrecipitationSource(&fakeRadarSource{frames: map[string]*FieldGrid{}})

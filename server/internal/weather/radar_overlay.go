@@ -107,12 +107,34 @@ func (s *Service) fetchRadarGrid(ctx context.Context, at time.Time) (*Precipitat
 	return out, nil
 }
 
+// Radar and nowcast frames share radarPrecipCache, so each key family carries
+// its own prefix and is pruned independently.
+const (
+	radarGridPrefix   = "radarprecipgrid:"
+	nowcastGridPrefix = "nowcastprecipgrid:"
+)
+
+// radarPruneSlackFrames keeps a few frames older than the warmed window so the
+// walk-back in GetPrecipitationObservationGrid still finds the oldest targets
+// it accepts.
+const radarPruneSlackFrames = 4
+
 func radarGridKey(at time.Time) string {
-	return "radarprecipgrid:" + at.Format(time.RFC3339)
+	return radarGridPrefix + at.Format(time.RFC3339)
 }
 
 func nowcastGridKey(at time.Time) string {
-	return "nowcastprecipgrid:" + at.Format(time.RFC3339)
+	return nowcastGridPrefix + at.Format(time.RFC3339)
+}
+
+// frameWindow lists the frame instants from base+from steps through base+to
+// steps, inclusive.
+func frameWindow(base time.Time, from, to int) []time.Time {
+	out := make([]time.Time, 0, to-from+1)
+	for i := from; i <= to; i++ {
+		out = append(out, base.Add(time.Duration(i)*radarFrameStep))
+	}
+	return out
 }
 
 // GetPrecipitationNowcastGrid returns the extrapolation-nowcast rain-rate
@@ -189,6 +211,8 @@ func (s *Service) WarmNowcastGrids(ctx context.Context) {
 			warmed++
 		}
 	}
+	pruneWarmCachePrefix(s.radarPrecipCache, nowcastGridPrefix, nowcastGridKey,
+		frameWindow(base, -1, frames+1))
 	slog.Info("warmed nowcast precipitation grids",
 		"frames", warmed,
 		"span", RadarNowcastSpan,
@@ -222,6 +246,8 @@ func (s *Service) WarmRadarGrids(ctx context.Context) {
 			warmed++
 		}
 	}
+	pruneWarmCachePrefix(s.radarPrecipCache, radarGridPrefix, radarGridKey,
+		frameWindow(base, -(frames+radarPruneSlackFrames), 0))
 	slog.Info("warmed radar precipitation grids",
 		"frames", warmed,
 		"span", RadarObsSpan,
