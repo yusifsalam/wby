@@ -11,17 +11,20 @@ type cacheEntry[V any] struct {
 }
 
 // Cache is a TTL map. A ttl of zero or less disables expiry; callers then
-// evict explicitly with DeleteIf.
+// evict explicitly with DeleteIf. Expired entries are dropped by a sweep
+// amortized over Set, so keys that are never read again do not accumulate.
 type Cache[V any] struct {
-	mu  sync.RWMutex
-	ttl time.Duration
-	m   map[string]cacheEntry[V]
+	mu      sync.RWMutex
+	ttl     time.Duration
+	m       map[string]cacheEntry[V]
+	sweptAt time.Time
 }
 
 func NewCache[V any](ttl time.Duration) *Cache[V] {
 	return &Cache[V]{
-		ttl: ttl,
-		m:   make(map[string]cacheEntry[V]),
+		ttl:     ttl,
+		m:       make(map[string]cacheEntry[V]),
+		sweptAt: time.Now(),
 	}
 }
 
@@ -41,9 +44,25 @@ func (c *Cache[V]) Set(key string, value V) {
 	defer c.mu.Unlock()
 	entry := cacheEntry[V]{value: value}
 	if c.ttl > 0 {
-		entry.expiresAt = time.Now().Add(c.ttl)
+		now := time.Now()
+		entry.expiresAt = now.Add(c.ttl)
+		c.sweepLocked(now)
 	}
 	c.m[key] = entry
+}
+
+// sweepLocked drops every expired entry, at most once per ttl. The caller holds
+// the write lock.
+func (c *Cache[V]) sweepLocked(now time.Time) {
+	if now.Sub(c.sweptAt) < c.ttl {
+		return
+	}
+	c.sweptAt = now
+	for key, entry := range c.m {
+		if now.After(entry.expiresAt) {
+			delete(c.m, key)
+		}
+	}
 }
 
 // DeleteIf removes every entry whose key satisfies pred.
