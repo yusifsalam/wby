@@ -17,6 +17,8 @@ services:
     cpus: 1.0
 
   server:
+    mem_limit: 768m
+    memswap_limit: 768m
     networks:
       # Keep the default network (to reach db + gribsvc privately)...
       default: {}
