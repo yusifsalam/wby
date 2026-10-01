@@ -48,6 +48,9 @@ type DailyForecast struct {
 	TempHigh                       *float64
 	TempLow                        *float64
 	TempAvg                        *float64
+	FeelsLikeHigh                  *float64
+	FeelsLikeLow                   *float64
+	FeelsLikeAvg                   *float64
 	WindSpeed                      *float64
 	WindDir                        *float64
 	HumidityAvg                    *float64

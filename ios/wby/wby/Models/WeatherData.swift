@@ -234,6 +234,9 @@ struct DailyForecast: Codable, Identifiable {
     let high: Double?
     let low: Double?
     let temperatureAvg: Double?
+    let feelsLikeHigh: Double?
+    let feelsLikeLow: Double?
+    let feelsLikeAvg: Double?
     let symbol: String?
     let windSpeedAvg: Double?
     let windDirectionAvg: Double?
@@ -273,6 +276,9 @@ struct DailyForecast: Codable, Identifiable {
         high: Double?,
         low: Double?,
         temperatureAvg: Double? = nil,
+        feelsLikeHigh: Double? = nil,
+        feelsLikeLow: Double? = nil,
+        feelsLikeAvg: Double? = nil,
         symbol: String?,
         windSpeedAvg: Double?,
         windDirectionAvg: Double? = nil,
@@ -311,6 +317,9 @@ struct DailyForecast: Codable, Identifiable {
         self.high = high
         self.low = low
         self.temperatureAvg = temperatureAvg
+        self.feelsLikeHigh = feelsLikeHigh
+        self.feelsLikeLow = feelsLikeLow
+        self.feelsLikeAvg = feelsLikeAvg
         self.symbol = symbol
         self.windSpeedAvg = windSpeedAvg
         self.windDirectionAvg = windDirectionAvg
@@ -360,6 +369,9 @@ struct DailyForecast: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case date, high, low, symbol
         case temperatureAvg = "temperature_avg"
+        case feelsLikeHigh = "feels_like_high"
+        case feelsLikeLow = "feels_like_low"
+        case feelsLikeAvg = "feels_like_avg"
         case windSpeedAvg = "wind_speed_avg"
         case windDirectionAvg = "wind_direction_avg"
         case humidityAvg = "humidity_avg"

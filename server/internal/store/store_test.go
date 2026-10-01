@@ -145,6 +145,44 @@ func TestObservedTemperatureRange(t *testing.T) {
 	}
 }
 
+func TestForecastFeelsLikeRoundTrip(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+
+	const lat, lon = 89.98, 179.98
+	t.Cleanup(func() {
+		_, _ = s.pool.Exec(ctx, `DELETE FROM forecasts WHERE grid_lat = $1 AND grid_lon = $2`, lat, lon)
+	})
+
+	f := func(v float64) *float64 { return &v }
+	day := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	in := weather.DailyForecast{
+		GridLat: lat, GridLon: lon, Date: day, FetchedAt: time.Now(),
+		TempHigh: f(12), TempLow: f(6), TempAvg: f(9),
+		FeelsLikeHigh: f(8.6), FeelsLikeLow: f(1.9), FeelsLikeAvg: f(5.2),
+	}
+	if err := s.UpsertForecasts(ctx, []weather.DailyForecast{in}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.GetForecasts(ctx, lat, lon, day)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d forecasts, want 1", len(got))
+	}
+	check := func(name string, got *float64, want float64) {
+		t.Helper()
+		if got == nil || *got != want {
+			t.Errorf("%s = %v, want %v", name, got, want)
+		}
+	}
+	check("FeelsLikeHigh", got[0].FeelsLikeHigh, 8.6)
+	check("FeelsLikeLow", got[0].FeelsLikeLow, 1.9)
+	check("FeelsLikeAvg", got[0].FeelsLikeAvg, 5.2)
+}
+
 // A single-connection pool must still complete the hourly upsert: the batch
 // connection has to be released before the trailing cleanup DELETE acquires
 // one, or concurrent requests deadlock the pool waiting on each other.

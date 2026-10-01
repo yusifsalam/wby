@@ -371,20 +371,6 @@ export function headlineText(
   return "About average for this hour";
 }
 
-// Wind chill from air temperature (°C) and wind (m/s), matching the server's
-// feels-like for observations and the normals' hourly samples.
-export function feelsLike(
-  temp: number | null | undefined,
-  wind: number | null | undefined,
-): number | null {
-  if (temp == null) return null;
-  if (wind == null) return temp;
-  const windKmh = wind * 3.6;
-  if (temp > 10 || windKmh < 4.8) return temp;
-  const w = windKmh ** 0.16;
-  return 13.12 + 0.6215 * temp - 11.37 * w + 0.3965 * temp * w;
-}
-
 export type StatExtra = {
   prefix: string;
   kind: StatKind;
@@ -442,7 +428,7 @@ export function normalsDetailStats(
     stat(
       "Feels like mean",
       "temperature",
-      feelsLike(forecast?.temperature_avg, forecast?.wind_speed_avg),
+      forecast?.feels_like_avg,
       today.feels_like_avg,
     ),
     stat("High", "temperature", forecast?.high, today.temp_high),
@@ -450,13 +436,13 @@ export function normalsDetailStats(
     stat(
       "Feels like high",
       "temperature",
-      feelsLike(forecast?.high, forecast?.wind_speed_avg),
+      forecast?.feels_like_high,
       today.feels_like_high,
     ),
     stat(
       "Feels like low",
       "temperature",
-      feelsLike(forecast?.low, forecast?.wind_speed_avg),
+      forecast?.feels_like_low,
       today.feels_like_low,
     ),
     stat(

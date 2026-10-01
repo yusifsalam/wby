@@ -317,6 +317,9 @@ func ParseForecast(data []byte, gridLat, gridLon float64) (weather.ForecastData,
 			f.TempLow = &lo
 		}
 		f.TempAvg = avgPtr(tempVals)
+		f.FeelsLikeHigh = maxPtr(vals("feelslike"))
+		f.FeelsLikeLow = minPtr(vals("feelslike"))
+		f.FeelsLikeAvg = avgPtr(vals("feelslike"))
 		f.WindSpeed = avgPtr(vals("windspeedms"))
 		f.WindDir = circularMeanDegreesPtr(vals("winddirection"))
 		f.HumidityAvg = avgPtr(vals("humidity"))
@@ -574,6 +577,19 @@ func maxPtr(values []float64) *float64 {
 		}
 	}
 	return &maxV
+}
+
+func minPtr(values []float64) *float64 {
+	if len(values) == 0 {
+		return nil
+	}
+	minV := values[0]
+	for _, v := range values[1:] {
+		if v < minV {
+			minV = v
+		}
+	}
+	return &minV
 }
 
 func modeRoundedFloatPtr(values []float64) *float64 {

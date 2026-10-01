@@ -96,6 +96,9 @@ type dailyForecastJSON struct {
 	High                       *float64 `json:"high"`
 	Low                        *float64 `json:"low"`
 	TempAvg                    *float64 `json:"temperature_avg"`
+	FeelsLikeHigh              *float64 `json:"feels_like_high"`
+	FeelsLikeLow               *float64 `json:"feels_like_low"`
+	FeelsLikeAvg               *float64 `json:"feels_like_avg"`
 	Symbol                     *string  `json:"symbol"`
 	WindSpeed                  *float64 `json:"wind_speed_avg"`
 	WindDir                    *float64 `json:"wind_direction_avg"`
@@ -205,6 +208,9 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			High:                       f.TempHigh,
 			Low:                        f.TempLow,
 			TempAvg:                    f.TempAvg,
+			FeelsLikeHigh:              f.FeelsLikeHigh,
+			FeelsLikeLow:               f.FeelsLikeLow,
+			FeelsLikeAvg:               f.FeelsLikeAvg,
 			Symbol:                     f.Symbol,
 			WindSpeed:                  f.WindSpeed,
 			WindDir:                    f.WindDir,

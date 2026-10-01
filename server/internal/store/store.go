@@ -414,9 +414,9 @@ func (s *Store) UpsertForecasts(ctx context.Context, forecasts []weather.DailyFo
 				hourly_maximum_gust_max, hourly_maximum_wind_speed_max, pop_avg, probability_thunderstorm_avg,
 				potential_precipitation_form_mode, potential_precipitation_type_mode, precipitation_form_mode, precipitation_type_mode,
 				radiation_global_avg, radiation_lw_avg, weather_number_mode, weather_symbol3_mode, wind_ums_avg, wind_vms_avg, wind_vector_ms_avg,
-				uv_index_avg
+				uv_index_avg, feels_like_high, feels_like_low, feels_like_avg
 			)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43)
 			 ON CONFLICT (grid_lat, grid_lon, forecast_for) DO UPDATE SET
 			   fetched_at = $4, temp_high = $5, temp_low = $6, temp_avg = $7, wind_speed = $8, wind_direction = $9,
 			   humidity_avg = $10, precip_mm = $11, precipitation_1h_sum = $12, symbol = $13, dew_point_avg = $14,
@@ -426,7 +426,7 @@ func (s *Store) UpsertForecasts(ctx context.Context, forecasts []weather.DailyFo
 			   probability_thunderstorm_avg = $28, potential_precipitation_form_mode = $29, potential_precipitation_type_mode = $30,
 			   precipitation_form_mode = $31, precipitation_type_mode = $32, radiation_global_avg = $33, radiation_lw_avg = $34,
 			   weather_number_mode = $35, weather_symbol3_mode = $36, wind_ums_avg = $37, wind_vms_avg = $38, wind_vector_ms_avg = $39,
-			   uv_index_avg = $40`,
+			   uv_index_avg = $40, feels_like_high = $41, feels_like_low = $42, feels_like_avg = $43`,
 			f.GridLat, f.GridLon, f.Date, f.FetchedAt, f.TempHigh, f.TempLow,
 			f.TempAvg, f.WindSpeed, f.WindDir, f.HumidityAvg, f.PrecipMM, f.Precip1hSum, f.Symbol,
 			f.DewPointAvg, f.FogIntensityAvg, f.FrostProbabilityAvg, f.SevereFrostProbabilityAvg, f.GeopHeightAvg, f.PressureAvg,
@@ -434,7 +434,7 @@ func (s *Store) UpsertForecasts(ctx context.Context, forecasts []weather.DailyFo
 			f.HourlyMaximumGustMax, f.HourlyMaximumWindSpeedMax, f.PoPAvg, f.ProbabilityThunderstormAvg,
 			f.PotentialPrecipitationFormMode, f.PotentialPrecipitationTypeMode, f.PrecipitationFormMode, f.PrecipitationTypeMode,
 			f.RadiationGlobalAvg, f.RadiationLWAvg, f.WeatherNumberMode, f.WeatherSymbol3Mode, f.WindUMSAvg, f.WindVMSAvg, f.WindVectorMSAvg,
-			f.UVIndexAvg,
+			f.UVIndexAvg, f.FeelsLikeHigh, f.FeelsLikeLow, f.FeelsLikeAvg,
 		)
 	}
 	br := s.pool.SendBatch(ctx, batch)
@@ -458,7 +458,7 @@ func (s *Store) GetForecasts(ctx context.Context, gridLat, gridLon float64, from
 		        hourly_maximum_gust_max, hourly_maximum_wind_speed_max, pop_avg, probability_thunderstorm_avg,
 		        potential_precipitation_form_mode, potential_precipitation_type_mode, precipitation_form_mode, precipitation_type_mode,
 		        radiation_global_avg, radiation_lw_avg, weather_number_mode, weather_symbol3_mode, wind_ums_avg, wind_vms_avg, wind_vector_ms_avg,
-		        uv_index_avg
+		        uv_index_avg, feels_like_high, feels_like_low, feels_like_avg
 		 FROM forecasts
 		 WHERE grid_lat = $1 AND grid_lon = $2 AND forecast_for >= $3
 		 ORDER BY forecast_for
@@ -481,7 +481,7 @@ func (s *Store) GetForecasts(ctx context.Context, gridLat, gridLon float64, from
 			&f.HourlyMaximumGustMax, &f.HourlyMaximumWindSpeedMax, &f.PoPAvg, &f.ProbabilityThunderstormAvg,
 			&f.PotentialPrecipitationFormMode, &f.PotentialPrecipitationTypeMode, &f.PrecipitationFormMode, &f.PrecipitationTypeMode,
 			&f.RadiationGlobalAvg, &f.RadiationLWAvg, &f.WeatherNumberMode, &f.WeatherSymbol3Mode, &f.WindUMSAvg, &f.WindVMSAvg, &f.WindVectorMSAvg,
-			&f.UVIndexAvg,
+			&f.UVIndexAvg, &f.FeelsLikeHigh, &f.FeelsLikeLow, &f.FeelsLikeAvg,
 		); err != nil {
 			return nil, err
 		}

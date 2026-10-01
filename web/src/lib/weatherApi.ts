@@ -51,6 +51,9 @@ export type DailyForecast = {
   high?: number | null;
   low?: number | null;
   temperature_avg?: number | null;
+  feels_like_high?: number | null;
+  feels_like_low?: number | null;
+  feels_like_avg?: number | null;
   symbol?: string | null;
   wind_speed_avg?: number | null;
   wind_direction_avg?: number | null;

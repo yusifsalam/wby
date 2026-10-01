@@ -3,6 +3,7 @@ package fmi
 import (
 	"math"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -131,6 +132,37 @@ func TestParseForecast(t *testing.T) {
 	if day.Symbol == nil || *day.Symbol != "7" {
 		t.Errorf("expected daily symbol 7, got %v", day.Symbol)
 	}
+
+	hourly, err := ParseHourlyForecast(data, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc, err := time.LoadLocation(result.Timezone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var feels []float64
+	for _, h := range hourly {
+		if h.FeelsLike != nil && h.Time.In(loc).Format("2006-01-02") == day.Date.Format("2006-01-02") {
+			feels = append(feels, *h.FeelsLike)
+		}
+	}
+	if len(feels) == 0 {
+		t.Fatal("expected hourly feels_like on the first day")
+	}
+	if day.FeelsLikeHigh == nil || *day.FeelsLikeHigh != slices.Max(feels) {
+		t.Errorf("expected feels_like_high %v, got %v", slices.Max(feels), day.FeelsLikeHigh)
+	}
+	if day.FeelsLikeLow == nil || *day.FeelsLikeLow != slices.Min(feels) {
+		t.Errorf("expected feels_like_low %v, got %v", slices.Min(feels), day.FeelsLikeLow)
+	}
+	if day.FeelsLikeAvg == nil || *day.FeelsLikeAvg < *day.FeelsLikeLow || *day.FeelsLikeAvg > *day.FeelsLikeHigh {
+		t.Errorf("expected feels_like_avg within [low, high], got %v", day.FeelsLikeAvg)
+	}
+	if *day.FeelsLikeHigh == *day.TempHigh {
+		t.Errorf("expected feels_like_high to differ from temp_high %v", *day.TempHigh)
+	}
+
 	for i := 1; i < len(result.Forecasts); i++ {
 		if !result.Forecasts[i].Date.After(result.Forecasts[i-1].Date) {
 			t.Fatalf("daily forecasts not sorted: %s after %s", result.Forecasts[i].Date, result.Forecasts[i-1].Date)

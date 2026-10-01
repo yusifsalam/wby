@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildNormalsChart,
   deltaTone,
-  feelsLike,
   formatDelta,
   formatStat,
   headlineText,
@@ -82,6 +81,9 @@ const forecast = {
   high: 18.7,
   low: 13.9,
   temperature_avg: 15.8,
+  feels_like_high: 16.2,
+  feels_like_low: 11.4,
+  feels_like_avg: 13.3,
   wind_speed_avg: 5.2,
   precipitation_mm: 0.4,
   hourly_maximum_gust_max: 11.5,
@@ -288,16 +290,6 @@ describe("headline", () => {
   });
 });
 
-describe("feelsLike", () => {
-  it("applies wind chill only in cold, windy conditions", () => {
-    expect(feelsLike(null, 5)).toBeNull();
-    expect(feelsLike(15, 5)).toBe(15);
-    expect(feelsLike(2, 1)).toBe(2);
-    expect(feelsLike(2, null)).toBe(2);
-    expect(feelsLike(0, 5)).toBeCloseTo(-4.9, 1);
-  });
-});
-
 describe("summary stats", () => {
   it("compares forecast high/low and observed feels-like/wind with normals", () => {
     const stats = normalsSummaryStats(normals, observed, forecast);
@@ -378,8 +370,16 @@ describe("detail stats", () => {
     ]);
     const byLabel = Object.fromEntries(stats.map((s) => [s.label, s]));
     expect(byLabel["Feels like mean"]).toMatchObject({
-      value: 15.8,
+      value: 13.3,
       normal: 13.6,
+    });
+    expect(byLabel["Feels like high"]).toMatchObject({
+      value: 16.2,
+      normal: 17.2,
+    });
+    expect(byLabel["Feels like low"]).toMatchObject({
+      value: 11.4,
+      normal: 10.4,
     });
     expect(byLabel.Gusts).toMatchObject({
       kind: "speed",

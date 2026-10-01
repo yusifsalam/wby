@@ -27,18 +27,6 @@ struct DailyNormalsComparison {
     var todayWeatherHigh: Double? { todayForecast?.high }
     var todayWeatherLow: Double? { todayForecast?.low }
 
-    /// Wind chill from air temperature (°C) and wind (m/s), matching the
-    /// server's feels-like for observations and the normals' hourly samples.
-    static func feelsLike(temp: Double?, wind: Double?) -> Double? {
-        guard let temp else { return nil }
-        guard let wind else { return temp }
-        let windKmh = wind * 3.6
-        if temp > 10 || windKmh < 4.8 {
-            return temp
-        }
-        return 13.12 + 0.6215 * temp - 11.37 * pow(windKmh, 0.16) + 0.3965 * temp * pow(windKmh, 0.16)
-    }
-
     func nowDiff(step: Double) -> Double? {
         guard let current = currentTemp, let normal = normals.today.tempNowNormal else { return nil }
         return Self.rounded(current - normal, step: step)
@@ -60,7 +48,7 @@ struct DailyNormalsComparison {
         if let stat = Self.stat(label: "MEAN", current: forecast?.temperatureAvg, normal: today.tempAvg, unit: "°", step: tempStep, decimals: decimals) {
             stats.append(stat)
         }
-        if let stat = Self.stat(label: "FEELS LIKE MEAN", current: Self.feelsLike(temp: forecast?.temperatureAvg, wind: forecast?.windSpeedAvg), normal: today.feelsLikeAvg, unit: "°", step: tempStep, decimals: decimals) {
+        if let stat = Self.stat(label: "FEELS LIKE MEAN", current: forecast?.feelsLikeAvg, normal: today.feelsLikeAvg, unit: "°", step: tempStep, decimals: decimals) {
             stats.append(stat)
         }
         if let stat = highStat(decimals: decimals) {
@@ -69,10 +57,10 @@ struct DailyNormalsComparison {
         if let stat = lowStat(decimals: decimals) {
             stats.append(stat)
         }
-        if let stat = Self.stat(label: "FEELS LIKE HIGH", current: Self.feelsLike(temp: forecast?.high, wind: forecast?.windSpeedAvg), normal: today.feelsLikeHigh, unit: "°", step: tempStep, decimals: decimals) {
+        if let stat = Self.stat(label: "FEELS LIKE HIGH", current: forecast?.feelsLikeHigh, normal: today.feelsLikeHigh, unit: "°", step: tempStep, decimals: decimals) {
             stats.append(stat)
         }
-        if let stat = Self.stat(label: "FEELS LIKE LOW", current: Self.feelsLike(temp: forecast?.low, wind: forecast?.windSpeedAvg), normal: today.feelsLikeLow, unit: "°", step: tempStep, decimals: decimals) {
+        if let stat = Self.stat(label: "FEELS LIKE LOW", current: forecast?.feelsLikeLow, normal: today.feelsLikeLow, unit: "°", step: tempStep, decimals: decimals) {
             stats.append(stat)
         }
         if let stat = windStat(decimals: decimals) {
@@ -288,7 +276,8 @@ extension DailyNormalsComparison {
             currentHumidity: 71,
             currentSnowDepth: nil,
             todayForecast: DailyForecast(
-                date: "2026-09-03", high: 18.7, low: 13.9, temperatureAvg: 15.8, symbol: nil,
+                date: "2026-09-03", high: 18.7, low: 13.9, temperatureAvg: 15.8,
+                feelsLikeHigh: 16.2, feelsLikeLow: 11.4, feelsLikeAvg: 13.3, symbol: nil,
                 windSpeedAvg: 5.2, humidityAvg: 74, precipitationMm: 0.4, hourlyMaximumGustMax: 11.5
             ),
             timeZone: TimeZone(identifier: "Europe/Helsinki") ?? .current
