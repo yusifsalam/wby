@@ -27,7 +27,7 @@ try {
 
 <BaseLayout title={`WBY · ${city.name}`}>
   {result ? (
-    <WeatherDashboard city={city} cities={cities} weather={result.weather} />
+    <WeatherDashboard city={city} cities={cities} weather={result.weather} hourlyWindow={result.hourlyWindow} normals={result.normals} />
   ) : (
     <WeatherUnavailable
       cities={cities}
