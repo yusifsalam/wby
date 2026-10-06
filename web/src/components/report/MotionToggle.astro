@@ -1,0 +1,105 @@
+---
+import { cutCircle, tornRect } from "../../lib/collage/paper";
+import { path, pencil, text } from "../../lib/collage/scene";
+import { curve, n, rng } from "../../lib/collage/sketch";
+
+const r = rng(714);
+const cx = 15;
+const cy = 18;
+const track = tornRect(4, 10, 64, 16, r, { amp: 1.1, step: 3.5 });
+const disc = cutCircle(cx, cy, 10.5, r, 18);
+const rays = Array.from({ length: 10 }, (_, i) => {
+  const a = ((i + (r() - 0.5) * 0.3) / 10) * Math.PI * 2;
+  const r1 = 16.2 + r() * 1.6;
+  return `M${n(cx + 13.2 * Math.cos(a))} ${n(cy + 13.2 * Math.sin(a))}L${n(cx + r1 * Math.cos(a))} ${n(cy + r1 * Math.sin(a))}`;
+}).join("");
+const cheeks = `<ellipse class="f-orange-soft" cx="${cx - 6.4}" cy="${cy + 2.2}" rx="2.2" ry="1.3" opacity="0.8"/><ellipse class="f-orange-soft" cx="${cx + 6.4}" cy="${cy + 2.2}" rx="2.2" ry="1.3" opacity="0.8"/>`;
+const awake = [
+  `<circle class="f-ink" cx="${cx - 3.6}" cy="${cy - 1.8}" r="1.4"/><circle class="f-ink" cx="${cx + 3.6}" cy="${cy - 1.8}" r="1.4"/>`,
+  pencil(
+    curve([
+      [cx - 3.4, cy + 2.4],
+      [cx, cy + 5.4],
+      [cx + 3.4, cy + 2.4],
+    ]),
+    "ink",
+    1.1,
+  ),
+].join("");
+const asleep = [
+  pencil(
+    curve([
+      [cx - 5.4, cy - 1.7],
+      [cx - 3.6, cy - 0.8],
+      [cx - 1.8, cy - 1.7],
+    ]),
+    "ink",
+    1.1,
+  ),
+  pencil(
+    curve([
+      [cx + 1.8, cy - 1.7],
+      [cx + 3.6, cy - 0.8],
+      [cx + 5.4, cy - 1.7],
+    ]),
+    "ink",
+    1.1,
+  ),
+  pencil(
+    curve([
+      [cx - 1.3, cy + 3.8],
+      [cx + 1.3, cy + 3.6],
+    ]),
+    "ink",
+    1,
+  ),
+  text(cx + 10.5, cy - 8, "z", 9, "note-soft"),
+  text(cx + 15, cy - 13, "z", 7, "note-soft"),
+].join("");
+---
+
+<button
+  id="motion-toggle"
+  type="button"
+  role="switch"
+  aria-checked="false"
+  class="cl-switch inline-flex flex-none cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-0.5 text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal"
+>
+  <svg class="cl cl-switch-art" viewBox="0 0 72 34" width="72" height="34" aria-hidden="true">
+    <path class="cl-switch-track" d={track} />
+    <path class="cl-card-grain" d={track} fill="url(#cl-grain)" />
+    <g class="cl-switch-knob">
+      <g class="cl-switch-on">
+        <path class="cl-switch-rays s-sun-deep" d={rays} fill="none" stroke-width="1.8" stroke-linecap="round" style={`transform-origin:${cx}px ${cy}px`} />
+      </g>
+      <Fragment set:html={path(disc, "sun", "sun-deep", 'stroke-width="0.8"')} />
+      <Fragment set:html={cheeks} />
+      <g class="cl-switch-on" set:html={awake} />
+      <g class="cl-switch-off" set:html={asleep} />
+    </g>
+  </svg>
+  <span class="cl-hand text-[1.3rem] leading-none font-semibold">Animations</span>
+</button>
+
+<script>
+  const KEY = "motion";
+  const root = document.documentElement;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  const toggle = document.getElementById("motion-toggle");
+
+  function sync() {
+    toggle?.setAttribute("aria-checked", String(root.classList.contains("cl-motion")));
+  }
+
+  toggle?.addEventListener("click", () => {
+    const on = !root.classList.contains("cl-motion");
+    root.classList.toggle("cl-motion", on);
+    try {
+      if (on === !reduce.matches) localStorage.removeItem(KEY);
+      else localStorage.setItem(KEY, on ? "on" : "off");
+    } catch {}
+    sync();
+  });
+
+  sync();
+</script>

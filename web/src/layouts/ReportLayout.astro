@@ -2,6 +2,7 @@
 import type { CollectionEntry } from "astro:content";
 import Footer from "../components/Footer.astro";
 import CollageDefs from "../components/report/collage/CollageDefs.astro";
+import MotionToggle from "../components/report/MotionToggle.astro";
 import TopBar from "../components/TopBar.astro";
 import { cities } from "../lib/cities";
 import BaseLayout from "./BaseLayout.astro";
@@ -25,9 +26,12 @@ const published = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "lon
         <p class="text-[0.9rem] font-bold text-teal">{frontmatter.kicker}</p>
         <h1 class="mt-2 text-[clamp(2.2rem,6vw,3.6rem)] leading-[1.02] font-bold">{frontmatter.title}</h1>
         <p class="mt-4 text-[clamp(1.05rem,2vw,1.25rem)] leading-normal text-muted">{frontmatter.description}</p>
-        <p class="mt-4 text-[0.85rem] font-[550] text-muted">
-          {frontmatter.station} · Published <time datetime={frontmatter.published}>{published}</time>
-        </p>
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <p class="text-[0.85rem] font-[550] text-muted">
+            {frontmatter.station} · Published <time datetime={frontmatter.published}>{published}</time>
+          </p>
+          <MotionToggle />
+        </div>
       </header>
       <div class="report-prose">
         <slot />

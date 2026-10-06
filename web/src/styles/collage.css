@@ -35,8 +35,8 @@
 }
 
 /* Every animation below is scoped to .cl-motion, which the page sets only
-   when the visitor hasn't asked for reduced motion; without it the collage
-   is shown finished. */
+   when the visitor hasn't asked for reduced motion or turned animations off
+   with the report's switch; without it the collage is shown finished. */
 
 /* Scenes: absolutely positioned cut-paper layers over a sheet of grain. */
 .cl-stage {
@@ -1255,4 +1255,31 @@ html:not(.cl-motion) .cl-tear {
    the scene). */
 .cl-motion [data-cl].is-in .cl-sun-path {
   animation: cl-sun-path 4.2s ease-in-out 0.5s both;
+}
+
+.cl-switch-art {
+  overflow: visible;
+  filter: drop-shadow(0 1px 1px var(--cl-shadow));
+}
+
+.cl-switch-track {
+  fill: var(--cl-cloud-shade);
+}
+
+.cl-motion .cl-switch-track {
+  fill: var(--cl-sky);
+}
+
+.cl-motion .cl-switch-knob {
+  translate: 38px 0;
+  transition: translate 0.45s cubic-bezier(0.3, 1.35, 0.5, 1);
+}
+
+:root:not(.cl-motion) .cl-switch-on,
+.cl-motion .cl-switch-off {
+  display: none;
+}
+
+.cl-motion .cl-switch-rays {
+  animation: cl-spin 24s steps(48) infinite;
 }
