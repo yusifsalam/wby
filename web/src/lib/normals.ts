@@ -241,7 +241,8 @@ export type StatKind =
   | "speed"
   | "percent"
   | "precipitation"
-  | "snow";
+  | "snow"
+  | "hours";
 export type DeltaTone = "warm" | "cold" | "even";
 
 type UnitSpec = {
@@ -272,6 +273,8 @@ function unitSpec(kind: StatKind, system: UnitSystem): UnitSpec {
       return imperial
         ? { scale: 1 / 2.54, offset: 0, unit: " in", decimals: 1 }
         : { scale: 1, offset: 0, unit: " cm" };
+    case "hours":
+      return { scale: 1, offset: 0, unit: " h" };
   }
 }
 

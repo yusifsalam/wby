@@ -1,0 +1,39 @@
+---
+// An inline value in report prose, rendered in both unit systems:
+// t (°C), dt (signed °C difference), dd (unsigned °C difference), mm, ms (m/s)
+// or hpa.
+import { formatPressure } from "../../lib/formatters";
+import { formatDelta, formatStat } from "../../lib/normals";
+import UnitText from "../UnitText.astro";
+
+type Props = {
+  t?: number;
+  dt?: number;
+  dd?: number;
+  mm?: number;
+  ms?: number;
+  hpa?: number;
+  d?: number;
+};
+
+const { t, dt, dd, mm, ms, hpa, d = 1 } = Astro.props;
+
+function unsigned(text: string): string {
+  return text.replace(/^[+−±]/, "");
+}
+
+function pair(): [string, string] {
+  if (t != null) return [formatStat("temperature", t, "metric", d), formatStat("temperature", t, "imperial", d)];
+  if (dt != null) return [formatDelta("temperature", dt, "metric", d), formatDelta("temperature", dt, "imperial", d)];
+  if (dd != null)
+    return [unsigned(formatDelta("temperature", dd, "metric", d)), unsigned(formatDelta("temperature", dd, "imperial", d))];
+  if (mm != null) return [formatStat("precipitation", mm, "metric", d), formatStat("precipitation", mm, "imperial", d)];
+  if (ms != null) return [formatStat("speed", ms, "metric", d), formatStat("speed", ms, "imperial", d)];
+  if (hpa != null) return [formatPressure(hpa, "metric"), formatPressure(hpa, "imperial")];
+  return ["", ""];
+}
+
+const [metric, imperial] = pair();
+---
+
+<span class="whitespace-nowrap"><UnitText metric={metric} imperial={imperial} /></span>

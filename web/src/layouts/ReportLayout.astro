@@ -1,0 +1,38 @@
+---
+import type { CollectionEntry } from "astro:content";
+import Footer from "../components/Footer.astro";
+import CollageDefs from "../components/report/collage/CollageDefs.astro";
+import TopBar from "../components/TopBar.astro";
+import { cities } from "../lib/cities";
+import BaseLayout from "./BaseLayout.astro";
+
+type Props = {
+  frontmatter: CollectionEntry<"posts">["data"];
+};
+
+const { frontmatter } = Astro.props;
+const published = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(
+  new Date(`${frontmatter.published}T00:00:00Z`),
+);
+---
+
+<BaseLayout title={`WBY · ${frontmatter.title}`} description={frontmatter.description}>
+  <CollageDefs />
+  <main class="mx-auto flex min-h-screen w-[min(1180px,100%)] flex-col p-6 max-[820px]:p-4">
+    <TopBar activeSlug="posts" />
+    <article class="report mb-10 rounded-lg border border-line bg-surface/92 px-[clamp(16px,5vw,56px)] py-[clamp(22px,5vw,48px)] shadow-panel">
+      <header class="report-header">
+        <p class="text-[0.9rem] font-bold text-teal">{frontmatter.kicker}</p>
+        <h1 class="mt-2 text-[clamp(2.2rem,6vw,3.6rem)] leading-[1.02] font-bold">{frontmatter.title}</h1>
+        <p class="mt-4 text-[clamp(1.05rem,2vw,1.25rem)] leading-normal text-muted">{frontmatter.description}</p>
+        <p class="mt-4 text-[0.85rem] font-[550] text-muted">
+          {frontmatter.station} · Published <time datetime={frontmatter.published}>{published}</time>
+        </p>
+      </header>
+      <div class="report-prose">
+        <slot />
+      </div>
+    </article>
+    <Footer cities={cities} />
+  </main>
+</BaseLayout>

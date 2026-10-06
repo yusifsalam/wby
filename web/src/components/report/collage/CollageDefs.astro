@@ -1,0 +1,24 @@
+---
+// Shared setup for collage illustrations: the colour classes, the stylesheet
+// and the script that plays each scene as it scrolls into view.
+import grain from "../../../assets/collage/grain.webp";
+import { paletteCss } from "../../../lib/collage/palette";
+import "../../../styles/collage.css";
+---
+
+<script is:inline>if (!matchMedia("(prefers-reduced-motion: reduce)").matches) document.documentElement.classList.add("cl-motion");</script>
+<Fragment set:html={`<style>${paletteCss()}</style>`} />
+<link rel="preload" href="/fonts/caveat-latin.woff2" as="font" type="font/woff2" crossorigin />
+<svg class="cl-defs" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <pattern id="cl-grain" patternUnits="userSpaceOnUse" width="220" height="220">
+      <image href={grain.src} width="220" height="220" />
+    </pattern>
+  </defs>
+</svg>
+
+<script>
+  import { startCollage } from "../../../lib/collage/runtime";
+
+  startCollage();
+</script>

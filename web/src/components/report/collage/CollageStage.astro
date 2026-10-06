@@ -1,0 +1,22 @@
+---
+import { enterClass, layerStyle, type Scene } from "../../../lib/collage/scene";
+
+type Props = {
+  scene: Scene;
+  class?: string;
+  style?: string;
+  grain?: boolean;
+};
+
+const { scene, class: className = "", style = "", grain = true } = Astro.props;
+---
+
+<div class={`cl cl-stage${grain ? " cl-grain" : ""} ${className}`} style={`aspect-ratio:${scene.w}/${scene.h};${style}`} data-cl aria-hidden="true">
+  {scene.layers.map((layer) => (
+    <div class={["cl-layer", enterClass(layer), layer.className, layer.loop].filter(Boolean).join(" ")} style={layerStyle(scene, layer)}>
+      <div class="cl-loop">
+        <svg viewBox={`0 0 ${layer.w} ${layer.h}`} preserveAspectRatio="none" set:html={layer.svg} />
+      </div>
+    </div>
+  ))}
+</div>

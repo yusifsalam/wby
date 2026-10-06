@@ -1,0 +1,22 @@
+---
+import { type CollectionEntry, getCollection, render } from "astro:content";
+import ReportLayout from "../../layouts/ReportLayout.astro";
+
+export const prerender = true;
+
+export async function getStaticPaths() {
+  const posts = await getCollection("posts", (post) => !post.data.draft);
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}
+
+type Props = {
+  post: CollectionEntry<"posts">;
+};
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+---
+
+<ReportLayout frontmatter={post.data}>
+  <Content />
+</ReportLayout>

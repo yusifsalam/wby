@@ -9,7 +9,7 @@ type Props = {
 const { activeSlug } = Astro.props;
 const statsActive = activeSlug === "stats";
 const mapActive = activeSlug === "map";
-const weatherActive = !statsActive && !mapActive;
+const weatherActive = !statsActive && !mapActive && activeSlug !== "posts";
 
 const navLink =
   "flex-none rounded-lg border border-transparent px-2.5 py-2 text-[0.9rem] font-[650] text-muted hover:border-line hover:bg-surface hover:text-ink aria-[current=page]:border-line aria-[current=page]:bg-surface aria-[current=page]:text-ink";

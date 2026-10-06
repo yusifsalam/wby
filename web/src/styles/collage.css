@@ -1,0 +1,1258 @@
+@font-face {
+  font-family: "Caveat";
+  src: url("/fonts/caveat-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --cl-shadow: rgba(52, 38, 20, 0.28);
+  --cl-hand: Caveat, "Segoe Print", "Bradley Hand", cursive;
+  --rc-card: #fffdf8;
+}
+
+:root.dark {
+  --cl-shadow: rgba(0, 0, 0, 0.45);
+  --rc-card: var(--color-surface-strong);
+}
+
+.cl-hand {
+  font-family: var(--cl-hand);
+}
+
+.cl-print {
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial,
+    sans-serif;
+}
+
+.cl-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Every animation below is scoped to .cl-motion, which the page sets only
+   when the visitor hasn't asked for reduced motion; without it the collage
+   is shown finished. */
+
+/* Scenes: absolutely positioned cut-paper layers over a sheet of grain. */
+.cl-stage {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.cl-layer {
+  position: absolute;
+  pointer-events: none;
+}
+
+.cl-layer:not(.cl-base, .cl-flat, .cl-rain) {
+  filter: drop-shadow(0 1.5px 1.2px var(--cl-shadow));
+}
+
+.cl-loop,
+.cl-layer > svg,
+.cl-loop > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.cl-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  background-image: url("../assets/collage/grain.webp");
+  background-size: 320px;
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+
+:root.dark .cl-grain::after {
+  mix-blend-mode: soft-light;
+  opacity: 0.5;
+}
+
+.cl-branch > .cl-loop {
+  transform-origin: 0% 8%;
+}
+
+/* Entrances: each piece is laid down by hand when its scene scrolls in. */
+.cl-in--place,
+.cl-in--swing,
+.cl-in--drop {
+  transform-origin: 50% 50%;
+}
+
+.cl-in--grow {
+  transform-origin: 50% 100%;
+}
+
+.cl-motion [data-cl]:not(.is-in) .cl-in {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-in--place,
+.cl-motion [data-cl].is-in .cl-in--swing {
+  animation: cl-place 0.95s cubic-bezier(0.2, 0.9, 0.25, 1) var(--d, 0s) both;
+}
+
+.cl-motion [data-cl].is-in .cl-in--drop {
+  animation: cl-drop 0.9s cubic-bezier(0.3, 0.7, 0.3, 1) var(--d, 0s) both;
+}
+
+.cl-motion [data-cl].is-in .cl-in--grow {
+  animation: cl-grow 1.05s cubic-bezier(0.25, 0.9, 0.3, 1) var(--d, 0s) both;
+}
+
+.cl-motion [data-cl].is-in .cl-in--fade {
+  animation: cl-fade 0.8s ease-out var(--d, 0s) both;
+}
+
+@keyframes cl-place {
+  0% {
+    opacity: 0;
+    transform: translate(var(--fx, 0%), var(--fy, 0%)) rotate(var(--fr, 0deg))
+      scale(1.08);
+  }
+  45% {
+    opacity: 1;
+  }
+  70% {
+    transform: translate(
+        calc(var(--fx, 0%) * -0.05),
+        calc(var(--fy, 0%) * -0.05)
+      )
+      rotate(calc(var(--fr, 0deg) * -0.12)) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes cl-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(var(--fy, -40%)) rotate(var(--fr, 0deg));
+  }
+  35% {
+    opacity: 1;
+  }
+  55% {
+    transform: translateY(5%) rotate(calc(var(--fr, 0deg) * -0.35));
+  }
+  75% {
+    transform: translateY(-2.5%) rotate(calc(var(--fr, 0deg) * 0.15));
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes cl-grow {
+  0% {
+    opacity: 0;
+    transform: perspective(700px) translateY(var(--fy, 0%)) rotateX(80deg);
+  }
+  40% {
+    opacity: 1;
+  }
+  75% {
+    transform: perspective(700px) rotateX(-7deg);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes cl-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Frame cycles: three takes of a drawing ("line boil"), a scarf or windsock
+   flapping, and the walker's four-frame step. */
+.cl-boil > .cl-f1,
+.cl-boil > .cl-f2,
+.cl-cy1,
+.cl-cy2,
+.cl-fr1,
+.cl-fr2,
+.cl-fr3 {
+  visibility: hidden;
+}
+
+.cl-motion [data-cl].is-in :is(.cl-boil > .cl-f, .cl-cy) {
+  animation: cl-frame3 var(--cycle, 0.42s) steps(1, end) infinite;
+}
+
+.cl-motion [data-cl].is-in :is(.cl-boil > .cl-f1, .cl-cy1) {
+  animation-delay: calc(var(--cycle, 0.42s) / -3);
+}
+
+.cl-motion [data-cl].is-in :is(.cl-boil > .cl-f2, .cl-cy2) {
+  animation-delay: calc(var(--cycle, 0.42s) / -1.5);
+}
+
+.cl-cy {
+  --cycle: 0.36s;
+}
+
+@keyframes cl-frame3 {
+  0% {
+    visibility: visible;
+  }
+  33.333% {
+    visibility: hidden;
+  }
+  100% {
+    visibility: hidden;
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-fr {
+  animation: cl-frame4 0.5s steps(1, end) infinite;
+}
+
+.cl-motion [data-cl].is-in .cl-fr1 {
+  animation-delay: -0.375s;
+}
+
+.cl-motion [data-cl].is-in .cl-fr2 {
+  animation-delay: -0.25s;
+}
+
+.cl-motion [data-cl].is-in .cl-fr3 {
+  animation-delay: -0.125s;
+}
+
+@keyframes cl-frame4 {
+  0% {
+    visibility: visible;
+  }
+  25% {
+    visibility: hidden;
+  }
+  100% {
+    visibility: hidden;
+  }
+}
+
+/* Handwriting appears left to right; pencil strokes draw themselves; labels
+   pop in once the drawing is done. */
+.cl-motion .cl-write {
+  clip-path: inset(-50% 100% -50% 0);
+}
+
+.cl-motion [data-cl].is-in .cl-write {
+  animation: cl-write var(--write, 1.3s) steps(18, end)
+    calc(var(--d, 0s) + 0.45s) forwards;
+}
+
+@keyframes cl-write {
+  to {
+    clip-path: inset(-50% -50% -50% 0);
+  }
+}
+
+.cl-motion .cl-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.cl-motion [data-cl].is-in .cl-draw {
+  animation: cl-draw var(--draw, 0.7s) cubic-bezier(0.5, 0, 0.3, 1)
+    calc(var(--d, 0s) + var(--draw-d, 0.5s)) forwards;
+}
+
+@keyframes cl-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.cl-motion .cl-pop {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-pop {
+  animation: cl-fade 0.2s ease-out calc(var(--d, 0s) + var(--pop-d, 1.1s))
+    forwards;
+}
+
+/* Idle loops, delayed until the entrances have played. */
+.cl-motion [data-cl].is-in .cl-bob > .cl-loop {
+  animation: cl-bob var(--bob, 4s) ease-in-out 1.6s infinite alternate;
+}
+
+@keyframes cl-bob {
+  from {
+    transform: translateY(-2%) rotate(-2deg);
+  }
+  to {
+    transform: translateY(2.5%) rotate(2deg);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-drift > .cl-loop {
+  animation: cl-drift var(--drift, 24s) ease-in-out 1.4s infinite alternate;
+}
+
+@keyframes cl-drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(var(--dx, 10%));
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-branch > .cl-loop {
+  animation: cl-branch 5.5s ease-in-out 2.2s infinite alternate;
+}
+
+@keyframes cl-branch {
+  from {
+    transform: rotate(-1.2deg);
+  }
+  to {
+    transform: rotate(1.6deg);
+  }
+}
+
+.cl-sway {
+  transform-box: view-box;
+}
+
+.cl-motion [data-cl].is-in .cl-sway {
+  animation: cl-sway var(--sway, 2.8s) steps(5, jump-none) 2s infinite alternate;
+}
+
+@keyframes cl-sway {
+  from {
+    transform: rotate(-1.4deg);
+  }
+  to {
+    transform: rotate(1.8deg);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-sun-rays {
+  animation: cl-spin 48s steps(96) infinite;
+}
+
+.cl-motion [data-cl].is-in .cl-clock-minute {
+  animation: cl-spin 15s steps(60) infinite;
+}
+
+.cl-motion [data-cl].is-in .cl-clock-hour {
+  animation: cl-spin 180s steps(60) infinite;
+}
+
+@keyframes cl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-glow {
+  animation: cl-glow 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes cl-glow {
+  from {
+    opacity: 0.15;
+  }
+  to {
+    opacity: 0.55;
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-wave {
+  animation: cl-wave 1.8s linear infinite;
+}
+
+@keyframes cl-wave {
+  to {
+    transform: translateX(var(--wl, -20px));
+  }
+}
+
+/* Hero: rain in two parallax sheets, falling leaves, the walker. */
+.cl-layer.cl-rain {
+  overflow: hidden;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 14%,
+    #000 88%,
+    transparent
+  );
+}
+
+.cl-motion [data-cl].is-in .cl-rain-fall {
+  animation: cl-fall var(--speed, 0.8s) linear infinite;
+}
+
+@keyframes cl-fall {
+  to {
+    transform: translateY(var(--fall));
+  }
+}
+
+.cl-leaf,
+.cl-walker {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-leaf {
+  animation: cl-leaf var(--dur, 11s) linear var(--delay, 2s) infinite;
+}
+
+.cl-motion [data-cl].is-in .cl-leaf > .cl-loop {
+  animation: cl-leaf-swing calc(var(--dur, 11s) / 4) ease-in-out
+    var(--delay, 2s) infinite alternate;
+}
+
+.cl-motion [data-cl].is-in .cl-leaf svg {
+  animation: cl-leaf-spin var(--spin, 1.4s) steps(8) infinite;
+}
+
+@keyframes cl-leaf {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  6% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--drift), var(--fall));
+  }
+}
+
+@keyframes cl-leaf-swing {
+  from {
+    transform: translateX(-140%);
+  }
+  to {
+    transform: translateX(140%);
+  }
+}
+
+@keyframes cl-leaf-spin {
+  0% {
+    transform: rotate(0deg) scaleX(1);
+  }
+  50% {
+    transform: rotate(180deg) scaleX(-0.6);
+  }
+  100% {
+    transform: rotate(360deg) scaleX(1);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-walker {
+  animation: cl-walk 30s steps(360) 2.6s infinite;
+}
+
+@keyframes cl-walk {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(2000%);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-umbrella {
+  animation: cl-umbrella 0.5s steps(2, jump-none) infinite alternate;
+}
+
+@keyframes cl-umbrella {
+  from {
+    transform: rotate(-4deg);
+  }
+  to {
+    transform: rotate(3deg);
+  }
+}
+
+/* Wide scenes: a deckled sheet taped into the article. The hero crops to
+   the middle of its scene on narrow screens; the transect scrolls. */
+.cl-sheet {
+  position: relative;
+  margin-block: 0.4em 2.4em;
+}
+
+.cl-sheet-body {
+  position: relative;
+  rotate: var(--tilt, 0deg);
+}
+
+.cl-sheet-paper,
+.cl-sheet-shadow {
+  aspect-ratio: var(--ratio);
+}
+
+.cl-sheet-paper {
+  position: relative;
+  overflow: hidden;
+  background: var(--cl-sky);
+}
+
+.cl-sheet-shadow {
+  position: absolute;
+  inset: 0;
+  filter: blur(6px);
+  translate: 0 5px;
+  opacity: 0.7;
+}
+
+.cl-sheet-shadow > div {
+  height: 100%;
+  background: var(--cl-shadow);
+}
+
+.cl-sheet-stage {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 100%;
+  translate: -50% 0;
+}
+
+.cl-sheet-tape {
+  position: absolute;
+  top: -14px;
+  z-index: 2;
+  width: clamp(70px, 12%, 120px);
+}
+
+.cl-sheet-tape--l {
+  left: 4%;
+}
+
+.cl-sheet-tape--r {
+  right: 5%;
+}
+
+.cl-motion .cl-sheet-tape {
+  animation: cl-tape 0.45s cubic-bezier(0.3, 1.4, 0.5, 1) 0.15s both;
+}
+
+.cl-motion .cl-sheet-tape--r {
+  animation-delay: 0.3s;
+}
+
+@keyframes cl-tape {
+  from {
+    opacity: 0;
+    transform: scale(1.35) rotate(-6deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cl-sheet-caption {
+  margin-top: 0.6em;
+  font-size: 1.15rem;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+@media (max-width: 640px) {
+  .cl-sheet--crop .cl-sheet-paper,
+  .cl-sheet--crop .cl-sheet-shadow {
+    aspect-ratio: 3 / 2;
+  }
+
+  .cl-sheet--scroll .cl-sheet-scroll {
+    margin-inline: -16px;
+    padding: 16px 16px 10px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
+  .cl-sheet--scroll .cl-sheet-body {
+    width: 640px;
+  }
+}
+
+/* Transect: thermometers fill, a plane takes off, a gull crosses the sea and
+   the lighthouse flashes. */
+.cl-motion [data-cl]:not(.is-in) .cl-mercury {
+  transform: scaleY(0.04);
+}
+
+.cl-motion [data-cl].is-in .cl-mercury {
+  animation: cl-mercury 1.6s cubic-bezier(0.3, 1.2, 0.5, 1) var(--md, 1s) both;
+}
+
+@keyframes cl-mercury {
+  from {
+    transform: scaleY(0.04);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-plane {
+  animation: cl-plane 12s ease-in 2.6s infinite both;
+}
+
+@keyframes cl-plane {
+  0% {
+    opacity: 1;
+    transform: none;
+  }
+  28% {
+    transform: translate(170%, 0);
+  }
+  42% {
+    transform: translate(330%, -55%) rotate(-10deg);
+  }
+  66% {
+    opacity: 1;
+    transform: translate(780%, -540%) rotate(-14deg);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: translate(820%, -580%) rotate(-14deg);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-gull {
+  animation: cl-gull 15s linear 1.2s infinite both;
+}
+
+@keyframes cl-gull {
+  0% {
+    transform: translate(-220%, 30%);
+  }
+  25% {
+    transform: translate(60%, -50%);
+  }
+  50% {
+    transform: translate(340%, 20%);
+  }
+  75% {
+    transform: translate(620%, -40%);
+  }
+  100% {
+    transform: translate(920%, 10%);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-beam {
+  animation: cl-beam 3.2s linear infinite;
+}
+
+.cl-motion [data-cl].is-in .cl-beam-b {
+  animation-delay: -1.6s;
+}
+
+@keyframes cl-beam {
+  0%,
+  49.9% {
+    opacity: 0.4;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Section doodles. Folding rulers unfold one hinge at a time. */
+.cl-motion [data-cl]:not(.is-in) .cl-unfold {
+  transform: rotate(var(--from));
+}
+
+.cl-motion [data-cl].is-in .cl-unfold {
+  animation: cl-unfold 0.5s steps(5, end) var(--ud, 0.3s) both;
+}
+
+@keyframes cl-unfold {
+  from {
+    transform: rotate(var(--from));
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+/* Calendar pages tear off one day at a time. */
+.cl-tear {
+  transform-origin: 90px 42px;
+}
+
+html:not(.cl-motion) .cl-tear {
+  display: none;
+}
+
+.cl-motion [data-cl].is-in .cl-tear {
+  animation: cl-tear 0.5s cubic-bezier(0.55, 0, 0.85, 0.35) var(--t, 0.5s)
+    forwards;
+}
+
+@keyframes cl-tear {
+  0% {
+    opacity: 1;
+    transform: none;
+  }
+  25% {
+    opacity: 1;
+    transform: rotate(calc(var(--tr) * 0.25));
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--tx), 190px) rotate(var(--tr));
+  }
+}
+
+/* Gusts: a dash that runs the length of each wind line, then rests. */
+.cl-motion .cl-gust {
+  stroke-dasharray: 0.3 1;
+  stroke-dashoffset: 0.3;
+}
+
+.cl-motion [data-cl].is-in .cl-gust {
+  animation: cl-gust 2.4s cubic-bezier(0.4, 0, 0.6, 1) var(--gd, 0s) infinite;
+}
+
+@keyframes cl-gust {
+  0% {
+    stroke-dashoffset: 0.3;
+  }
+  55%,
+  100% {
+    stroke-dashoffset: -1;
+  }
+}
+
+/* A leaf tumbling across the ground. */
+.cl-tumble {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-tumble {
+  animation: cl-tumble 4.8s cubic-bezier(0.3, 0, 0.7, 1) var(--delay, 1s)
+    infinite;
+}
+
+.cl-motion [data-cl].is-in .cl-tumble svg {
+  animation: cl-spin 0.9s steps(6) infinite;
+}
+
+@keyframes cl-tumble {
+  0% {
+    opacity: 0;
+    transform: translate(-20%, 0);
+  }
+  8% {
+    opacity: 1;
+  }
+  25% {
+    transform: translate(330%, -60%);
+  }
+  45% {
+    transform: translate(640%, 10%);
+  }
+  65% {
+    transform: translate(940%, -40%);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(1320%, 0);
+  }
+}
+
+/* The rain jar fills day by day (its keyframes come with the scene), the
+   surface ripples, drops fall in while it fills, then it is stamped. */
+.cl-motion [data-cl]:not(.is-in) .cl-rise {
+  transform: translateY(var(--rise));
+}
+
+.cl-motion [data-cl].is-in .cl-rise {
+  animation: cl-jar-rise 4.5s linear 0.4s both;
+}
+
+.cl-drops,
+.cl-drop-fall {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-drops {
+  animation: cl-fade 0.2s 0.4s both;
+}
+
+.cl-motion [data-cl].is-in .cl-drop-fall {
+  animation: cl-drop-fall 0.75s cubic-bezier(0.5, 0, 1, 1)
+    calc(0.4s + var(--dd, 0s)) 6;
+}
+
+@keyframes cl-drop-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(66px);
+  }
+}
+
+.cl-stamp {
+  transform-origin: var(--so, 50% 50%);
+}
+
+.cl-motion .cl-stamp {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-stamp {
+  animation: cl-stamp 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.3) var(--sd, 1s) both;
+}
+
+@keyframes cl-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.9) rotate(-10deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.94) rotate(1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A sleeping radiator's z's drift up. */
+.cl-motion .cl-z {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-z {
+  animation: cl-z 3s ease-out calc(0.8s + var(--zd, 0s)) infinite;
+}
+
+@keyframes cl-z {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(10px, -26px) rotate(-8deg);
+  }
+}
+
+/* A rubber stamp comes down, leaves its mark and lifts away. */
+.cl-stamp-mark {
+  transform-origin: 72% 59%;
+}
+
+.cl-motion .cl-stamp-mark,
+.cl-stamp-tool {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-stamp-mark {
+  animation: cl-stamp-mark 0.3s ease-out 1.05s both;
+}
+
+@keyframes cl-stamp-mark {
+  from {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-stamp-tool {
+  animation: cl-stamp-tool 1.9s cubic-bezier(0.45, 0, 0.3, 1) 0.4s both;
+}
+
+@keyframes cl-stamp-tool {
+  0% {
+    opacity: 0;
+    transform: translateY(-30%);
+  }
+  15% {
+    opacity: 1;
+  }
+  34% {
+    transform: translateY(36%) rotate(-9deg);
+  }
+  40% {
+    transform: translateY(34%) rotate(-9deg) scaleY(0.94);
+  }
+  50% {
+    transform: translateY(36%) rotate(-9deg);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-45%) rotate(4deg);
+  }
+}
+
+/* Section headings: the title with a hand-drawn underline, and a doodle on a
+   taped paper card. */
+.cl-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.25rem;
+  margin-top: 2.8em;
+}
+
+.report-prose .cl-head h2 {
+  margin: 0 0 0.45em;
+}
+
+.cl-title {
+  position: relative;
+}
+
+.cl-underline {
+  position: absolute;
+  bottom: -0.32em;
+  left: -2%;
+  width: 104%;
+  height: 0.42em;
+  overflow: visible;
+}
+
+.cl-underline path {
+  stroke-width: 3px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.85;
+}
+
+.cl-doodle {
+  position: relative;
+  flex: none;
+  width: clamp(124px, 31%, 214px);
+  rotate: var(--tilt, 0deg);
+}
+
+.cl-card,
+.cl-card-tape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.cl-card {
+  filter: drop-shadow(0 2px 2px var(--cl-shadow));
+}
+
+.cl-card-grain {
+  mix-blend-mode: multiply;
+  opacity: 0.75;
+}
+
+:root.dark .cl-card-grain {
+  opacity: 0.45;
+}
+
+.cl-card-tape {
+  z-index: 2;
+}
+
+.cl-doodle-stage {
+  position: absolute;
+  overflow: visible;
+}
+
+.cl-motion .cl-doodle {
+  cursor: pointer;
+  transition: translate 0.2s ease-out;
+}
+
+.cl-motion .cl-doodle:hover {
+  translate: 0 -3px;
+}
+
+.cl-motion .cl-head:not(.is-in) .cl-doodle {
+  opacity: 0;
+}
+
+.cl-motion .cl-head.is-in .cl-doodle {
+  animation: cl-card-in 0.7s cubic-bezier(0.25, 1.1, 0.4, 1) both;
+}
+
+@keyframes cl-card-in {
+  0% {
+    opacity: 0;
+    transform: translate(18%, -12%) rotate(8deg) scale(1.06);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .cl-head {
+    gap: 0.75rem;
+  }
+
+  .cl-doodle {
+    width: 118px;
+  }
+}
+
+/* Headline tiles: taped cards that drop in one after another. */
+.report-stats.cl .report-stat {
+  position: relative;
+  rotate: var(--tilt, 0deg);
+  box-shadow: 0 2px 3px var(--cl-shadow);
+}
+
+.cl-tile-tape {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  width: 56px;
+  overflow: visible;
+  translate: -50% 0;
+}
+
+.cl-motion .report-stats.cl:not(.is-in) .report-stat {
+  opacity: 0;
+}
+
+.cl-motion .report-stats.cl.is-in .report-stat {
+  animation: cl-tile-in 0.65s cubic-bezier(0.25, 1.15, 0.4, 1)
+    calc(var(--i, 0) * 0.09s) both;
+}
+
+@keyframes cl-tile-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-26px) rotate(calc(var(--tilt, 0deg) * -3))
+      scale(1.04);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Charts: pasted-in print-outs whose lines sweep in left to right, with dots,
+   columns and ranges popping up as the sweep passes them. */
+.rc[data-cl] {
+  position: relative;
+  padding: 18px 18px 12px;
+  border-radius: 3px;
+  background: var(--rc-card);
+  box-shadow:
+    0 1px 2px var(--cl-shadow),
+    0 8px 18px -12px var(--cl-shadow);
+}
+
+.rc[data-cl]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: url("../assets/collage/grain.webp") 0 0 / 260px;
+  mix-blend-mode: multiply;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+:root.dark .rc[data-cl]::before {
+  mix-blend-mode: soft-light;
+  opacity: 0.25;
+}
+
+.rc-tape {
+  position: absolute;
+  top: -10px;
+  z-index: 1;
+  width: 64px;
+  overflow: visible;
+}
+
+.rc-tape--l {
+  left: 7%;
+}
+
+.rc-tape--r {
+  right: 7%;
+}
+
+.rc[data-cl] :is(.rc-col, .rc-range) {
+  transform-origin: 50% 100%;
+}
+
+.cl-motion .rc[data-cl]:not(.is-in) .rc-plot > svg {
+  clip-path: inset(-10% 100% -10% 0);
+}
+
+.cl-motion .rc[data-cl]:not(.is-in) .rc-dot {
+  scale: 0;
+}
+
+.cl-motion .rc[data-cl]:not(.is-in) :is(.rc-col, .rc-range) {
+  scale: 1 0;
+}
+
+.cl-motion .rc[data-cl]:not(.is-in) .rc-note {
+  opacity: 0;
+}
+
+.cl-motion .rc[data-cl].is-in .rc-plot > svg {
+  animation: rc-wipe 1.5s cubic-bezier(0.45, 0, 0.25, 1) 0.15s both;
+}
+
+.cl-motion .rc[data-cl].is-in .rc-dot {
+  animation: rc-pop 0.36s cubic-bezier(0.3, 1.6, 0.5, 1)
+    calc(0.15s + var(--t, 0) * 1.4s) both;
+}
+
+.cl-motion .rc[data-cl].is-in :is(.rc-col, .rc-range) {
+  animation: rc-grow 0.5s cubic-bezier(0.3, 1.3, 0.5, 1)
+    calc(0.15s + var(--t, 0) * 1.4s) both;
+}
+
+.cl-motion .rc[data-cl].is-in .rc-note {
+  animation: cl-fade 0.45s ease-out 1.55s both;
+}
+
+@keyframes rc-wipe {
+  from {
+    clip-path: inset(-10% 100% -10% 0);
+  }
+  to {
+    clip-path: inset(-10% -1% -10% 0);
+  }
+}
+
+@keyframes rc-pop {
+  from {
+    scale: 0;
+  }
+  to {
+    scale: 1;
+  }
+}
+
+@keyframes rc-grow {
+  from {
+    scale: 1 0;
+  }
+  to {
+    scale: 1 1;
+  }
+}
+
+/* Highlighter swipes across key phrases. */
+.cl-mark {
+  padding: 0 0.12em;
+  margin: 0 -0.12em;
+  color: inherit;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 204 40' preserveAspectRatio='none'%3E%3Cpath d='M0.0 9.0L8.0 4.5L20.0 5.1L32.0 5.3L44.0 5.9L56.0 5.1L68.0 5.9L80.0 1.9L92.0 3.8L104.0 6.0L116.0 4.7L128.0 5.8L140.0 2.3L152.0 3.9L164.0 2.9L176.0 4.2L188.0 4.3L200.0 6.0L203.0 18.0L200.0 30.0L192.0 33.9L180.0 34.8L168.0 35.0L156.0 37.8L144.0 37.2L132.0 34.5L120.0 37.3L108.0 34.4L96.0 36.5L84.0 34.4L72.0 33.8L60.0 37.6L48.0 34.7L36.0 34.7L24.0 38.1L12.0 37.6L2.0 33.0L-1.0 26.0L3.7 18.0L0.8 12.0Z' fill='rgba%28246,185,59,0.5%29'/%3E%3C/svg%3E")
+    no-repeat 0 55% / 100% 92%;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.cl-motion .cl-mark {
+  background-size: 0% 92%;
+  transition: background-size 1.1s cubic-bezier(0.55, 0, 0.25, 1) 0.25s;
+}
+
+.cl-motion .cl-mark.is-in {
+  background-size: 100% 92%;
+}
+
+:root.dark .cl-mark {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 204 40' preserveAspectRatio='none'%3E%3Cpath d='M0.0 9.0L8.0 4.8L20.0 2.7L32.0 5.9L44.0 4.8L56.0 6.1L68.0 5.7L80.0 3.1L92.0 3.4L104.0 2.5L116.0 2.4L128.0 2.1L140.0 3.1L152.0 4.5L164.0 1.8L176.0 4.8L188.0 3.3L200.0 6.0L203.0 18.0L200.0 30.0L192.0 35.2L180.0 37.4L168.0 35.9L156.0 35.2L144.0 35.9L132.0 36.9L120.0 34.1L108.0 38.1L96.0 33.9L84.0 37.1L72.0 37.5L60.0 33.9L48.0 37.3L36.0 35.4L24.0 36.3L12.0 33.8L2.0 33.0L-2.7 26.0L-1.7 18.0L3.7 12.0Z' fill='rgba%28234,88,12,0.38%29'/%3E%3C/svg%3E");
+}
+
+/* Hero parallax: layers drift by depth as the page scrolls. */
+.cl-motion .cl-parallax .cl-layer {
+  translate: 0 calc(var(--py, 0) * var(--depth, 0) * -0.09px);
+}
+
+.cl-sun-body {
+  pointer-events: visiblePainted;
+  cursor: pointer;
+}
+
+.cl-face-awake,
+.cl-sun-body:hover .cl-face-asleep {
+  display: none;
+}
+
+.cl-sun-body:hover .cl-face-awake {
+  display: inline;
+}
+
+/* A sun crosses the sky over the sunshine recorder (its keyframes come with
+   the scene). */
+.cl-motion [data-cl].is-in .cl-sun-path {
+  animation: cl-sun-path 4.2s ease-in-out 0.5s both;
+}

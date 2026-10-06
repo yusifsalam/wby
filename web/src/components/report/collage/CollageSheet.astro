@@ -1,0 +1,58 @@
+---
+// A wide collage scene on a deckled sheet taped into the article. On narrow
+// screens it either crops to the middle of the scene or scrolls sideways.
+import { tape } from "../../../lib/collage/paper";
+import type { Scene } from "../../../lib/collage/scene";
+import { rng } from "../../../lib/collage/sketch";
+import CollageStage from "./CollageStage.astro";
+
+type Props = {
+  scene: Scene;
+  seed: number;
+  narrow: "crop" | "scroll";
+  label?: string;
+  class?: string;
+  parallax?: boolean;
+};
+
+const { scene, seed, narrow, label, class: className = "", parallax = false } = Astro.props;
+const r = rng(seed);
+
+function deckle(): string {
+  const pts: string[] = [];
+  const edge = (count: number, at: (t: number, j: number) => [number, number]) => {
+    for (let i = 0; i < count; i++) {
+      const [x, y] = at(i / count, r() - 0.5);
+      pts.push(`${x.toFixed(2)}% ${y.toFixed(2)}%`);
+    }
+  };
+  edge(70, (t, j) => [t * 100, 0.6 + j * 0.9]);
+  edge(24, (t, j) => [99.75 + j * 0.35, t * 100]);
+  edge(70, (t, j) => [100 - t * 100, 99.2 + j * 1.3]);
+  edge(24, (t, j) => [0.25 + j * 0.35, 100 - t * 100]);
+  return `polygon(${pts.join(",")})`;
+}
+
+const clip = deckle();
+const tones = ["tape-amber", "tape-blue", "tape-mint", "tape-orange"];
+const tapes = [
+  { side: "l", tone: tones[seed % 4], angle: -8 + r() * 4 },
+  { side: "r", tone: tones[(seed + 1) % 4], angle: 4 + r() * 4 },
+].map((t) => ({ ...t, d: tape(60, 20, 112, 30, t.angle, r) }));
+const tilt = ((r() - 0.5) * 1.4).toFixed(2);
+---
+
+<figure class={`cl cl-sheet cl-wide cl-sheet--${narrow} ${className}`} style={`--tilt:${tilt}deg;--ratio:${scene.w}/${scene.h}`}>
+  <div class="cl-sheet-scroll">
+    <div class="cl-sheet-body">
+      <div class="cl-sheet-shadow" aria-hidden="true"><div style={`clip-path:${clip}`}></div></div>
+      <div class="cl-sheet-paper" style={`clip-path:${clip}`}>
+        <CollageStage scene={scene} class={`cl-sheet-stage${parallax ? " cl-parallax" : ""}`} />
+      </div>
+      {tapes.map((t) => (
+        <svg class={`cl-sheet-tape cl-sheet-tape--${t.side}`} viewBox="0 0 120 40" aria-hidden="true"><path class={`f-${t.tone}`} d={t.d} /></svg>
+      ))}
+    </div>
+  </div>
+  {label && <figcaption class="cl-sheet-caption cl-hand">{label}</figcaption>}
+</figure>

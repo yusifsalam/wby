@@ -1,0 +1,130 @@
+---
+title: September 2026 in Helsinki
+kicker: Monthly climate report
+description: Mild and wet, but not grey. September ran well above both the official 1991–2020 normal and the average of the last thirty years, brought over 60% more rain than usual, got its usual share of sunshine, and was still the coolest of the last four Septembers.
+station: Helsinki Kaisaniemi
+published: "2026-10-05"
+draft: true
+---
+
+import data from "./helsinki.json";
+import HeroCollage from "../../../../components/report/collage/HeroCollage.astro";
+import Mark from "../../../../components/report/collage/Mark.astro";
+import SectionHead from "../../../../components/report/collage/SectionHead.astro";
+import TransectExhibit from "../../../../components/report/collage/TransectExhibit.astro";
+import DaytimeSummary from "../../../../components/report/DaytimeSummary.astro";
+import MonthSummary from "../../../../components/report/MonthSummary.astro";
+import ReportChart from "../../../../components/report/ReportChart.astro";
+import StationsTable from "../../../../components/report/StationsTable.astro";
+import V from "../../../../components/report/V.astro";
+import { dailyChart, rainChart, septembersChart, sunshineChart } from "../../../../lib/reportChart";
+
+<HeroCollage />
+
+September 2026 averaged <V t={13.7} /> at Kaisaniemi, the weather station in central Helsinki whose record goes back to 1844. That is <V dd={1.4} /> above the official 1991–2020 normal and <V dd={1.1} /> above the average of the last thirty Septembers. With wind and humidity factored in it felt like <V t={11.4} />, also more than a degree warmer than normal. It was the seventh-warmest September since 1961, and yet <Mark>the coolest of the last four</Mark>: 2023, 2024 and 2025 were all warmer.
+
+Rain was the bigger story. <V mm={89.8} /> fell, <Mark>161% of normal</Mark>, and almost half of it came in the last ten days. Yet it was not a grey month: the sun shone for about as many hours as in an ordinary September, just in all-or-nothing days.
+
+<MonthSummary report={data} monthName="September" />
+
+<SectionHead id="two-yardsticks" title="Two yardsticks" art="rulers" report={data} />
+
+A climate normal is a thirty-year average. The current official period, set by the World Meteorological Organization, is 1991–2020, and it is what the Finnish Meteorological Institute (FMI) publishes for every station. For September at Kaisaniemi that means <V t={12.3} /> and <V mm={55.7} /> of rain. It stays the reference until 2001–2030 replaces it in the early 2030s.
+
+A fixed period ages, and in a warming climate it ages in one direction. So this report also uses a running normal: the thirty most recent complete Septembers, 1996–2025.
+
+For September in Helsinki the two yardsticks are about a third of a degree apart: <V t={12.3} /> against <V t={12.65} d={2} />. The gap is the five Septembers that left the window (1991–1995, averaging <V t={11.1} />) being replaced by five much warmer ones (2021–2025, averaging <V t={13.4} />). Over a longer view the shift is larger. The 1961–1990 normal was <V t={11.0} />, and the running thirty-year mean bottomed out at <V t={10.8} /> for 1968–1997 before climbing to today's <V t={12.65} d={2} />.
+
+<ReportChart title="Every September at Kaisaniemi since 1961" spec={septembersChart(data.septembers, data.standard_normals, 2026)} />
+
+Against either yardstick, 2026 was clearly warm but not extreme. Three Septembers in 1991–2020 were warmer (2006, 2018 and 2020), and six in 1996–2025. Measured against the 1961–1990 climate, though, it would have been the warmest September of all thirty.
+
+The rain normal has barely moved: <V mm={55.7} /> for 1991–2020 and <V mm={56.0} /> for 1996–2025. Both sit well below the <V mm={74.1} /> of 1961–1990, when Helsinki's Septembers were wetter.
+
+<SectionHead id="day-by-day" title="Day by day" art="calendar" report={data} />
+
+<ReportChart title="Daily temperature against the normal" spec={dailyChart(data.days)} />
+
+The month had no real heat and no real cold. The highest temperature was <V t={20.1} /> on the 2nd, the only day to reach <V t={20} d={0} />, where a typical September has two. The lowest was <V t={5.3} /> on the morning of the 7th. A normal September brings three or four nights below <V t={5} d={0} />; <Mark>this one had none</Mark>, for only the eighth time since 1961 (the last was 2023).
+
+The warmth came from mild, cloudy days and nights instead, with the wind from the south-west more than a third of the time. 22 of the 30 days were warmer than the running normal, nine of them by <V dd={2} d={0} /> or more, and only the 7th fell that far below it. The normal daily mean drops by about <V dd={5} d={0} /> through September, from <V t={15.0} /> to <V t={10.1} />; this year it slid only from <V t={16} d={0} />–<V t={17} d={0} /> to around <V t={12} d={0} />, so the gap widened as the month went on, from <V dt={0.4} /> in the first ten days to <V dt={1.5} /> in the last ten.
+
+- **1–3 September** carried summer over, with daily means of <V t={16} d={0} />–<V t={17} d={0} /> and a high of <V t={20.1} /> on the 2nd.
+- **4–7 September**: a low passed over on the 5th (<V hpa={994} /> in the morning), followed by cool north-westerly air. The 7th was the month's coldest day relative to normal, <V dt={-2.6} />.
+- **8–20 September** were mostly mild and increasingly wet, apart from two clear, cool days on the 14th and 15th. The 16th to the 20th ran <V dd={2.3} />–<V dd={3.1} /> above the running normal, and in the small hours of the 20th gusts reached <V ms={17.9} /> at Kaisaniemi and <V ms={21.2} /> on Harmaja.
+- **22–23 September** brought a brief chill. The 23rd peaked at only <V t={11.9} />, and its daily mean of <V t={10.0} /> was the month's one dip to the <V t={10} d={0} /> threshold of thermal autumn.
+- **24–26 September**: three overcast days brought <V mm={38.4} /> of rain.
+- **27–30 September**: high pressure built to <V hpa={1039} /> by the night of the 30th. Clear nights on the 28th and 30th fell to <V t={7.5} />, but the cloudy 29th was the warmest day of the month relative to normal, <V dt={3.8} />.
+
+<SectionHead id="feels-like" title="Feels like" art="feels" report={data} />
+
+Feels-like on this site is the air temperature adjusted for wind chill and, in warm hours, for humidity. It is the same calculation the app shows, without the sunshine term that only some stations can supply. Worked out hour by hour, September 2026 felt like <V t={11.4} /> on average: <V dd={2.3} /> cooler than the thermometer, but <V dd={1.3} /> warmer than the 1991–2020 normal (<V t={10.05} d={2} />) and <V dd={1.2} /> warmer than 1996–2025 (<V t={10.23} d={2} />).
+
+<ReportChart title="Daily feels-like against the normal" spec={dailyChart(data.days, "feels")} />
+
+The wind took off about as much as usual, <V dd={2.3} /> against <V dd={2.4} /> in an average September, so feels-like followed the temperature. 23 of the 30 days felt warmer than normal, and the gap grew from <V dt={0.5} /> in the first ten days to <V dt={1.7} /> in the last ten. <Mark>Nights stood out most</Mark>: the daily feels-like low averaged <V t={8.6} />, <V dd={1.5} /> above normal, while the daily high ran <V dd={1.1} /> above.
+
+Cold-feeling moments were rare. The month's lowest feels-like was <V t={2.8} />, at 7 am on the 7th after a clear night (air <V t={5.6} />, wind <V ms={2.5} />). In a typical September the coldest hour feels like about <V t={0} d={0} />, and 27 of the last 30 had a colder-feeling one. The exception was the 6th, when a fresh north-westerly (<V ms={5.1} /> on average) made a <V t={12.5} /> day feel like <V t={9.3} />: <V dd={3.1} /> below the normal feels-like, against <V dd={1.9} /> below by temperature alone. The warmest-feeling hour was <V t={18.0} />, at 4 pm on the 2nd.
+
+Wind also reshuffles the rankings. By temperature, 2026 was the seventh-warmest of the 31 Septembers since 1996, when the hourly record starts; by feels-like it was eighth. The calmer Septembers of 1999 and 2015 drew level or edged ahead, while windy 2020 (<V ms={4.3} /> on average) had practically the same mean temperature as 2026 but felt <V dd={0.3} /> cooler.
+
+<SectionHead id="rain-arrived-late" title="Rain arrived late" art="jar" report={data} />
+
+<ReportChart title="Rain, month to date" spec={rainChart(data.days)} />
+
+Through 10 September rainfall was on schedule: <V mm={18.5} /> against a normal <V mm={19.8} />. The wet spell of 16–19 September pushed it ahead, to <V mm={48.7} /> by the 20th against a normal of about <V mm={42} d={0} />. Then 24–26 September added <V mm={38.4} /> in three days, <V mm={16.1} /> of it on the 25th.
+
+The final <V mm={89.8} /> is 161% of the 1991–2020 normal and the twelfth-highest September total since 1961. Of the last thirty Septembers, only 2012 (<V mm={159.9} />) was wetter.
+
+The rain was persistent rather than heavy. The wettest day, <V mm={16.1} />, is about what the wettest day of an ordinary September brings (<V mm={15} d={0} /> on average). What stood out was how often it rained: <Mark>16 days had at least <V mm={1} d={0} />, almost twice the normal 8.6</Mark>, and since 1961 only 1974 and 2012 had more. The last four days of the month were dry.
+
+<SectionHead id="sunshine" title="Sunshine" art="recorder" report={data} />
+
+Kaisaniemi doesn't record sunshine. Helsinki's sunshine recorders are at Kumpula, three kilometres away, and at Helsinki-Vantaa airport, which also has an official normal. For all its rain, September 2026 got its usual share. Helsinki-Vantaa logged <Mark>154.8 hours of sunshine</Mark>, 104% of the 1991–2020 normal of 149.5 hours and almost exactly its average since 1999 (153.8 hours). That puts it 13th of the 28 Septembers on record there, right in the middle. Kumpula, in the city, saw 159.5 hours against its average of 147.7 since 2006.
+
+<ReportChart title="Hours of sunshine each day at Helsinki-Vantaa" spec={sunshineChart(data.sunshine.primary.days, data.sunshine.primary.name, data.sunshine.primary.base_years)} />
+
+What was unusual was how the sunshine came: in all-or-nothing days. Nine days had less than half an hour of sun, against five in an average September, and ten had eight hours or more, against eight. The rain fell on the grey days, as fronts clouded the sky over completely, while the high pressure in between brought clear skies. The 14th was the sunniest day, with 11.8 hours out of a possible 13.1, and the 22nd, 27th and 30th came close.
+
+The grey days were also the mild ones. The nine dullest days averaged <V dt={1.8} /> against the running normal, with nights <V dd={3.3} /> warmer than usual under the cloud, while the ten sunniest averaged only <V dt={0.2} />: warm afternoons, but clear nights <V dd={0.8} /> cooler than normal. The dull days also brought <V mm={54.6} /> of the month's rain, the sunny ones <V mm={2.7} />. Over the month the sun shone for 40% of the hours it was up, and each square metre of ground received 274 MJ of solar energy, 101% of normal.
+
+<SectionHead id="out-and-about" title="Out and about" report={data} />
+
+A monthly mean gives the small hours as much weight as the afternoon, though few people are outdoors at 4 am. So this report also looks at the hours from 8 am to 9 pm, the window WeatherSpark uses for its tourism score, which rates how pleasant a place's weather is for being outside. That is 13 hours a day, 390 over the month.
+
+<DaytimeSummary daytime={data.daytime} />
+
+By temperature, those hours were as mild as the rest of the month. They averaged <V t={14.8} />, <V dd={1.0} /> above the same hours in 1996–2025, and since 1996 only 2006, 2018 and the last three Septembers had warmer days. They felt like <V t={12.45} />, also <V dd={1.0} /> warmer than usual.
+
+Rain is where the window tells a different story. It rained in 68 of the 390 hours, almost twice the 36 of an average September since 2013, when Kaisaniemi's hourly rain record starts, and <Mark>more than in any of them</Mark>; the previous high was 60, in 2019. The nights got wetter too, but less so, with 41 rainy hours against the usual 26. On 12 days at least <V mm={1} d={0} /> fell between 8 am and 9 pm, against about six normally, and only 16 days stayed dry through the whole window, against about 20.
+
+What fell by day was mostly light. The window caught <V mm={48.2} />, just over half the month's total and a little less than its usual share, spread over 68 hours; the 41 rainy hours at night brought <V mm={41.6} />. The sun, by contrast, kept to its usual hours. Almost all of September's sunshine falls between 8 am and 9 pm anyway, and at Helsinki-Vantaa it came to 148.8 hours, close to the average of 146.3 since 1999.
+
+<SectionHead id="wind-humidity-and-cloud" title="Wind, humidity and cloud" art="windsock" report={data} />
+
+In other respects the month was ordinary. Mean wind speed was <V ms={3.6} /> against a normal of <V ms={3.4} />, and ten of the last thirty Septembers were windier. The strongest gust, <V ms={17.9} /> at 05:10 on the 20th, was beaten in twelve of those thirty years. Relative humidity averaged 84% (normal 82%), more than in all but nine of them. Cloud cover averaged 4.3 oktas (eighths of the sky), with eight mostly clear days and eight overcast ones.
+
+<SectionHead id="across-helsinki" title="Across Helsinki" report={data} />
+
+<TransectExhibit stations={data.stations} caption="From the airport to the sea: each thermometer is filled to the station's September mean, the blue tab marks its feels-like." />
+
+<StationsTable stations={data.stations} />
+
+The pattern held across the city. Harmaja, a lighthouse island off Helsinki, was the warmest at <V t={14.1} /> and never fell below <V t={8.6} />, with the sea still giving back summer heat. Helsinki-Vantaa airport, 17 km to the north, was the coolest at <V t={12.7} /> with a low of <V t={1.6} />, yet still <V dd={1.1} /> above its own 1991–2020 normal. It collected <V mm={101} d={0} /> of rain, 164% of normal. Feels-like reorders the list: the open-sea wind cut Harmaja's to <V t={10.7} />, so the warmest station by thermometer felt <V dd={0.7} /> cooler than central Helsinki. Kumpula, three kilometres from Kaisaniemi, has too short a record for normals of its own. Harmaja has no rain gauge, and Kumpula's missed an hour of the month.
+
+<SectionHead id="heating-and-thermal-autumn" title="Heating and thermal autumn" art="radiator" report={data} />
+
+September 2026 needed almost no heating. By FMI's heating degree-day measure (each autumn day whose mean temperature is below <V t={10} d={0} /> adds the difference between <V t={17} d={0} /> and that mean), Kaisaniemi logged <Mark>7 degree days against a normal of 63</Mark>. Since 1961 only 1992 and 2023, with none at all, needed less.
+
+Thermal autumn begins when the daily mean temperature falls below <V t={10} d={0} /> for good. Apart from the 23rd, September stayed above that line, and the first days of October were still at <V t={11} d={0} />–<V t={13} d={0} />. So as of 5 October autumn proper had not begun in Helsinki, which is normal for recent decades: it has usually arrived during October.
+
+<SectionHead id="about-the-data" title="About the data" art="stamp" report={data} />
+
+- **Station.** Helsinki Kaisaniemi (FMISID 100971); Kumpula, Harmaja and Helsinki-Vantaa for the comparison table.
+- **September 2026.** The 10-minute observations this site collects from FMI's open data, grouped into Helsinki calendar days: daily mean, highest and lowest temperature, and hourly rainfall totals. The month has no gaps.
+- **History.** FMI's daily observations for 1961–2025, and its hourly observations for wind, gusts and humidity in 1996–2025. Kaisaniemi's record goes back to 1844, but the rankings here start in 1961.
+- **Normals.** The 1991–2020 temperature and rainfall normals are FMI's official values. The running 1996–2025 normal and the day counts (rainy days, warm days, cold nights) are computed from the same history. Daily normal curves average each calendar day with the week either side (five days for rain), as on this site's climate normals card.
+- **Feels-like.** Hourly mean temperature, wind and humidity through the site's feels-like formula (wind chill, plus a humidity correction above <V t={14.5} />; no solar radiation), the same way the feels-like normals are built. FMI's hourly record at Kaisaniemi starts in 1996, so the 1991–2020 feels-like normal covers 1996–2020 and the feels-like rankings start in 1996.
+- **Sunshine.** FMI's minute-by-minute sunshine and global radiation observations at Helsinki-Vantaa (from 1999) and Kumpula (from 2005), summed over Helsinki calendar days. The 1991–2020 sunshine and radiation normals are FMI's official values for Helsinki-Vantaa. Daylight is the time the sun is above the horizon.
+- **Daytime.** The hours from 8 am to 9 pm Helsinki time, as in WeatherSpark's tourism score. Temperature and feels-like are compared with the same hours in FMI's hourly record from 1996. A rainy hour is one in which the gauge measured any rain; FMI's hourly rain totals for Kaisaniemi start in 2013.
+- FMI's own monthly statistics can differ from these figures by a tenth of a degree or a millimetre or two.

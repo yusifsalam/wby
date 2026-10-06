@@ -1,8 +1,10 @@
 // @ts-check
-import { defineConfig } from "astro/config";
+
+import mdx from "@astrojs/mdx";
 import node from "@astrojs/node";
 
 import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "astro/config";
 
 try {
   process.loadEnvFile(".env");
@@ -21,4 +23,6 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
   },
+
+  integrations: [mdx()],
 });

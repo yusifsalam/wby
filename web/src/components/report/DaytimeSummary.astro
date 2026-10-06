@@ -1,0 +1,83 @@
+---
+// Tiles for the hours people are up and about: mean temperature and
+// feels-like against their record, and how many of those hours had rain.
+import { tape } from "../../lib/collage/paper";
+import { rng } from "../../lib/collage/sketch";
+import { deltaTone, formatDelta, formatStat } from "../../lib/normals";
+import { ordinal, type ReportDaytime } from "../../lib/reportChart";
+import UnitText from "../UnitText.astro";
+
+type Props = {
+  daytime: ReportDaytime;
+};
+
+const { daytime } = Astro.props;
+const { rain } = daytime;
+
+const toneClass = {
+  warm: "text-red-600 dark:text-red-400",
+  cold: "text-blue-600 dark:text-blue-400",
+  even: "text-muted",
+};
+
+function clock(hour: number): string {
+  return `${hour % 12 || 12} ${hour < 12 ? "am" : "pm"}`;
+}
+
+const hours = `${clock(daytime.hours[0])}–${clock(daytime.hours[1])}`;
+
+const r = rng(821);
+const cards = ["tape-mint", "tape-orange", "tape-blue"].map((tone, i) => ({
+  style: `--i:${i};--tilt:${((r() - 0.5) * 2.4).toFixed(2)}deg`,
+  tape: tape(30, 10, 54, 15, (r() - 0.5) * 18, r),
+  tone,
+}));
+
+const temperatures = [
+  { label: "Temperature", value: daytime.temp_avg, normal: daytime.base_temp_avg, rank: daytime.temp_rank },
+  { label: "Feels-like", value: daytime.feels_avg, normal: daytime.base_feels_avg, rank: daytime.feels_rank },
+].map((tile) => {
+  const diff = tile.value - tile.normal;
+  return { ...tile, diff, tone: toneClass[deltaTone("temperature", diff, 1)] };
+});
+
+const [mostYear, mostHours] = rain.wet_hours_max;
+const rainRank =
+  rain.wet_hours_rank.rank === 1
+    ? `the most since ${rain.base_years[0]}; ${mostYear} had ${mostHours}`
+    : `${ordinal(rain.wet_hours_rank.rank)} most of ${rain.wet_hours_rank.of} since ${rain.base_years[0]}`;
+---
+
+<dl class="report-stats cl" data-cl>
+  {temperatures.map((tile, i) => (
+    <div class="report-stat" style={cards[i].style}>
+      <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[i].tone}`} d={cards[i].tape} /></svg>
+      <dt>{tile.label}, {hours}</dt>
+      <dd class="report-stat-value" data-count data-count-delay={300 + i * 90}>
+        <UnitText metric={formatStat("temperature", tile.value, "metric", 1)} imperial={formatStat("temperature", tile.value, "imperial", 1)} />
+      </dd>
+      <dd class="report-stat-line">
+        <strong class={tile.tone}>
+          <UnitText metric={formatDelta("temperature", tile.diff, "metric", 1)} imperial={formatDelta("temperature", tile.diff, "imperial", 1)} />
+        </strong>
+        {" "}vs {daytime.base_years.join("–")} ·{" "}
+        <UnitText metric={formatStat("temperature", tile.normal, "metric", 1)} imperial={formatStat("temperature", tile.normal, "imperial", 1)} />
+      </dd>
+      <dd class="report-stat-line">
+        {ordinal(tile.rank.rank)} warmest of {tile.rank.of} since {daytime.base_years[0]}
+      </dd>
+    </div>
+  ))}
+  <div class="report-stat" style={cards[2].style}>
+    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[2].tone}`} d={cards[2].tape} /></svg>
+    <dt>Rainy hours, {hours}</dt>
+    <dd class="report-stat-value" data-count data-count-delay="480">{rain.wet_hours}</dd>
+    <dd class="report-stat-line">
+      normally <strong>{rain.base_wet_hours.toFixed(1)}</strong> in {rain.base_years.join("–")}
+    </dd>
+    <dd class="report-stat-line">{rainRank}</dd>
+    <dd class="report-stat-line">
+      of {daytime.window_hours}, with at least <UnitText metric="0.1 mm" imperial="0.004 in" />
+    </dd>
+  </div>
+</dl>

@@ -1,0 +1,84 @@
+---
+// A report section heading with a hand-drawn underline and an animated doodle
+// on a taped paper card beside it.
+import { tape, torn } from "../../../lib/collage/paper";
+import type { Scene } from "../../../lib/collage/scene";
+import { calendarScene, feelsScene, radiatorScene, rainJarScene, recorderScene, rulersScene, stampScene, windsockScene } from "../../../lib/collage/scenes/doodles";
+import { curve, type Pt, rng } from "../../../lib/collage/sketch";
+import type { MonthReport } from "../../../lib/reportChart";
+import CollageStage from "./CollageStage.astro";
+
+type Art = "rulers" | "calendar" | "feels" | "jar" | "recorder" | "windsock" | "radiator" | "stamp";
+
+type Props = {
+  id: string;
+  title: string;
+  art?: Art;
+  report: MonthReport;
+};
+
+const { id, title, art, report } = Astro.props;
+
+const pct = Math.round((100 * report.observed.precip_mm) / report.normals["1991-2020"].precip_mm);
+const scenes: Record<Art, () => Scene> = {
+  rulers: () => rulersScene(report.normals["1991-2020"].temp_avg, report.normals["1996-2025"].temp_avg),
+  calendar: () => calendarScene(report.days),
+  feels: () => feelsScene(report.observed.feels_avg),
+  jar: () => rainJarScene(report.days, report.normals["1991-2020"].precip_mm, pct),
+  recorder: () => recorderScene(report.sunshine.primary.hour_profile, report.sunshine.primary.total_h),
+  windsock: () => windsockScene(),
+  radiator: () => radiatorScene(),
+  stamp: () => stampScene(),
+};
+const cards: Record<Art, string> = {
+  rulers: "notebook",
+  calendar: "sky",
+  feels: "sky",
+  jar: "notebook",
+  recorder: "sky",
+  windsock: "sky",
+  radiator: "paper",
+  stamp: "paper",
+};
+const scene = art ? scenes[art]() : null;
+const seed = [...id].reduce((sum, c) => sum + c.charCodeAt(0), 0);
+const r = rng(seed);
+const pad = 14;
+const cw = (scene?.w ?? 0) + pad * 2;
+const ch = (scene?.h ?? 0) + pad * 2;
+const card = torn(
+  [
+    [2, 2],
+    [cw - 2, 2],
+    [cw - 2, ch - 2],
+    [2, ch - 2],
+  ],
+  r,
+  { amp: 2.2, step: 5 },
+);
+const tilt = ((r() - 0.5) * 4).toFixed(2);
+const tapeD = tape(cw * (0.3 + r() * 0.4), 6, 64, 18, (r() - 0.5) * 16, r);
+const tapeTone = ["tape-amber", "tape-blue", "tape-mint", "tape-orange"][seed % 4];
+const rules =
+  art && cards[art] === "notebook"
+    ? Array.from({ length: Math.floor((ch - 30) / 16) }, (_, i) => `M8 ${30 + i * 16}L${cw - 8} ${30 + i * 16}`).join("")
+    : "";
+const underline = curve(
+  Array.from({ length: 7 }, (_, i) => [i * 33 + (r() - 0.5) * 4, 6 + (r() - 0.5) * 5 + (i === 6 ? -3 : 0)] as Pt),
+);
+---
+
+<div class="cl cl-head" data-cl>
+  <h2 id={id}>
+    <span class="cl-title">{title}<svg class="cl-underline" viewBox="-4 0 206 12" preserveAspectRatio="none" aria-hidden="true"><path class="s-orange cl-draw" d={underline} pathLength="1" fill="none" /></svg></span>
+  </h2>
+  {art && scene && <div class={`cl-doodle cl-doodle--${art}`} style={`--tilt:${tilt}deg;aspect-ratio:${cw}/${ch}`} aria-hidden="true">
+    <svg class="cl-card" viewBox={`0 0 ${cw} ${ch}`} aria-hidden="true">
+      <path class={`f-${cards[art]}`} d={card} />
+      {rules && <path class="s-rule" d={rules} fill="none" stroke-width="1" opacity="0.8" />}
+      <path d={card} fill="url(#cl-grain)" class="cl-card-grain" />
+    </svg>
+    <CollageStage scene={scene} grain={false} class="cl-doodle-stage" style={`inset:${((pad / ch) * 100).toFixed(2)}% ${((pad / cw) * 100).toFixed(2)}%`} />
+    <svg class="cl-card-tape" viewBox={`0 0 ${cw} ${ch}`} aria-hidden="true"><path class={`f-${tapeTone}`} d={tapeD} /></svg>
+  </div>}
+</div>

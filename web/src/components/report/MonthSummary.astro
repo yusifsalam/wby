@@ -1,0 +1,133 @@
+---
+// Headline tiles for a monthly report: mean temperature, feels-like and
+// rainfall against both normals, rainy days and the month's warmth rank.
+import { tape } from "../../lib/collage/paper";
+import { rng } from "../../lib/collage/sketch";
+import { deltaTone, formatDelta, formatStat } from "../../lib/normals";
+import { type MonthReport, ordinal } from "../../lib/reportChart";
+import UnitText from "../UnitText.astro";
+
+type Props = {
+  report: MonthReport;
+  monthName: string;
+};
+
+const { report, monthName } = Astro.props;
+const { observed, normals, rank_warmest: rank, sunshine } = report;
+const sun = sunshine.primary;
+const sunNormal = sunshine.normal_1991_2020.sun_h;
+const periods = ["1991-2020", "1996-2025"] as const;
+
+const toneClass = {
+  warm: "text-red-600 dark:text-red-400",
+  cold: "text-blue-600 dark:text-blue-400",
+  even: "text-muted",
+};
+
+function periodLabel(period: string): string {
+  return period.replace("-", "–");
+}
+
+function decimals(value: number): number {
+  return Math.min(2, (String(value).split(".")[1] ?? "").length);
+}
+
+function yearList(years: number[]): string {
+  const runs: number[][] = [];
+  for (const year of years) {
+    const run = runs.at(-1);
+    if (run && run.at(-1) === year - 1) run.push(year);
+    else runs.push([year]);
+  }
+  return runs.map((run) => (run.length > 2 ? `${run[0]}–${run.at(-1)}` : run.join(", "))).join(", ");
+}
+
+const r = rng(2026);
+const tones = ["tape-amber", "tape-blue", "tape-mint", "tape-orange", "tape-cream", "tape-amber"];
+const cards = Array.from({ length: 6 }, (_, i) => ({
+  style: `--i:${i};--tilt:${((r() - 0.5) * 2.4).toFixed(2)}deg`,
+  tape: tape(30, 10, 54, 15, (r() - 0.5) * 18, r),
+  tone: tones[i],
+}));
+
+const temperatures = (
+  [
+    ["Mean temperature", "temp_avg"],
+    ["Mean feels-like", "feels_avg"],
+  ] as const
+).map(([label, key]) => ({
+  label,
+  value: observed[key],
+  comparisons: periods.map((period) => {
+    const normal = normals[period][key];
+    const diff = observed[key] - normal;
+    return { period, normal, diff, tone: toneClass[deltaTone("temperature", diff, 1)] };
+  }),
+}));
+---
+
+<dl class="report-stats cl" data-cl>
+  {temperatures.map((tile, i) => (
+    <div class="report-stat" style={cards[i].style}>
+      <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[i].tone}`} d={cards[i].tape} /></svg>
+      <dt>{tile.label}</dt>
+      <dd class="report-stat-value" data-count data-count-delay={300 + i * 90}>
+        <UnitText metric={formatStat("temperature", tile.value, "metric", 1)} imperial={formatStat("temperature", tile.value, "imperial", 1)} />
+      </dd>
+      {tile.comparisons.map((t) => (
+        <dd class="report-stat-line">
+          <strong class={t.tone}>
+            <UnitText metric={formatDelta("temperature", t.diff, "metric", 1)} imperial={formatDelta("temperature", t.diff, "imperial", 1)} />
+          </strong>
+          {" "}vs {periodLabel(t.period)} ·{" "}
+          <UnitText metric={formatStat("temperature", t.normal, "metric", decimals(t.normal))} imperial={formatStat("temperature", t.normal, "imperial", decimals(t.normal))} />
+        </dd>
+      ))}
+    </div>
+  ))}
+  <div class="report-stat" style={cards[2].style}>
+    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[2].tone}`} d={cards[2].tape} /></svg>
+    <dt>Rainfall</dt>
+    <dd class="report-stat-value" data-count data-count-delay="480">
+      <UnitText metric={formatStat("precipitation", observed.precip_mm, "metric", 1)} imperial={formatStat("precipitation", observed.precip_mm, "imperial", 1)} />
+    </dd>
+    {periods.map((period) => (
+      <dd class="report-stat-line">
+        <strong>{Math.round((100 * observed.precip_mm) / normals[period].precip_mm)}%</strong> of {periodLabel(period)} ·{" "}
+        <UnitText metric={formatStat("precipitation", normals[period].precip_mm, "metric", 1)} imperial={formatStat("precipitation", normals[period].precip_mm, "imperial", 1)} />
+      </dd>
+    ))}
+  </div>
+  <div class="report-stat" style={cards[3].style}>
+    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[3].tone}`} d={cards[3].tape} /></svg>
+    <dt>Days with rain</dt>
+    <dd class="report-stat-value" data-count data-count-delay="570">{observed.wet_days_1mm}</dd>
+    {periods.map((period) => (
+      <dd class="report-stat-line">
+        normally <strong>{normals[period].wet_days_1mm.toFixed(1)}</strong> in {periodLabel(period)}
+      </dd>
+    ))}
+    <dd class="report-stat-line">
+      at least <UnitText metric="1 mm" imperial="0.04 in" /> a day
+    </dd>
+  </div>
+  <div class="report-stat" style={cards[5].style}>
+    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[5].tone}`} d={cards[5].tape} /></svg>
+    <dt>Sunshine</dt>
+    <dd class="report-stat-value" data-count data-count-delay="660">{sun.total_h.toFixed(1)} h</dd>
+    <dd class="report-stat-line">
+      <strong>{Math.round((100 * sun.total_h) / sunNormal)}%</strong> of 1991–2020 · {sunNormal.toFixed(1)} h
+    </dd>
+    <dd class="report-stat-line">
+      <strong>{Math.round((100 * sun.total_h) / sun.base_mean_h)}%</strong> of {sun.base_years.join("–")} · {sun.base_mean_h.toFixed(1)} h
+    </dd>
+    <dd class="report-stat-line">at {sun.name}</dd>
+  </div>
+  <div class="report-stat" style={cards[4].style}>
+    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[4].tone}`} d={cards[4].tape} /></svg>
+    <dt>Warmth rank</dt>
+    <dd class="report-stat-value">{ordinal(rank.rank)}</dd>
+    <dd class="report-stat-line">warmest {monthName} of {rank.of} since {rank.since}</dd>
+    {rank.warmer_years.length > 0 && <dd class="report-stat-line">warmer: {yearList(rank.warmer_years)}</dd>}
+  </div>
+</dl>

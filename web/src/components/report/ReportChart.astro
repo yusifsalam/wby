@@ -1,0 +1,228 @@
+---
+// A report chart from a ChartSpec, with a crosshair tooltip on hover, tap or
+// arrow keys and the same values in a data table.
+import { tape } from "../../lib/collage/paper";
+import { rng } from "../../lib/collage/sketch";
+import { formatStat } from "../../lib/normals";
+import { bandPath, type ChartSpec, linePath, xAt, yAt } from "../../lib/reportChart";
+import UnitText from "../UnitText.astro";
+
+type Props = {
+  spec: ChartSpec;
+  title: string;
+};
+
+const { spec, title } = Astro.props;
+
+const x = (index: number) => xAt(index, spec.count);
+const y = (value: number) => yAt(value, spec.yMin, spec.yMax);
+const at = (index: number, value: number) => `--x:${x(index)}%;--y:${y(value)}%`;
+const base = Math.max(spec.yMin, 0);
+const align = (index: number) => (x(index) > 88 ? "end" : x(index) < 12 ? "start" : "center");
+const flat = (from: number, to: number, value: number) =>
+  `M${x(Math.max(0, from))} ${100 - y(value)}L${x(Math.min(spec.count - 1, to))} ${100 - y(value)}`;
+const tooltips = JSON.stringify(spec.tooltips).replace(/</g, "\\u003c");
+const t = (index: number) => `--t:${(index / Math.max(1, spec.count - 1)).toFixed(3)}`;
+const r = rng([...title].reduce((sum, c) => sum + c.charCodeAt(0), 0));
+const tapes = ["tape-cream", "tape-amber"].map((tone, i) => ({ tone, side: i ? "r" : "l", d: tape(30, 10, 56, 15, (r() - 0.5) * 20, r) }));
+---
+
+<figure class="rc" data-report-chart data-cl>
+  {tapes.map((tp) => (
+    <svg class={`rc-tape rc-tape--${tp.side} cl`} viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${tp.tone}`} d={tp.d} /></svg>
+  ))}
+  <figcaption class="rc-title">{title}</figcaption>
+  <ul class="rc-legend">
+    {spec.legend.map((item) => (
+      <li><span class={`rc-key rc-key--${item.mark}`} data-series={item.key} aria-hidden="true"></span>{item.label}</li>
+    ))}
+  </ul>
+  <div class="rc-body">
+    <div
+      class="rc-plot"
+      tabindex="0"
+      role="slider"
+      aria-label={spec.label}
+      aria-valuemin="1"
+      aria-valuemax={spec.count}
+      aria-valuenow={spec.count}
+      aria-valuetext={spec.tooltips.at(-1)?.title}
+      style={`--slot:${100 / spec.count}%`}
+    >
+      {spec.ticks.map((tick) => (
+        <span class="rc-grid" style={`--y:${y(tick)}%`} aria-hidden="true"></span>
+      ))}
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        {spec.bands.map((band) => (
+          <path class="rc-band" data-series={band.key} d={bandPath(band.upper, band.lower, spec.yMin, spec.yMax)} />
+        ))}
+        {spec.segments.map((segment) => (
+          <path class="rc-line" data-series={segment.key} d={flat(segment.from, segment.to, segment.value)} />
+        ))}
+        {spec.lines.map((line) => (
+          <path class="rc-line" data-series={line.key} d={linePath(line.values, spec.yMin, spec.yMax)} />
+        ))}
+      </svg>
+      {spec.columns.map((column) =>
+        column.values.map((value, index) =>
+          value == null ? null : (
+            <span class={`rc-col${column.strong ? " rc-col--strong" : ""}`} data-series={column.key} style={`${at(index, base)};--h:${y(value) - y(base)}%;${t(index)}`} aria-hidden="true"></span>
+          ),
+        ),
+      )}
+      {spec.ranges.map((range) =>
+        range.low.map((low, index) => {
+          const high = range.high[index];
+          return low == null || high == null ? null : (
+            <span class="rc-range" data-series={range.key} style={`${at(index, low)};--h:${y(high) - y(low)}%;${t(index)}`} aria-hidden="true"></span>
+          );
+        }),
+      )}
+      {spec.dots.map((series) =>
+        series.values.map((value, index) =>
+          value == null ? null : (
+            <span class={`rc-dot rc-dot--${series.size}`} data-series={series.key} style={`${at(index, value)};${t(index)}`} aria-hidden="true"></span>
+          ),
+        ),
+      )}
+      {spec.segments.map((segment) => (
+        <span
+          class="rc-note rc-note--muted"
+          data-side="above"
+          style={`--x:${(x(Math.max(0, segment.from)) + x(Math.min(spec.count - 1, segment.to))) / 2}%;--y:${y(segment.value)}%`}
+          aria-hidden="true"
+        >{segment.text}</span>
+      ))}
+      {spec.notes.map((note) => (
+        <span class="rc-note" data-side={note.side} data-align={align(note.index)} style={at(note.index, note.value)} aria-hidden="true">
+          <UnitText metric={note.text.metric} imperial={note.text.imperial} />
+        </span>
+      ))}
+      <span class="rc-cross" hidden aria-hidden="true"></span>
+      <div class="rc-tip" hidden aria-hidden="true"></div>
+    </div>
+    <div class="rc-axis" aria-hidden="true">
+      {spec.ticks.map((tick) => (
+        <span style={`--y:${y(tick)}%`}>
+          <UnitText metric={formatStat(spec.kind, tick, "metric", 0)} imperial={formatStat(spec.kind, tick, "imperial", 0)} />
+        </span>
+      ))}
+    </div>
+    <div class="rc-xaxis" aria-hidden="true">
+      {spec.xLabels.map((label) => (
+        <span style={`--x:${x(label.index)}%`}>{label.text}</span>
+      ))}
+    </div>
+  </div>
+  <details class="rc-table">
+    <summary>Data table</summary>
+    <div class="rc-table-scroll">
+      <table>
+        <caption class="sr-only">{spec.table.caption}</caption>
+        <thead>
+          <tr>{spec.table.headers.map((header) => <th scope="col">{header}</th>)}</tr>
+        </thead>
+        <tbody>
+          {spec.table.rows.map((row) => (
+            <tr>
+              {row.map((cell, index) =>
+                index === 0 ? (
+                  <th scope="row">{typeof cell === "string" ? cell : cell.metric}</th>
+                ) : (
+                  <td>{typeof cell === "string" ? cell : <UnitText metric={cell.metric} imperial={cell.imperial} />}</td>
+                ),
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  <script type="application/json" set:html={tooltips} />
+</figure>
+
+<script>
+  type Tooltip = {
+    title: string;
+    rows: { key: string; label: string; value: { metric: string; imperial: string } }[];
+  };
+
+  for (const chart of document.querySelectorAll<HTMLElement>("[data-report-chart]")) {
+    const plot = chart.querySelector<HTMLElement>(".rc-plot");
+    const tip = chart.querySelector<HTMLElement>(".rc-tip");
+    const cross = chart.querySelector<HTMLElement>(".rc-cross");
+    const source = chart.querySelector("script[type='application/json']");
+    if (!plot || !tip || !cross || !source?.textContent) continue;
+    const tooltips: Tooltip[] = JSON.parse(source.textContent);
+    let current = -1;
+
+    const show = (index: number) => {
+      current = Math.max(0, Math.min(tooltips.length - 1, index));
+      const imperial = document.documentElement.dataset.units === "imperial";
+      const { title, rows } = tooltips[current];
+      const heading = document.createElement("p");
+      heading.className = "rc-tip-title";
+      heading.textContent = title;
+      const lines = rows.map((row) => {
+        const line = document.createElement("p");
+        line.className = "rc-tip-row";
+        const key = document.createElement("span");
+        key.className = "rc-key rc-key--line";
+        key.dataset.series = row.key;
+        const value = document.createElement("strong");
+        value.textContent = imperial ? row.value.imperial : row.value.metric;
+        const label = document.createElement("span");
+        label.textContent = row.label;
+        line.append(key, value, label);
+        return line;
+      });
+      tip.replaceChildren(heading, ...lines);
+      plot.setAttribute("aria-valuenow", String(current + 1));
+      plot.setAttribute(
+        "aria-valuetext",
+        [title, ...rows.map((row) => `${row.label} ${imperial ? row.value.imperial : row.value.metric}`)].join(", "),
+      );
+      const position = ((current + 0.5) / tooltips.length) * 100;
+      plot.style.setProperty("--cx", `${position}%`);
+      tip.toggleAttribute("data-flip", position > 55);
+      cross.hidden = false;
+      tip.hidden = false;
+    };
+
+    const hide = () => {
+      cross.hidden = true;
+      tip.hidden = true;
+    };
+
+    const fromPointer = (event: PointerEvent) => {
+      const rect = plot.getBoundingClientRect();
+      show(Math.floor(((event.clientX - rect.left) / rect.width) * tooltips.length));
+    };
+
+    plot.addEventListener("pointermove", fromPointer);
+    plot.addEventListener("pointerdown", fromPointer);
+    plot.addEventListener("pointerleave", (event) => {
+      if (event.pointerType !== "touch" && document.activeElement !== plot) hide();
+    });
+    plot.addEventListener("focus", () => show(current < 0 ? tooltips.length - 1 : current));
+    plot.addEventListener("blur", hide);
+    plot.addEventListener("keydown", (event) => {
+      const target =
+        event.key === "ArrowLeft"
+          ? current - 1
+          : event.key === "ArrowRight"
+            ? current + 1
+            : event.key === "Home"
+              ? 0
+              : event.key === "End"
+                ? tooltips.length - 1
+                : null;
+      if (target != null) {
+        event.preventDefault();
+        show(target);
+      } else if (event.key === "Escape") {
+        hide();
+      }
+    });
+  }
+</script>

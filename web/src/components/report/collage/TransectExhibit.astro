@@ -1,0 +1,16 @@
+---
+// The four Helsinki stations from the airport to the sea, each thermometer
+// filled to its September mean with a tab at its feels-like.
+import { transectScene } from "../../../lib/collage/scenes/transect";
+import type { ReportStation } from "../../../lib/reportChart";
+import CollageSheet from "./CollageSheet.astro";
+
+type Props = {
+  stations: ReportStation[];
+  caption: string;
+};
+
+const { stations, caption } = Astro.props;
+---
+
+<CollageSheet scene={transectScene(stations)} seed={331} narrow="scroll" label={caption} class="cl-transect" />

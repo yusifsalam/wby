@@ -1,0 +1,73 @@
+---
+// The month at each Helsinki station: mean temperature against both normals,
+// feels-like, extremes, rainfall and the strongest gust.
+import { deltaTone, formatDelta, formatStat } from "../../lib/normals";
+import type { ReportStation } from "../../lib/reportChart";
+import UnitText from "../UnitText.astro";
+
+type Props = {
+  stations: ReportStation[];
+};
+
+const { stations } = Astro.props;
+
+const toneClass = {
+  warm: "text-red-600 dark:text-red-400",
+  cold: "text-blue-600 dark:text-blue-400",
+  even: "text-muted",
+};
+---
+
+<div class="report-table-scroll">
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th scope="col">Station</th>
+        <th scope="col">Mean</th>
+        <th scope="col">vs 1991–2020</th>
+        <th scope="col">vs 1996–2025</th>
+        <th scope="col">Feels like</th>
+        <th scope="col">Lowest</th>
+        <th scope="col">Highest</th>
+        <th scope="col">Rain</th>
+        <th scope="col">Top gust</th>
+      </tr>
+    </thead>
+    <tbody>
+      {stations.map((station) => (
+        <tr>
+          <th scope="row">{station.name}</th>
+          <td>
+            <UnitText metric={formatStat("temperature", station.temp_avg, "metric", 1)} imperial={formatStat("temperature", station.temp_avg, "imperial", 1)} />
+          </td>
+          {[station.anomaly_official, station.anomaly_1996_2025].map((diff) => (
+            <td class={diff == null ? "text-muted" : toneClass[deltaTone("temperature", diff, 1)]}>
+              {diff == null ? "—" : (
+                <UnitText metric={formatDelta("temperature", diff, "metric", 1)} imperial={formatDelta("temperature", diff, "imperial", 1)} />
+              )}
+            </td>
+          ))}
+          <td class={station.feels_avg == null ? "text-muted" : undefined}>
+            {station.feels_avg == null ? "—" : (
+              <UnitText metric={formatStat("temperature", station.feels_avg, "metric", 1)} imperial={formatStat("temperature", station.feels_avg, "imperial", 1)} />
+            )}
+          </td>
+          <td>
+            <UnitText metric={formatStat("temperature", station.abs_low, "metric", 1)} imperial={formatStat("temperature", station.abs_low, "imperial", 1)} />
+          </td>
+          <td>
+            <UnitText metric={formatStat("temperature", station.abs_high, "metric", 1)} imperial={formatStat("temperature", station.abs_high, "imperial", 1)} />
+          </td>
+          <td class={station.precip_mm == null ? "text-muted" : undefined}>
+            {station.precip_mm == null ? "—" : (
+              <UnitText metric={formatStat("precipitation", station.precip_mm, "metric", 1)} imperial={formatStat("precipitation", station.precip_mm, "imperial", 1)} />
+            )}
+          </td>
+          <td>
+            <UnitText metric={formatStat("speed", station.gust_max, "metric", 1)} imperial={formatStat("speed", station.gust_max, "imperial", 1)} />
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
