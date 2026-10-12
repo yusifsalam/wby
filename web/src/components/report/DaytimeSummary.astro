@@ -44,7 +44,7 @@ const temperatures = [
 const [mostYear, mostHours] = rain.wet_hours_max;
 const rainRank =
   rain.wet_hours_rank.rank === 1
-    ? `the most since ${rain.base_years[0]}; ${mostYear} had ${mostHours}`
+    ? `most of ${rain.wet_hours_rank.of} since ${rain.base_years[0]}; ${mostYear} had ${mostHours}`
     : `${ordinal(rain.wet_hours_rank.rank)} most of ${rain.wet_hours_rank.of} since ${rain.base_years[0]}`;
 ---
 

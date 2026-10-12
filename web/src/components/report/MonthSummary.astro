@@ -43,7 +43,7 @@ function yearList(years: number[]): string {
 }
 
 const r = rng(2026);
-const tones = ["tape-amber", "tape-blue", "tape-mint", "tape-orange", "tape-cream", "tape-amber"];
+const tones = ["tape-mint", "tape-orange", "tape-amber", "tape-blue", "tape-amber", "tape-cream"];
 const cards = Array.from({ length: 6 }, (_, i) => ({
   style: `--i:${i};--tilt:${((r() - 0.5) * 2.4).toFixed(2)}deg`,
   tape: tape(30, 10, 54, 15, (r() - 0.5) * 18, r),
@@ -67,11 +67,37 @@ const temperatures = (
 ---
 
 <dl class="report-stats cl" data-cl>
+  <div class="report-stat" style={cards[0].style}>
+    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[0].tone}`} d={cards[0].tape} /></svg>
+    <dt>Rainfall</dt>
+    <dd class="report-stat-value" data-count data-count-delay="300">
+      <UnitText metric={formatStat("precipitation", observed.precip_mm, "metric", 1)} imperial={formatStat("precipitation", observed.precip_mm, "imperial", 1)} />
+    </dd>
+    {periods.map((period) => (
+      <dd class="report-stat-line">
+        <strong>{Math.round((100 * observed.precip_mm) / normals[period].precip_mm)}%</strong> of {periodLabel(period)} ·{" "}
+        <UnitText metric={formatStat("precipitation", normals[period].precip_mm, "metric", 1)} imperial={formatStat("precipitation", normals[period].precip_mm, "imperial", 1)} />
+      </dd>
+    ))}
+  </div>
+  <div class="report-stat" style={cards[1].style}>
+    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[1].tone}`} d={cards[1].tape} /></svg>
+    <dt>Days with rain</dt>
+    <dd class="report-stat-value" data-count data-count-delay="390">{observed.wet_days_1mm}</dd>
+    {periods.map((period) => (
+      <dd class="report-stat-line">
+        normally <strong>{normals[period].wet_days_1mm.toFixed(1)}</strong> in {periodLabel(period)}
+      </dd>
+    ))}
+    <dd class="report-stat-line">
+      at least <UnitText metric="1 mm" imperial="0.04 in" /> a day
+    </dd>
+  </div>
   {temperatures.map((tile, i) => (
-    <div class="report-stat" style={cards[i].style}>
-      <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[i].tone}`} d={cards[i].tape} /></svg>
+    <div class="report-stat" style={cards[2 + i].style}>
+      <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[2 + i].tone}`} d={cards[2 + i].tape} /></svg>
       <dt>{tile.label}</dt>
-      <dd class="report-stat-value" data-count data-count-delay={300 + i * 90}>
+      <dd class="report-stat-value" data-count data-count-delay={480 + i * 90}>
         <UnitText metric={formatStat("temperature", tile.value, "metric", 1)} imperial={formatStat("temperature", tile.value, "imperial", 1)} />
       </dd>
       {tile.comparisons.map((t) => (
@@ -85,34 +111,8 @@ const temperatures = (
       ))}
     </div>
   ))}
-  <div class="report-stat" style={cards[2].style}>
-    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[2].tone}`} d={cards[2].tape} /></svg>
-    <dt>Rainfall</dt>
-    <dd class="report-stat-value" data-count data-count-delay="480">
-      <UnitText metric={formatStat("precipitation", observed.precip_mm, "metric", 1)} imperial={formatStat("precipitation", observed.precip_mm, "imperial", 1)} />
-    </dd>
-    {periods.map((period) => (
-      <dd class="report-stat-line">
-        <strong>{Math.round((100 * observed.precip_mm) / normals[period].precip_mm)}%</strong> of {periodLabel(period)} ·{" "}
-        <UnitText metric={formatStat("precipitation", normals[period].precip_mm, "metric", 1)} imperial={formatStat("precipitation", normals[period].precip_mm, "imperial", 1)} />
-      </dd>
-    ))}
-  </div>
-  <div class="report-stat" style={cards[3].style}>
-    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[3].tone}`} d={cards[3].tape} /></svg>
-    <dt>Days with rain</dt>
-    <dd class="report-stat-value" data-count data-count-delay="570">{observed.wet_days_1mm}</dd>
-    {periods.map((period) => (
-      <dd class="report-stat-line">
-        normally <strong>{normals[period].wet_days_1mm.toFixed(1)}</strong> in {periodLabel(period)}
-      </dd>
-    ))}
-    <dd class="report-stat-line">
-      at least <UnitText metric="1 mm" imperial="0.04 in" /> a day
-    </dd>
-  </div>
-  <div class="report-stat" style={cards[5].style}>
-    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[5].tone}`} d={cards[5].tape} /></svg>
+  <div class="report-stat" style={cards[4].style}>
+    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[4].tone}`} d={cards[4].tape} /></svg>
     <dt>Sunshine</dt>
     <dd class="report-stat-value" data-count data-count-delay="660">{sun.total_h.toFixed(1)} h</dd>
     <dd class="report-stat-line">
@@ -123,8 +123,8 @@ const temperatures = (
     </dd>
     <dd class="report-stat-line">at {sun.name}</dd>
   </div>
-  <div class="report-stat" style={cards[4].style}>
-    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[4].tone}`} d={cards[4].tape} /></svg>
+  <div class="report-stat" style={cards[5].style}>
+    <svg class="cl-tile-tape" viewBox="0 0 60 20" aria-hidden="true"><path class={`f-${cards[5].tone}`} d={cards[5].tape} /></svg>
     <dt>Warmth rank</dt>
     <dd class="report-stat-value">{ordinal(rank.rank)}</dd>
     <dd class="report-stat-line">warmest {monthName} of {rank.of} since {rank.since}</dd>
