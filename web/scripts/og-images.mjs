@@ -82,8 +82,8 @@ function card(scene, { kicker, title }) {
 </defs>
 ${collage(scene)}
 <rect y="${H - STRIP}" width="${W}" height="${STRIP}" fill="#17212b"/>
-<text x="48" y="${H - 72}" font-family="Inter" font-weight="700" font-size="22" fill="#2dd4bf">${xml(kicker)}</text>
-<text x="48" y="${H - 27}" font-family="Inter" font-weight="700" font-size="40" fill="#e7eef4">${xml(title)}</text>
+<text x="${W / 2}" y="${H - 72}" text-anchor="middle" font-family="Inter" font-weight="700" font-size="22" fill="#2dd4bf">${xml(kicker)}</text>
+<text x="${W / 2}" y="${H - 27}" text-anchor="middle" font-family="Inter" font-weight="700" font-size="40" fill="#e7eef4">${xml(title)}</text>
 <image href="data:image/svg+xml;base64,${logo}" x="1028" y="${H - 79}" width="48" height="48"/>
 <text x="1086" y="${H - 45}" font-family="Inter" font-weight="700" font-size="28" letter-spacing="2.2" fill="#e7eef4">WBY</text>
 </svg>`;
