@@ -16,7 +16,7 @@ try {
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://yourweatherapp.fi",
+  site: process.env.SITE_URL,
   output: "server",
 
   adapter: node({
