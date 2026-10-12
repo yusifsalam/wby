@@ -953,9 +953,11 @@ html:not(.cl-motion) .cl-tear {
   justify-content: space-between;
   gap: 1.25rem;
   margin-top: 2.8em;
+  scroll-margin-top: 1rem;
 }
 
 .report-prose .cl-head h2 {
+  position: relative;
   margin: 0 0 0.45em;
 }
 
@@ -977,6 +979,71 @@ html:not(.cl-motion) .cl-tear {
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
   opacity: 0.85;
+}
+
+.cl-anchor {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  display: flex;
+  align-items: center;
+  height: 1lh;
+  padding-inline: 0.2em 0.35em;
+  border-radius: 0.375rem;
+  color: var(--color-muted);
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.cl-head h2:hover .cl-anchor,
+.cl-anchor:focus-visible,
+.cl-head h2.is-copied .cl-anchor {
+  opacity: 1;
+}
+
+.report-prose .cl-anchor:hover,
+.cl-head h2.is-copied .cl-anchor {
+  color: var(--color-teal);
+}
+
+.cl-anchor:focus-visible {
+  outline: 2px solid var(--color-teal);
+  outline-offset: 1px;
+}
+
+@media (hover: none) {
+  .cl-anchor {
+    display: none;
+  }
+}
+
+.cl-anchor-done,
+.cl-head h2.is-copied .cl-anchor-link {
+  display: none;
+}
+
+.cl-head h2.is-copied .cl-anchor-done {
+  display: block;
+}
+
+.cl-anchor-note {
+  position: absolute;
+  bottom: calc(100% + 0.1em);
+  left: 0;
+  rotate: -3deg;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--color-teal);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.cl-head h2.is-copied .cl-anchor-note {
+  opacity: 1;
 }
 
 .cl-doodle {

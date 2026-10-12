@@ -68,9 +68,19 @@ const underline = curve(
 );
 ---
 
-<div class="cl cl-head" data-cl>
-  <h2 id={id}>
-    <span class="cl-title">{title}<svg class="cl-underline" viewBox="-4 0 206 12" preserveAspectRatio="none" aria-hidden="true"><path class="s-orange cl-draw" d={underline} pathLength="1" fill="none" /></svg></span>
+<div class="cl cl-head" id={id} data-cl>
+  <h2>
+    <span class="cl-title">{title}<svg class="cl-underline" viewBox="-4 0 206 12" preserveAspectRatio="none" aria-hidden="true"><path class="s-orange cl-draw" d={underline} pathLength="1" fill="none" /></svg></span><a class="cl-anchor" href={`#${id}`} title="Copy link to this section">
+      <span class="sr-only">Copy link</span>
+      <svg class="cl-anchor-link h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+      </svg>
+      <svg class="cl-anchor-done h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20 6 9 17l-5-5" />
+      </svg>
+    </a>
+    <span class="cl-anchor-note cl-hand" aria-hidden="true">Copied!</span>
   </h2>
   {art && scene && <div class={`cl-doodle cl-doodle--${art}`} style={`--tilt:${tilt}deg;aspect-ratio:${cw}/${ch}`} aria-hidden="true">
     <svg class="cl-card" viewBox={`0 0 ${cw} ${ch}`} aria-hidden="true">
@@ -82,3 +92,26 @@ const underline = curve(
     <svg class="cl-card-tape" viewBox={`0 0 ${cw} ${ch}`} aria-hidden="true"><path class={`f-${tapeTone}`} d={tapeD} /></svg>
   </div>}
 </div>
+
+<script>
+  const touch = matchMedia("(hover: none)");
+
+  for (const heading of document.querySelectorAll<HTMLElement>(".cl-head h2")) {
+    const link = heading.querySelector<HTMLAnchorElement>(".cl-anchor");
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    heading.addEventListener("click", (event) => {
+      if (!link || !navigator.clipboard) return;
+      if (!touch.matches && !link.contains(event.target as Node)) return;
+      event.preventDefault();
+      history.replaceState(null, "", link.hash);
+      navigator.clipboard.writeText(link.href).then(
+        () => {
+          heading.classList.add("is-copied");
+          clearTimeout(timer);
+          timer = setTimeout(() => heading.classList.remove("is-copied"), 1600);
+        },
+        () => {},
+      );
+    });
+  }
+</script>
