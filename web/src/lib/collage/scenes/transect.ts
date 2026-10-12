@@ -801,15 +801,6 @@ function notes(): Layer[] {
       className: "cl-flat",
       enter: { delay: 0.6, kind: "fade" },
     },
-    {
-      x: 800,
-      y: 6,
-      w: 150,
-      h: 26,
-      svg: `<text class="cl-hand f-note-soft" x="140" y="19" font-size="17" text-anchor="end">(not to scale)</text>`,
-      className: "cl-flat",
-      enter: { delay: 2.4, kind: "fade" },
-    },
   ];
 }
 
