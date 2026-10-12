@@ -4,12 +4,18 @@ import "../styles/global.css";
 type Props = {
   title: string;
   description?: string;
+  article?: {
+    title: string;
+    published: string;
+  };
 };
 
 const {
   title,
   description = "Weather by Yusif.",
+  article,
 } = Astro.props;
+const url = new URL(Astro.url.pathname.replace(/(.)\/$/, "$1"), Astro.site ?? Astro.url);
 ---
 
 <!doctype html>
@@ -19,6 +25,13 @@ const {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
+    <meta property="og:site_name" content="WBY" />
+    <meta property="og:title" content={article?.title ?? title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={url} />
+    <meta property="og:type" content={article ? "article" : "website"} />
+    {article && <meta property="article:published_time" content={article.published} />}
+    <meta name="twitter:card" content="summary" />
     <link rel="icon" type="image/svg+xml" href="/wby-weather.svg" />
     <title>{title}</title>
     <script is:inline>
