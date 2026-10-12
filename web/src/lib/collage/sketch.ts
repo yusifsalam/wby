@@ -127,7 +127,7 @@ export function ellipse(
   return double ? pass() + pass() : pass();
 }
 
-// Coloured-pencil hatching clipped to a polygon.
+// Colored-pencil hatching clipped to a polygon.
 export function hatch(
   poly: Pt[],
   rnd: Rnd,

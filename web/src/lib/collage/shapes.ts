@@ -157,7 +157,7 @@ export function toIn(mm: number): number {
   return mm / 25.4;
 }
 
-// A small hand-drawn weather glyph centred on (cx, cy).
+// A small hand-drawn weather glyph centered on (cx, cy).
 export function skyGlyph(
   kind: string,
   cx: number,

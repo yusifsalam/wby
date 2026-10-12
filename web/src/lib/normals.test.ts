@@ -19,7 +19,7 @@ import {
 import type { DailyClimateNormalsResponse } from "./weatherApi";
 
 const tz = "Europe/Helsinki";
-// 11:30 local on 9 September (EEST, UTC+3).
+// 11:30 local on September 9 (EEST, UTC+3).
 const now = new Date("2026-09-09T08:30:00Z");
 
 const hourly = Array.from({ length: 24 }, (_, utcHour) => 10 + utcHour);

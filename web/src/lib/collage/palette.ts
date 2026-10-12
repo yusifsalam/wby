@@ -1,4 +1,4 @@
-// Collage colours as [light, dark]. Pieces reference them through f-<name>
+// Collage colors as [light, dark]. Pieces reference them through f-<name>
 // (fill) and s-<name> (stroke) classes so the dark theme can re-tint the
 // paper without touching the drawings.
 export const palette = {
@@ -72,7 +72,7 @@ function kebab(name: string): string {
 }
 
 // Custom properties for both themes plus one fill and one stroke class per
-// colour, scoped to collage elements.
+// color, scoped to collage elements.
 export function paletteCss(): string {
   const entries = Object.entries(palette) as [
     Tone,
@@ -89,7 +89,7 @@ export function paletteCss(): string {
   return `:root{${light}}:root.dark{${dark}}${classes}`;
 }
 
-// The same classes resolved to literal colours, for rendering previews with
+// The same classes resolved to literal colors, for rendering previews with
 // tools that don't support custom properties.
 export function paletteLiteralCss(theme: 0 | 1 = 0): string {
   return (Object.entries(palette) as [Tone, readonly [string, string]][])

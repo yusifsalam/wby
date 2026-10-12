@@ -88,7 +88,7 @@ describe("scene", () => {
     );
   });
 
-  it("emits a fill and stroke class for every colour in both themes", () => {
+  it("emits a fill and stroke class for every color in both themes", () => {
     const css = paletteCss();
     expect(css).toContain(":root.dark{");
     expect(css).toContain(".cl .f-tape-amber{fill:var(--cl-tape-amber)}");

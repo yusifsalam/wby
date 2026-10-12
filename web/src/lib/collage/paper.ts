@@ -123,7 +123,7 @@ export function cutCircle(
   return polygon(pts);
 }
 
-// A strip of tape centred on (cx, cy): straight sides, ragged torn ends.
+// A strip of tape centered on (cx, cy): straight sides, ragged torn ends.
 export function tape(
   cx: number,
   cy: number,

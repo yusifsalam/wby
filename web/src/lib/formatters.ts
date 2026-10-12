@@ -206,7 +206,7 @@ export function localHour(value: string, timeZone: string): number {
 }
 
 export function dayTitle(value: string, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
+  return new Intl.DateTimeFormat("en-US", {
     timeZone,
     weekday: "long",
     day: "numeric",

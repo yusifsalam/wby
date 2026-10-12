@@ -198,7 +198,7 @@ export function ordinal(n: number): string {
   return `${n}${suffix}`;
 }
 
-// Centre of slot `index` of `count`, as a percentage of the plot width.
+// Center of slot `index` of `count`, as a percentage of the plot width.
 export function xAt(index: number, count: number): number {
   return ((index + 0.5) / count) * 100;
 }
@@ -291,7 +291,7 @@ function rangePair(kind: StatKind, high: number, low: number): UnitPair {
   };
 }
 
-const dayTitle = new Intl.DateTimeFormat("en-GB", {
+const dayTitle = new Intl.DateTimeFormat("en-US", {
   weekday: "short",
   day: "numeric",
   month: "long",
@@ -303,13 +303,13 @@ function dayLabel(date: string): string {
 }
 
 function monthDayTicks(days: ReportDay[]): { index: number; text: string }[] {
-  const month = new Intl.DateTimeFormat("en-GB", {
+  const month = new Intl.DateTimeFormat("en-US", {
     month: "short",
     timeZone: "UTC",
   }).format(new Date(`${days[0].date}T00:00:00Z`));
   return [1, 5, 10, 15, 20, 25, 30]
     .filter((d) => d <= days.length)
-    .map((d) => ({ index: d - 1, text: d === 1 ? `1 ${month}` : String(d) }));
+    .map((d) => ({ index: d - 1, text: d === 1 ? `${month} 1` : String(d) }));
 }
 
 function emptySpec(): Pick<

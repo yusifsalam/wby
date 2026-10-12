@@ -143,7 +143,7 @@ describe("dailyChart", () => {
       metric: "12.0°",
       imperial: "53.6°",
     });
-    expect(spec.tooltips[0].title).toBe("Tue 1 September");
+    expect(spec.tooltips[0].title).toBe("Tue, September 1");
   });
 
   it("plots feels-like against the feels-like normals", () => {
