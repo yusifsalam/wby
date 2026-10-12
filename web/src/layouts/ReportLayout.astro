@@ -6,6 +6,7 @@ import MotionToggle from "../components/report/MotionToggle.astro";
 import ReportContents from "../components/report/ReportContents.astro";
 import TopBar from "../components/TopBar.astro";
 import { cities } from "../lib/cities";
+import { publishedDate } from "../lib/formatters";
 import type { ReportSection } from "../lib/reportSections";
 import BaseLayout from "./BaseLayout.astro";
 
@@ -15,9 +16,7 @@ type Props = {
 };
 
 const { frontmatter, sections = [] } = Astro.props;
-const published = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(
-  new Date(`${frontmatter.published}T00:00:00Z`),
-);
+const published = publishedDate(frontmatter.published);
 ---
 
 <BaseLayout title={`WBY · ${frontmatter.title}`} description={frontmatter.description}>

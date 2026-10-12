@@ -214,6 +214,15 @@ export function dayTitle(value: string, timeZone: string): string {
   }).format(new Date(`${value}T12:00:00Z`));
 }
 
+export function publishedDate(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${value}T00:00:00Z`));
+}
+
 function timeFormatter(timeZone: string): Intl.DateTimeFormat {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone,

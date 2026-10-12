@@ -12,6 +12,7 @@ import {
   formatVisibility,
   formatWindDirection,
   hourLabel,
+  publishedDate,
 } from "./formatters";
 
 describe("weather value formatters", () => {
@@ -80,5 +81,9 @@ describe("weather value formatters", () => {
     );
     expect(hourLabel("2026-01-27T10:00:00Z", "Europe/Helsinki")).toBe("12");
     expect(dayLabel("2026-01-27", "Europe/Helsinki")).toBe("Tue");
+  });
+
+  it("formats post publication dates", () => {
+    expect(publishedDate("2026-10-05")).toBe("October 5, 2026");
   });
 });
