@@ -8,7 +8,6 @@ const posts = defineCollection({
     title: z.string(),
     kicker: z.string(),
     description: z.string(),
-    station: z.string(),
     published: z.iso.date(),
     draft: z.boolean().default(false),
   }),
