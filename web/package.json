@@ -12,6 +12,7 @@
     "preview": "astro preview",
     "astro": "astro",
     "test": "vitest run",
+    "og": "node scripts/og-images.mjs",
     "format": "biome format --write",
     "lint": "biome lint",
     "fix": "biome check --write"
@@ -30,6 +31,7 @@
     "vitest": "^5.0.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15"
+    "@biomejs/biome": "2.5.15",
+    "@resvg/resvg-js": "^2.6.2"
   }
 }
