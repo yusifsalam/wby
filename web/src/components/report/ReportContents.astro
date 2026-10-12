@@ -1,0 +1,64 @@
+---
+import type { ReportSection } from "../../lib/reportSections";
+
+type Props = {
+  title: string;
+  sections: ReportSection[];
+};
+
+const { title, sections } = Astro.props;
+const entries = [{ id: "top", title }, ...sections];
+---
+
+<nav aria-label="Contents">
+  <button
+    type="button"
+    popovertarget="report-toc"
+    class="fixed right-4 bottom-4 z-40 inline-flex cursor-pointer items-center gap-2.5 rounded-full border border-line bg-surface/90 px-5 py-3 text-muted shadow-panel backdrop-blur-md hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal max-[560px]:p-3.5"
+  >
+    <svg class="h-5.5 w-5.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true">
+      <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
+    </svg>
+    <span class="cl-hand text-[1.6rem] leading-none font-semibold max-[560px]:sr-only">Contents</span>
+  </button>
+  <div
+    id="report-toc"
+    popover
+    class="inset-auto right-4 bottom-20 m-0 max-h-[min(32rem,calc(100dvh-7rem))] w-[min(19rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border border-line bg-(--rc-card) px-2.5 pt-3.5 pb-2.5 text-ink shadow-hero backdrop:pointer-events-none backdrop:backdrop-blur-xs"
+  >
+    <p class="cl-hand px-2 text-[1.35rem] leading-none font-semibold text-teal">On this page</p>
+    <ol class="mt-2">
+      {
+        entries.map((entry) => (
+          <li class="first:mb-1 first:border-b first:border-line first:pb-1">
+            <a
+              class="block rounded-md px-2 py-1.25 text-[0.92rem] leading-snug font-[550] text-muted hover:bg-surface-strong hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal aria-[current]:font-[650] aria-[current]:text-teal aria-[current]:shadow-[inset_2.5px_0_var(--cl-orange)]"
+              href={`#${entry.id}`}
+            >
+              {entry.title}
+            </a>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</nav>
+
+<script>
+  const panel = document.getElementById("report-toc");
+  const links = [...(panel?.querySelectorAll<HTMLAnchorElement>("a") ?? [])];
+
+  panel?.addEventListener("beforetoggle", (event) => {
+    if ((event as ToggleEvent).newState !== "open") return;
+    const line = innerHeight * 0.3;
+    const current = links.findLast((link) => (document.getElementById(link.hash.slice(1))?.getBoundingClientRect().top ?? Infinity) <= line) ?? links[0];
+    for (const link of links) {
+      if (link === current) link.setAttribute("aria-current", "location");
+      else link.removeAttribute("aria-current");
+    }
+  });
+
+  panel?.addEventListener("click", (event) => {
+    if ((event.target as Element).closest("a")) panel.hidePopover();
+  });
+</script>

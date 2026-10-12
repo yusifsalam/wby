@@ -12,9 +12,9 @@ if (!post) {
 Astro.response.headers.set("Cache-Control", "no-store");
 Astro.response.headers.set("X-Robots-Tag", "noindex");
 
-const { Content } = await render(post);
+const { Content, remarkPluginFrontmatter } = await render(post);
 ---
 
-<ReportLayout frontmatter={post.data}>
+<ReportLayout frontmatter={post.data} sections={remarkPluginFrontmatter.sections}>
   <Content />
 </ReportLayout>

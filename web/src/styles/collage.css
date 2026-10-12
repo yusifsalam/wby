@@ -37,6 +37,9 @@
 /* Every animation below is scoped to .cl-motion, which the page sets only
    when the visitor hasn't asked for reduced motion or turned animations off
    with the report's switch; without it the collage is shown finished. */
+.cl-motion {
+  scroll-behavior: smooth;
+}
 
 /* Scenes: absolutely positioned cut-paper layers over a sheet of grain. */
 .cl-stage {

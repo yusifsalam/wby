@@ -1,10 +1,12 @@
 // @ts-check
 
+import { satteri } from "@astrojs/markdown-satteri";
 import mdx from "@astrojs/mdx";
 import node from "@astrojs/node";
 
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
+import { reportSections } from "./src/lib/reportSections.ts";
 
 try {
   process.loadEnvFile(".env");
@@ -19,6 +21,10 @@ export default defineConfig({
   adapter: node({
     mode: "standalone",
   }),
+
+  markdown: {
+    processor: satteri({ mdastPlugins: [reportSections] }),
+  },
 
   vite: {
     plugins: [tailwindcss()],
