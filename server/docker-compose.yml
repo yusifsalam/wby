@@ -65,7 +65,10 @@ services:
         condition: service_healthy
 
   web:
-    build: ../web
+    build:
+      context: ../web
+      args:
+        - SITE_URL
     restart: unless-stopped
     environment:
       HOST: "0.0.0.0"

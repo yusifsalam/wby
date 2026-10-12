@@ -4,6 +4,7 @@ COPY package*.json ./
 RUN npm ci
 
 FROM deps AS build
+ARG SITE_URL
 COPY . .
 RUN npm run build
 
