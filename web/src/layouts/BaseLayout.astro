@@ -42,7 +42,9 @@ const url = new URL(Astro.url.pathname.replace(/(.)\/$/, "$1"), Astro.site ?? As
       </>
     )}
     <meta name="twitter:card" content={image ? "summary_large_image" : "summary"} />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href="/wby-weather.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>{title}</title>
     <script is:inline>
       // Resolve the theme before first paint to avoid a flash of the wrong mode.
