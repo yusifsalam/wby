@@ -1346,12 +1346,28 @@
   backdrop-filter: blur(20px) saturate(1.4);
 }
 
+:root:not([data-sky-effects="off"]):has(.weather-sky) .sky-panel {
+  background-color: color-mix(in oklab, var(--color-surface) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+
+:root:not([data-sky-effects="off"]):has(.weather-sky)
+  .sky-panel
+  .bg-surface-strong:not(dialog *) {
+  background-color: color-mix(
+    in oklab,
+    var(--color-surface-strong) 55%,
+    transparent
+  );
+}
+
 :root:not([data-sky-effects="off"]):has(.weather-sky) .site-footer {
   margin-top: 18px;
   padding: 16px 18px 18px;
   border: 1px solid var(--color-line);
   border-radius: 0.5rem;
-  background-color: color-mix(in oklab, var(--color-surface) 92%, transparent);
+  background-color: color-mix(in oklab, var(--color-surface) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
 }
 
 :root:not([data-sky-effects="off"]) .sky-hero {
