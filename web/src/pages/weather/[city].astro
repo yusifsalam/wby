@@ -4,7 +4,7 @@ import WeatherUnavailable from "../../components/WeatherUnavailable.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { cities, findCityBySlug } from "../../lib/cities";
 import { getCityWeather } from "../../lib/weatherPageData";
-import { pageCacheControl } from "../../lib/weatherApi";
+import { PAGE_CACHE_POLICY, pageCacheControl } from "../../lib/weatherApi";
 
 const slug = Astro.params.city ?? "";
 const city = findCityBySlug(slug);
@@ -17,13 +17,7 @@ if (!city) {
 } else {
   try {
     result = await getCityWeather(city);
-    Astro.response.headers.set(
-      "Cache-Control",
-      pageCacheControl({
-        ttlSeconds: result.config.ttlSeconds,
-        staleSeconds: result.config.staleSeconds,
-      }),
-    );
+    Astro.response.headers.set("Cache-Control", pageCacheControl(PAGE_CACHE_POLICY));
   } catch (error) {
     Astro.response.headers.set("Cache-Control", "no-store");
     errorMessage = error instanceof Error ? error.message : "Weather data is unavailable.";

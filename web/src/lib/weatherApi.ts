@@ -332,22 +332,26 @@ export async function fetchLeaderboard({
   });
 }
 
+type CachePolicy = {
+  ttlSeconds: number;
+  staleSeconds?: number;
+};
+
+export const PAGE_CACHE_POLICY: CachePolicy = { ttlSeconds: 60 };
+
 export function cacheControlHeader({
   ttlSeconds,
   staleSeconds,
-}: {
-  ttlSeconds: number;
-  staleSeconds: number;
-}): string {
-  return `public, max-age=${ttlSeconds}, stale-while-revalidate=${staleSeconds}`;
+}: CachePolicy): string {
+  const header = `public, max-age=${ttlSeconds}`;
+  return staleSeconds
+    ? `${header}, stale-while-revalidate=${staleSeconds}`
+    : header;
 }
 
 // In `astro dev` we never want the browser to cache pages, so edits show up on
-// reload. The production build keeps the public stale-while-revalidate policy.
-export function pageCacheControl(policy: {
-  ttlSeconds: number;
-  staleSeconds: number;
-}): string {
+// reload. The production build keeps the public cache policy.
+export function pageCacheControl(policy: CachePolicy): string {
   return import.meta.env.DEV ? "no-store" : cacheControlHeader(policy);
 }
 

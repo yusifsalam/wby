@@ -161,6 +161,10 @@ describe("cacheControlHeader", () => {
       "public, max-age=900, stale-while-revalidate=3600",
     );
   });
+
+  it("omits stale-while-revalidate without a stale window", () => {
+    expect(cacheControlHeader({ ttlSeconds: 60 })).toBe("public, max-age=60");
+  });
 });
 
 describe("fetchHourlyForecastForCity", () => {

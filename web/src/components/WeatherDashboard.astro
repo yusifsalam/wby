@@ -102,7 +102,6 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
       {condition && <p class="mt-2.5 text-[clamp(1.15rem,2.2vw,1.5rem)] font-medium">{condition}</p>}
       <p class="mt-1.5 text-muted">
         Feels like <Measure kind="temperature" value={current.feels_like} /> · Observed {formatObservedTime(current.observed_at, timeZone)}
-        {weather.state === "stale" ? " · cached data refreshing" : ""}
       </p>
     </div>
     <div class="grid place-items-center max-[820px]:hidden" aria-hidden="true">

@@ -5,6 +5,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { cities } from "../lib/cities";
 import { getLeaderboard } from "../lib/weatherPageData";
 import {
+  PAGE_CACHE_POLICY,
   pageCacheControl,
   LEADERBOARD_TIMEFRAMES,
   type LeaderboardTimeframe,
@@ -23,13 +24,7 @@ let errorMessage = "";
 
 try {
   result = await getLeaderboard(timeframe);
-  Astro.response.headers.set(
-    "Cache-Control",
-    pageCacheControl({
-      ttlSeconds: result.config.ttlSeconds,
-      staleSeconds: result.config.staleSeconds,
-    }),
-  );
+  Astro.response.headers.set("Cache-Control", pageCacheControl(PAGE_CACHE_POLICY));
 } catch (error) {
   Astro.response.headers.set("Cache-Control", "no-store");
   errorMessage = error instanceof Error ? error.message : "Leaderboard data is unavailable.";
