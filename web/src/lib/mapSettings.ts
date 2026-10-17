@@ -1,4 +1,4 @@
-import type { PrecipRamp } from "./radarFrames";
+import type { MapRamp } from "./radarFrames";
 
 // Map view settings persisted across visits, set on the full-page map
 // (pages/map.astro) and followed by the precipitation widget
@@ -25,14 +25,14 @@ function writeStored(key: string, value: string | null) {
   }
 }
 
-export function parseRamp(raw: string | null): PrecipRamp {
+export function parseRamp(raw: string | null): MapRamp {
   return raw === "stepped" ? "stepped" : "smooth";
 }
 
-export const storedRamp = (): PrecipRamp =>
+export const storedRamp = (): MapRamp =>
   parseRamp(readStored(RAMP_STORAGE_KEY));
 
-export function storeRamp(ramp: PrecipRamp) {
+export function storeRamp(ramp: MapRamp) {
   writeStored(RAMP_STORAGE_KEY, ramp === "smooth" ? null : ramp);
 }
 

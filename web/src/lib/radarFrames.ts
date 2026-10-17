@@ -32,6 +32,32 @@ export function rampColor(stops: RampStops, value: number): RGB {
   return stops[last][1];
 }
 
+// 8-stop temperature ramp, matching the server's rampColorForTemperature
+// (internal/weather/overlay.go) so the grid render agrees with the PNG/iOS.
+export const TEMP_STOPS: RampStops = [
+  [-40, [80, 30, 130]],
+  [-20, [30, 55, 150]],
+  [-10, [55, 115, 220]],
+  [0, [80, 190, 180]],
+  [10, [180, 215, 75]],
+  [20, [245, 210, 55]],
+  [30, [210, 50, 40]],
+  [40, [109, 22, 11]],
+];
+
+export const temperatureRGBA = (v: number): RGBA => [
+  ...rampColor(TEMP_STOPS, v),
+  255,
+];
+
+// Stepped temperature: 2 °C bands on even degrees, each painted with the
+// smooth ramp's color at the band midpoint. Matches the iOS Metal shader
+// (TemperatureShader.metal, kTempBandWidth).
+export const TEMP_BAND_WIDTH = 2;
+
+export const temperatureSteppedRGBA = (v: number): RGBA =>
+  temperatureRGBA((Math.floor(v / TEMP_BAND_WIDTH) + 0.5) * TEMP_BAND_WIDTH);
+
 // Precipitation ramp + alpha for the grids, approximating the FMI WMS radar
 // palette of the PNG frames (see the shared legend) so every precipitation
 // layer reads as one scheme. The alpha treatment follows the iOS Metal shader
@@ -92,10 +118,13 @@ export function precipitationSteppedRGBA(v: number): RGBA {
   return [r, g, b, STEPPED_CLASS_ALPHA];
 }
 
-export type PrecipRamp = "smooth" | "stepped";
+export type MapRamp = "smooth" | "stepped";
 
-export const precipitationRampRGBA = (ramp: PrecipRamp) =>
+export const precipitationRampRGBA = (ramp: MapRamp) =>
   ramp === "stepped" ? precipitationSteppedRGBA : precipitationRGBA;
+
+export const temperatureRampRGBA = (ramp: MapRamp) =>
+  ramp === "stepped" ? temperatureSteppedRGBA : temperatureRGBA;
 
 export type FieldGrid = {
   rows: number;
@@ -172,7 +201,7 @@ const NOWCAST_FRAME_TTL_MS = 60_000;
 // radar observation grid, future frames the extrapolation nowcast grid, and a
 // grid miss falls back to the server PNG. Rasterized frames bake the ramp in,
 // so cache keys carry it.
-export function createRadarFrames(ramp: () => PrecipRamp) {
+export function createRadarFrames(ramp: () => MapRamp) {
   const observedCache = new Map<string, Frame | null>();
   const nowcastCache = new Map<
     string,
@@ -186,7 +215,7 @@ export function createRadarFrames(ramp: () => PrecipRamp) {
   async function fetchGridFrame(
     endpoint: "precipitation-observed" | "precipitation-nowcast",
     at: string,
-    style: PrecipRamp,
+    style: MapRamp,
   ): Promise<Frame | null> {
     const res = await fetch(
       `/api/map/${endpoint}?${PRECIP_GRID_QUERY}&time=${encodeURIComponent(at)}`,
@@ -203,7 +232,7 @@ export function createRadarFrames(ramp: () => PrecipRamp) {
     };
   }
 
-  function cached(at: string, style: PrecipRamp): Frame | null | undefined {
+  function cached(at: string, style: MapRamp): Frame | null | undefined {
     const key = `${at}|${style}`;
     if (isPast(at)) return observedCache.get(key);
     const entry = nowcastCache.get(key);

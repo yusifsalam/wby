@@ -2,15 +2,35 @@
 import TopBar from "../components/TopBar.astro";
 import UnitText from "../components/UnitText.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import {
+  TEMP_BAND_WIDTH,
+  TEMP_STOPS,
+  temperatureRGBA,
+  temperatureSteppedRGBA,
+} from "../lib/radarFrames";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 // Legend tick labels as [metric, imperial] pairs: °C/°F and mm/h ÷ 25.4 → in/h.
 const tempTicks = [
   ["-40", "-40"],
+  ["-20", "-4"],
   ["0", "32"],
   ["20", "68"],
   ["40", "104"],
 ];
+
+// Temperature legend bars over the ramp's full span, built from the same
+// colorizers as the grid render.
+const [tempMin] = TEMP_STOPS[0];
+const [tempMax] = TEMP_STOPS[TEMP_STOPS.length - 1];
+const tempPct = (t: number) => `${+(((t - tempMin) / (tempMax - tempMin)) * 100).toFixed(2)}%`;
+const cssRGB = ([r, g, b]: number[]) => `rgb(${r} ${g} ${b})`;
+const tempSmoothBar = `linear-gradient(to right,${TEMP_STOPS.map(([t]) => `${cssRGB(temperatureRGBA(t))} ${tempPct(t)}`).join(",")})`;
+const tempBands: string[] = [];
+for (let t = tempMin; t < tempMax; t += TEMP_BAND_WIDTH) {
+  tempBands.push(`${cssRGB(temperatureSteppedRGBA(t))} ${tempPct(t)} ${tempPct(t + TEMP_BAND_WIDTH)}`);
+}
+const tempSteppedBar = `linear-gradient(to right,${tempBands.join(",")})`;
 const rainTicks = [
   ["0.1", "0.004"],
   ["1", "0.04"],
@@ -62,7 +82,7 @@ const rainSteppedTicks = [
         </div>
 
         <div class="pointer-events-auto flex items-center gap-3">
-          <!-- Precipitation color style (hidden on the temperature layer) -->
+          <!-- Color style for every layer: smooth gradient or stepped bands -->
           <div
             id="ramp-toggle"
             class="inline-flex gap-1 rounded-lg border border-line bg-surface/90 p-1 shadow-panel backdrop-blur"
@@ -94,7 +114,8 @@ const rainSteppedTicks = [
     <div class="pointer-events-none absolute bottom-16 left-3 z-10 rounded-lg border border-line bg-surface/90 px-3 py-2 shadow-panel backdrop-blur">
       <div id="legend-temperature" hidden>
         <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Temperature <UnitText metric="°C" imperial="°F" /></p>
-        <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#3a0a54,#00e5ff,#a8e05f,#ffb300,#8b0000)"></div>
+        <div id="legend-temperature-smooth" class="h-2 w-48 rounded" style={`background:${tempSmoothBar}`}></div>
+        <div id="legend-temperature-stepped" class="h-2 w-48 rounded" style={`background:${tempSteppedBar}`} hidden></div>
         <div class="mt-0.5 flex w-48 justify-between text-[0.65rem] font-[650] text-muted">
           {tempTicks.map(([metric, imperial]) => <span><UnitText metric={metric} imperial={imperial} /></span>)}
         </div>
@@ -178,13 +199,11 @@ const rainSteppedTicks = [
     createRadarFrames,
     type FieldGrid,
     gridCorners,
+    type MapRamp,
     PRECIP_GRID_QUERY,
-    type PrecipRamp,
     precipitationRampRGBA,
-    type RampStops,
-    type RGBA,
-    rampColor,
     rasterizeGrid,
+    temperatureRampRGBA,
   } from "../lib/radarFrames";
 
   maplibregl.setWorkerUrl(workerUrl);
@@ -238,42 +257,24 @@ const rainSteppedTicks = [
   // "now" frame.
   const timeParam = () => frameTimeParam(manifest[layer], frameIndex);
 
-  // 8-stop temperature ramp, matching the server's rampColorForTemperature
-  // (internal/weather/overlay.go) so the grid render agrees with the PNG/iOS.
-  const TEMP_STOPS: RampStops = [
-    [-40, [80, 30, 130]],
-    [-20, [30, 55, 150]],
-    [-10, [55, 115, 220]],
-    [0, [80, 190, 180]],
-    [10, [180, 215, 75]],
-    [20, [245, 210, 55]],
-    [30, [210, 50, 40]],
-    [40, [109, 22, 11]],
-  ];
-
-  const temperatureRGBA = (v: number): RGBA => [
-    ...rampColor(TEMP_STOPS, v),
-    255,
-  ];
-
-  // The active precipitation color style, mirrored to ?ramp= like the layer.
+  // The active color style for every layer, mirrored to ?ramp= like the layer.
   // Ramp and opacity persist across visits (lib/mapSettings); a ?ramp= URL
   // still wins for the ramp so shared links open as intended.
-  function initialRamp(): PrecipRamp {
+  function initialRamp(): MapRamp {
     const fromURL = new URLSearchParams(window.location.search).get("ramp");
     return fromURL === null ? storedRamp() : parseRamp(fromURL);
   }
-  function writeRamp(next: PrecipRamp) {
+  function writeRamp(next: MapRamp) {
     const url = new URL(window.location.href);
     if (next === "smooth") url.searchParams.delete("ramp");
     else url.searchParams.set("ramp", next);
     history.replaceState(null, "", url);
     storeRamp(next);
   }
-  let precipRamp: PrecipRamp = initialRamp();
+  let ramp: MapRamp = initialRamp();
 
   // The ±1h radar layer's frames (see lib/radarFrames).
-  const radar = createRadarFrames(() => precipRamp);
+  const radar = createRadarFrames(() => ramp);
 
   // The layers rendered client-side from the GRIB grid JSON.
   type GridLayer = Exclude<Layer, "precipitation">;
@@ -291,6 +292,7 @@ const rainSteppedTicks = [
   const gridFrameCache = new Map<string, Frame | null>();
 
   async function fetchGridFrame(l: GridLayer, at: string): Promise<Frame | null> {
+    const style = ramp;
     const res = await fetch(gridFrameURL(l, at));
     // 404 = the GRIB source is unconfigured or the field isn't available yet;
     // a known miss rather than a transient error.
@@ -299,14 +301,14 @@ const rainSteppedTicks = [
     const data = (await res.json()) as { grid?: FieldGrid | null };
     if (!data.grid || data.grid.values.length === 0) return null;
     const rgba =
-      l === "temperature" ? temperatureRGBA : precipitationRampRGBA(precipRamp);
+      l === "temperature" ? temperatureRampRGBA(style) : precipitationRampRGBA(style);
     return { url: rasterizeGrid(data.grid, rgba), corners: gridCorners(data.grid) };
   }
 
-  // Rasterized frames bake the ramp in, so precipitation cache keys carry the
-  // active ramp — switching styles re-rasterizes instead of serving stale colors.
+  // Rasterized frames bake the ramp in, so cache keys carry the active ramp —
+  // switching styles re-rasterizes instead of serving stale colors.
   function gridFrameKey(l: GridLayer, at: string): string {
-    return l === "temperature" ? `${l}|${at}` : `${l}|${at}|${precipRamp}`;
+    return `${l}|${at}|${ramp}`;
   }
 
   // Fetch the GRIB grid JSON for the active frame and render it client-side —
@@ -479,32 +481,35 @@ const rainSteppedTicks = [
   const toggle = document.getElementById("layer-toggle");
   const rampToggle = document.getElementById("ramp-toggle") as HTMLElement;
   const legendTemp = document.getElementById("legend-temperature") as HTMLElement;
+  const legendTempSmooth = document.getElementById("legend-temperature-smooth") as HTMLElement;
+  const legendTempStepped = document.getElementById("legend-temperature-stepped") as HTMLElement;
   const legendPrecip = document.getElementById("legend-precipitation") as HTMLElement;
   const legendPrecipStepped = document.getElementById("legend-precipitation-stepped") as HTMLElement;
-  // Mirror the active layer to the toggle buttons and legends. Called on load too,
-  // so a ?layer= URL that opens on another layer flips the statically-rendered
-  // precipitation defaults. Both precipitation layers share one legend and the
-  // ramp toggle; the active ramp picks which precipitation legend shows.
+  // Mirror the active layer and ramp to the toggle buttons and legends. Called
+  // on load too, so a ?layer= or ?ramp= URL flips the statically-rendered
+  // defaults. Both precipitation layers share one legend; the active ramp picks
+  // which precipitation legend and temperature bar show.
   function syncLayerUI() {
     for (const b of toggle?.querySelectorAll<HTMLButtonElement>("button[data-layer]") ?? []) {
       b.setAttribute("aria-current", String(b.dataset.layer === layer));
     }
     for (const b of rampToggle.querySelectorAll<HTMLButtonElement>("button[data-ramp]")) {
-      b.setAttribute("aria-current", String(b.dataset.ramp === precipRamp));
+      b.setAttribute("aria-current", String(b.dataset.ramp === ramp));
     }
-    rampToggle.hidden = layer === "temperature";
     legendTemp.hidden = layer !== "temperature";
-    legendPrecip.hidden = layer === "temperature" || precipRamp === "stepped";
-    legendPrecipStepped.hidden = layer === "temperature" || precipRamp !== "stepped";
+    legendTempSmooth.hidden = ramp === "stepped";
+    legendTempStepped.hidden = ramp !== "stepped";
+    legendPrecip.hidden = layer === "temperature" || ramp === "stepped";
+    legendPrecipStepped.hidden = layer === "temperature" || ramp !== "stepped";
   }
   syncLayerUI();
 
   rampToggle.querySelectorAll<HTMLButtonElement>("button[data-ramp]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const next = btn.dataset.ramp as PrecipRamp;
-      if (next === precipRamp) return;
-      precipRamp = next;
-      writeRamp(precipRamp);
+      const next = btn.dataset.ramp as MapRamp;
+      if (next === ramp) return;
+      ramp = next;
+      writeRamp(ramp);
       syncLayerUI();
       // Frame caches are keyed by ramp, so a style switch re-rasterizes on
       // demand; warm the nearby frames and repaint the current one.

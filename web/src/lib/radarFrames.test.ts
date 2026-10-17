@@ -5,6 +5,8 @@ import {
   precipitationRGBA,
   precipitationSteppedRGBA,
   rampColor,
+  temperatureRGBA,
+  temperatureSteppedRGBA,
 } from "./radarFrames";
 
 describe("rampColor", () => {
@@ -17,6 +19,20 @@ describe("rampColor", () => {
     expect(rampColor(stops, -5)).toEqual([0, 0, 0]);
     expect(rampColor(stops, 15)).toEqual([100, 200, 50]);
     expect(rampColor(stops, 5)).toEqual([50, 100, 25]);
+  });
+});
+
+describe("temperature ramps", () => {
+  it("paints each 2 °C band with its midpoint color", () => {
+    expect(temperatureSteppedRGBA(0)).toEqual(temperatureRGBA(1));
+    expect(temperatureSteppedRGBA(1.99)).toEqual(temperatureRGBA(1));
+    expect(temperatureSteppedRGBA(2)).toEqual(temperatureRGBA(3));
+    expect(temperatureSteppedRGBA(-0.5)).toEqual(temperatureRGBA(-1));
+  });
+
+  it("clamps past the ramp ends", () => {
+    expect(temperatureSteppedRGBA(-50)).toEqual([80, 30, 130, 255]);
+    expect(temperatureSteppedRGBA(45)).toEqual([109, 22, 11, 255]);
   });
 });
 
