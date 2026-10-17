@@ -98,4 +98,69 @@ enum WeatherScene: Equatable {
             return false
         }
     }
+
+    var hasRain: Bool { self == .rain || self == .storm }
+
+    var hasPrecipitation: Bool { hasRain || self == .snow }
+
+    func skyStyle(coverage: Float) -> SkyStyle {
+        switch self {
+        case .clearDay:
+            return SkyStyle(
+                cumulus: coverage * 0.12, cirrus: 0.30, absorption: 0.30, sun: 1,
+                lit: SkyStyle.rgb(1.0, 0.99, 0.97), shadow: SkyStyle.rgb(0.70, 0.79, 0.92)
+            )
+        case .clearNight:
+            return SkyStyle(
+                cumulus: coverage * 0.12, cirrus: 0.15, absorption: 0.40, stars: 1, night: 1,
+                lit: SkyStyle.rgb(0.30, 0.33, 0.42), shadow: SkyStyle.rgb(0.10, 0.12, 0.21)
+            )
+        case .partlyCloudy:
+            return SkyStyle(
+                cumulus: 0.25 + coverage * 0.55, cirrus: 0.40, absorption: 0.45, sun: 1,
+                lit: SkyStyle.rgb(1.0, 0.99, 0.96), shadow: SkyStyle.rgb(0.60, 0.68, 0.80)
+            )
+        case .partlyCloudyNight:
+            return SkyStyle(
+                cumulus: 0.25 + coverage * 0.55, cirrus: 0.20, absorption: 0.50, stars: 1, night: 1,
+                lit: SkyStyle.rgb(0.34, 0.37, 0.46), shadow: SkyStyle.rgb(0.12, 0.15, 0.24)
+            )
+        case .overcast:
+            return SkyStyle(
+                cumulus: 1, deck: 1, absorption: 0.60,
+                lit: SkyStyle.rgb(0.52, 0.57, 0.64), shadow: SkyStyle.rgb(0.30, 0.35, 0.43)
+            )
+        case .rain:
+            return SkyStyle(
+                cumulus: 1, deck: 1, absorption: 0.90,
+                lit: SkyStyle.rgb(0.42, 0.47, 0.54), shadow: SkyStyle.rgb(0.18, 0.22, 0.29)
+            )
+        case .snow:
+            return SkyStyle(
+                cumulus: 1, deck: 1, absorption: 0.35,
+                lit: SkyStyle.rgb(0.90, 0.92, 0.95), shadow: SkyStyle.rgb(0.64, 0.70, 0.78)
+            )
+        case .storm:
+            return SkyStyle(
+                cumulus: 1, deck: 1, absorption: 1.30,
+                lit: SkyStyle.rgb(0.28, 0.30, 0.38), shadow: SkyStyle.rgb(0.07, 0.08, 0.12)
+            )
+        }
+    }
+}
+
+struct SkyStyle {
+    var cumulus: Float
+    var deck: Float = 0
+    var cirrus: Float = 0
+    var absorption: Float
+    var sun: Float = 0
+    var stars: Float = 0
+    var night: Float = 0
+    var lit: Color.Resolved
+    var shadow: Color.Resolved
+
+    static func rgb(_ red: Float, _ green: Float, _ blue: Float) -> Color.Resolved {
+        Color.Resolved(red: red, green: green, blue: blue)
+    }
 }

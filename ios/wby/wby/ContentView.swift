@@ -22,12 +22,6 @@ struct ContentView: View {
         let location: WeatherLocation
     }
 
-    private struct PageBackgroundState: Equatable {
-        let scene: WeatherScene
-        let precipitation1h: Double?
-        let cloudCover: Double?
-    }
-
     @State private var locationService = LocationService()
     @State private var weatherService = WeatherService()
     @State private var favoritesStore = FavoritesStore()
@@ -37,7 +31,7 @@ struct ContentView: View {
     @State private var showingMap = false
     @State private var showingLeaderboard = false
     @State private var pendingPageID: PageID? = nil
-    @State private var pageBackgrounds: [PageID: PageBackgroundState] = [:]
+    @State private var pageBackgrounds: [PageID: WeatherBackgroundState] = [:]
     @State private var scrollModel = PageScrollModel()
     @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
     private let disableAutoLoad: Bool
@@ -53,8 +47,8 @@ struct ContentView: View {
         Set(pages.map(\.id))
     }
 
-    private var activeBackground: PageBackgroundState {
-        pageBackgrounds[currentPageID] ?? PageBackgroundState(scene: .clearDay, precipitation1h: nil, cloudCover: nil)
+    private var activeBackground: WeatherBackgroundState {
+        pageBackgrounds[currentPageID] ?? .placeholder
     }
 
     init(disableAutoLoad: Bool = false, initialWeather: WeatherResponse? = nil) {
@@ -66,10 +60,9 @@ struct ContentView: View {
         NavigationStack {
             ZStack {
                 RootBackgroundView(
-                    scene: activeBackground.scene,
-                    precipitation1h: activeBackground.precipitation1h,
-                    cloudCover: activeBackground.cloudCover,
+                    state: activeBackground,
                     dynamicEffectsEnabled: dynamicEffectsEnabled,
+                    isCovered: showingMap || showingLeaderboard,
                     currentPageID: currentPageID,
                     scrollModel: scrollModel
                 )
@@ -84,12 +77,8 @@ struct ContentView: View {
                                 weatherService: weatherService,
                                 disableAutoLoad: disableAutoLoad,
                                 initialWeather: initialWeather,
-                                onBackgroundUpdate: { scene, precipitation, cloudCover in
-                                    pageBackgrounds[page.id] = PageBackgroundState(
-                                        scene: scene,
-                                        precipitation1h: precipitation,
-                                        cloudCover: cloudCover
-                                    )
+                                onBackgroundUpdate: { state in
+                                    pageBackgrounds[page.id] = state
                                 },
                                 onScrollOffsetChange: { offset in
                                     scrollModel.offsets[page.id] = offset
@@ -230,44 +219,36 @@ struct ContentView: View {
 /// scroll-driven sun fade re-evaluates only this view rather than the whole
 /// `ContentView` body.
 private struct RootBackgroundView: View {
-    let scene: WeatherScene
-    let precipitation1h: Double?
-    let cloudCover: Double?
+    let state: WeatherBackgroundState
     let dynamicEffectsEnabled: Bool
+    let isCovered: Bool
     let currentPageID: PageID
     let scrollModel: PageScrollModel
 
-    private var sunOpacity: Double {
+    private var sunFade: Double {
         let distance = max(0, scrollModel.offsets[currentPageID] ?? 0)
-        let fadeStart: CGFloat = 0
         let fadeEnd: CGFloat = 140
-        if distance <= fadeStart { return 1 }
-        if distance >= fadeEnd { return 0 }
-        return Double(1 - (distance - fadeStart) / (fadeEnd - fadeStart))
+        let fade = 1 - min(distance / fadeEnd, 1)
+        return (Double(fade) * 12).rounded() / 12
     }
 
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: scene.gradientColors,
+                colors: state.scene.gradientColors,
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-            .id(scene)
+            .id(state.scene)
             .transition(.opacity)
 
             if dynamicEffectsEnabled {
-                WeatherBackgroundView(
-                    weatherScene: scene,
-                    precipitation1h: precipitation1h,
-                    cloudCover: cloudCover,
-                    sunOpacity: sunOpacity
-                )
-                .ignoresSafeArea()
+                WeatherBackgroundView(state: state, sunFade: sunFade, isCovered: isCovered)
+                    .ignoresSafeArea()
             }
         }
-        .animation(.easeInOut(duration: 1.5), value: scene)
+        .animation(.easeInOut(duration: 1.5), value: state.scene)
     }
 }
 

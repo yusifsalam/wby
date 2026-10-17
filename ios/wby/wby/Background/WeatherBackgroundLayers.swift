@@ -1,107 +1,124 @@
 import SwiftUI
 
-struct SunLayer: View {
-    let time: Float
-    let size: CGSize
+@Animatable
+struct SkyLayer: View {
+    var cumulus: Float
+    var deck: Float
+    var cirrus: Float
+    var absorption: Float
+    var sun: Float
+    var night: Float
+    var lit: Color.Resolved
+    var shadow: Color.Resolved
+    @AnimatableIgnored var size: CGSize
+    @AnimatableIgnored var downscale: CGFloat
+    @AnimatableIgnored var time: Float
+    @AnimatableIgnored var drift: SIMD2<Float>
+    @AnimatableIgnored var sunFade: Float
+    @AnimatableIgnored var flash: Float
+    @AnimatableIgnored var flashX: Float
+
+    init(
+        style: SkyStyle,
+        size: CGSize,
+        downscale: CGFloat,
+        time: Float,
+        drift: SIMD2<Float>,
+        sunFade: Float,
+        flash: Float,
+        flashX: Float
+    ) {
+        cumulus = style.cumulus
+        deck = style.deck
+        cirrus = style.cirrus
+        absorption = style.absorption
+        sun = style.sun
+        night = style.night
+        lit = style.lit
+        shadow = style.shadow
+        self.size = size
+        self.downscale = max(downscale, 1)
+        self.time = time
+        self.drift = drift
+        self.sunFade = sunFade
+        self.flash = flash
+        self.flashX = flashX
+    }
 
     var body: some View {
+        let occlusion = sun * sunFade > 0.001
+            ? SkyNoise.sunOcclusion(size: size, time: time, drift: drift, coverage: cumulus, deck: deck)
+            : 0
+        let reduced = CGSize(width: size.width / downscale, height: size.height / downscale)
         Rectangle()
-            .fill(ShaderLibrary.wby_sun(
+            .fill(ShaderLibrary.wby_sky(
+                .float2(Float(reduced.width), Float(reduced.height)),
                 .float2(Float(size.width), Float(size.height)),
-                .float(time)
+                .float(time),
+                .float2(drift.x, drift.y),
+                .float4(cumulus, deck, cirrus, absorption),
+                .float4(sun, sunFade, night, occlusion),
+                .float4(lit.red, lit.green, lit.blue, 1),
+                .float4(shadow.red, shadow.green, shadow.blue, 1),
+                .float4(flash, flashX, 0, 0)
             ))
-            .allowsHitTesting(false)
+            .frame(width: reduced.width, height: reduced.height)
+            .drawingGroup()
+            .scaleEffect(downscale, anchor: .topLeading)
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
     }
 }
 
+@Animatable
 struct StarsLayer: View {
-    let time: Float
-    let size: CGSize
+    var amount: Float
+    @AnimatableIgnored var size: CGSize
+    @AnimatableIgnored var time: Float
 
     var body: some View {
         Rectangle()
             .fill(ShaderLibrary.wby_stars(
                 .float2(Float(size.width), Float(size.height)),
-                .float(time)
-            ))
-            .allowsHitTesting(false)
-    }
-}
-
-struct CloudsLayer: View {
-    let time: Float
-    let size: CGSize
-    let coverage: Float
-    let tint: SIMD4<Float>
-
-    var body: some View {
-        Rectangle()
-            .fill(ShaderLibrary.wby_clouds(
-                .float2(Float(size.width), Float(size.height)),
                 .float(time),
-                .float(coverage),
-                .float4(tint.x, tint.y, tint.z, tint.w)
+                .float(amount)
             ))
-            .allowsHitTesting(false)
     }
 }
 
+@Animatable
 struct RainLayer: View {
-    let time: Float
-    let size: CGSize
-    let intensity: Float
+    var intensity: Float
+    var slant: Float
+    @AnimatableIgnored var size: CGSize
+    @AnimatableIgnored var phase: Float
 
     var body: some View {
         Rectangle()
             .fill(ShaderLibrary.wby_rain(
                 .float2(Float(size.width), Float(size.height)),
-                .float(time),
-                .float(intensity)
+                .float(phase),
+                .float(intensity),
+                .float(slant)
             ))
-            .allowsHitTesting(false)
     }
 }
 
+@Animatable
 struct SnowLayer: View {
-    let time: Float
-    let size: CGSize
-    let intensity: Float
+    var intensity: Float
+    var wind: Float
+    @AnimatableIgnored var size: CGSize
+    @AnimatableIgnored var time: Float
+    @AnimatableIgnored var fall: SIMD2<Float>
 
     var body: some View {
         Rectangle()
             .fill(ShaderLibrary.wby_snow(
                 .float2(Float(size.width), Float(size.height)),
                 .float(time),
-                .float(intensity)
+                .float2(fall.x, fall.y),
+                .float(intensity),
+                .float(wind)
             ))
-            .allowsHitTesting(false)
-    }
-}
-
-struct LightningLayer: View {
-    let active: Bool
-    @State private var opacity: Double = 0
-
-    var body: some View {
-        Rectangle()
-            .fill(Color.white)
-            .opacity(opacity)
-            .allowsHitTesting(false)
-            .task(id: active) {
-                guard active else { opacity = 0; return }
-                while !Task.isCancelled {
-                    let wait = Double.random(in: 8.0...18.0)
-                    try? await Task.sleep(for: .seconds(wait))
-                    if Task.isCancelled { break }
-                    await flash()
-                }
-            }
-    }
-
-    @MainActor
-    private func flash() async {
-        withAnimation(.easeIn(duration: 0.05)) { opacity = 0.45 }
-        try? await Task.sleep(for: .seconds(0.10))
-        withAnimation(.easeOut(duration: 0.25)) { opacity = 0 }
     }
 }

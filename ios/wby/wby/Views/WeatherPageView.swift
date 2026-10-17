@@ -6,7 +6,7 @@ struct WeatherPageView: View {
     let locationService: LocationService
     let weatherService: WeatherService
     let disableAutoLoad: Bool
-    let onBackgroundUpdate: (WeatherScene, Double?, Double?) -> Void
+    let onBackgroundUpdate: (WeatherBackgroundState) -> Void
     let onScrollOffsetChange: (CGFloat) -> Void
     let onOpenMap: () -> Void
 
@@ -30,7 +30,7 @@ struct WeatherPageView: View {
         weatherService: WeatherService,
         disableAutoLoad: Bool = false,
         initialWeather: WeatherResponse? = nil,
-        onBackgroundUpdate: @escaping (WeatherScene, Double?, Double?) -> Void = { _, _, _ in },
+        onBackgroundUpdate: @escaping (WeatherBackgroundState) -> Void = { _ in },
         onScrollOffsetChange: @escaping (CGFloat) -> Void = { _ in },
         onOpenMap: @escaping () -> Void = {}
     ) {
@@ -80,6 +80,17 @@ struct WeatherPageView: View {
             date: .now,
             timeZone: placeTimeZone,
             elevationMeters: elevationMeters ?? 0
+        )
+    }
+
+    private var backgroundState: WeatherBackgroundState {
+        let nextHour = weather?.hourlyForecast.first
+        return WeatherBackgroundState(
+            scene: currentScene,
+            precipitation1h: nextHour?.precipitation1h,
+            cloudCover: weather?.current.resolvedCloudCover,
+            windSpeed: weather?.current.resolvedWindSpeed ?? nextHour?.windSpeed,
+            windDirection: weather?.current.resolvedWindDirection ?? nextHour?.windDirection
         )
     }
 
@@ -214,9 +225,7 @@ struct WeatherPageView: View {
             guard phase == .active, !disableAutoLoad, !isFetching, isStale else { return }
             Task { await refresh() }
         }
-        .onAppear { publishBackground() }
-        .onChange(of: currentScene) { _, _ in publishBackground() }
-        .onChange(of: weather?.hourlyForecast.first?.precipitation1h) { _, _ in publishBackground() }
+        .onChange(of: backgroundState, initial: true) { _, state in onBackgroundUpdate(state) }
         .task {
             guard !disableAutoLoad else { return }
             await loadWeather()
@@ -365,14 +374,6 @@ struct WeatherPageView: View {
 
     private func dailyResolvedRadiationGlobal(_ daily: [DailyForecast]) -> Double? {
         daily.compactMap(\.radiationGlobalAvg).first.map { max(0, $0) }
-    }
-
-    private func publishBackground() {
-        onBackgroundUpdate(
-            currentScene,
-            weather?.hourlyForecast.first?.precipitation1h,
-            weather?.current.resolvedCloudCover
-        )
     }
 }
 // MARK: - Preview

@@ -1,180 +1,225 @@
 import SwiftUI
 
 struct WeatherBackgroundView: View {
-    let weatherScene: WeatherScene
-    let precipitation1h: Double?
-    let cloudCover: Double?
-    let sunOpacity: Double
+    let state: WeatherBackgroundState
+    let sunFade: Double
+    let isCovered: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    @State private var startDate = Date()
+    @Environment(\.displayScale) private var displayScale
+    @State private var clocks: MotionClocks
+    @State private var wasBackgrounded = false
+    @State private var strike: LightningStrike?
 
-    init(
-        weatherScene: WeatherScene,
-        precipitation1h: Double?,
-        cloudCover: Double?,
-        sunOpacity: Double = 1.0
-    ) {
-        self.weatherScene = weatherScene
-        self.precipitation1h = precipitation1h
-        self.cloudCover = cloudCover
-        self.sunOpacity = sunOpacity
+    init(state: WeatherBackgroundState, sunFade: Double = 1, isCovered: Bool = false) {
+        self.state = state
+        self.sunFade = sunFade
+        self.isCovered = isCovered
+        _clocks = State(initialValue: MotionClocks(rates: state.motionRates, at: .now))
     }
 
     var body: some View {
         GeometryReader { proxy in
-            let size = proxy.size
-            TimelineView(.animation(paused: isPaused)) { context in
-                let elapsed = reduceMotion
-                    ? 0
-                    : Float(context.date.timeIntervalSince(startDate))
-                content(size: size, time: elapsed)
+            TimelineView(.animation(minimumInterval: frameInterval, paused: isPaused)) { context in
+                layers(size: proxy.size, date: reduceMotion ? clocks.start : context.date)
             }
         }
         .allowsHitTesting(false)
+        .onChange(of: state.motionRates) { _, rates in
+            clocks.retarget(rates, at: .now)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background:
+                wasBackgrounded = true
+            case .active where wasBackgrounded:
+                clocks = MotionClocks(rates: state.motionRates, at: .now)
+                wasBackgrounded = false
+            default:
+                break
+            }
+        }
+        .task(id: lightningActive) {
+            guard lightningActive else {
+                strike = nil
+                return
+            }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(Double.random(in: 6...16)))
+                if Task.isCancelled { break }
+                strike = LightningStrike(start: .now, x: Float.random(in: 0.15...0.85))
+            }
+        }
     }
 
     private var isPaused: Bool {
-        reduceMotion || scenePhase != .active
+        reduceMotion || isCovered || scenePhase != .active
+    }
+
+    private var lightningActive: Bool {
+        state.scene == .storm && !isPaused
+    }
+
+    private var frameInterval: Double {
+        if state.scene.hasPrecipitation { return 1.0 / 60 }
+        return sunFade > 0 ? 1.0 / 30 : 1.0 / 15
     }
 
     @ViewBuilder
-    private func content(size: CGSize, time: Float) -> some View {
+    private func layers(size: CGSize, date: Date) -> some View {
+        let time = Float(date.timeIntervalSince(clocks.start))
+        let flash = strike?.intensity(at: date) ?? 0
+        let style = state.scene.skyStyle(coverage: state.coverage)
         ZStack {
-            if showsSun {
-                SunLayer(time: time, size: size)
-                    .opacity(sunOpacity)
+            if style.stars > 0 {
+                StarsLayer(amount: style.stars, size: size, time: time)
                     .transition(.opacity)
             }
-            if showsStars {
-                StarsLayer(time: time, size: size)
-                    .transition(.opacity)
+
+            SkyLayer(
+                style: style,
+                size: size,
+                downscale: displayScale,
+                time: time,
+                drift: SIMD2<Float>(clocks.drift.value(at: date)),
+                sunFade: Float(sunFade),
+                flash: flash,
+                flashX: strike?.x ?? 0.5
+            )
+            .animation(.easeInOut(duration: 1.5), value: state)
+
+            if state.scene.hasRain {
+                RainLayer(
+                    intensity: state.precipitationIntensity,
+                    slant: state.rainSlant,
+                    size: size,
+                    phase: Float(clocks.rain.value(at: date).x)
+                )
+                .animation(.easeInOut(duration: 1.5), value: state)
+                .transition(.opacity)
             }
-            if showsClouds {
-                CloudsLayer(time: time, size: size, coverage: coverage, tint: cloudTint)
-                    .transition(.opacity)
+
+            if state.scene == .snow {
+                SnowLayer(
+                    intensity: state.precipitationIntensity,
+                    wind: Float(state.wind.x),
+                    size: size,
+                    time: time,
+                    fall: SIMD2<Float>(clocks.snow.value(at: date))
+                )
+                .animation(.easeInOut(duration: 1.5), value: state)
+                .transition(.opacity)
             }
-            if showsRain {
-                RainLayer(time: time, size: size, intensity: precipIntensity(stormBase: weatherScene == .storm))
-                    .transition(.opacity)
-            }
-            if showsSnow {
-                SnowLayer(time: time, size: size, intensity: precipIntensity(stormBase: false))
-                    .transition(.opacity)
-            }
-            if showsLightning {
-                LightningLayer(active: !reduceMotion)
-                    .transition(.opacity)
+
+            if flash > 0.001 {
+                Color.white.opacity(Double(flash) * 0.12)
             }
         }
-        .animation(.easeInOut(duration: 0.6), value: weatherScene)
+    }
+}
+
+private struct PhaseClock: Equatable {
+    var anchorDate: Date
+    var anchorValue: SIMD2<Double> = .zero
+    var rate: SIMD2<Double>
+
+    func value(at date: Date) -> SIMD2<Double> {
+        anchorValue + rate * date.timeIntervalSince(anchorDate)
     }
 
-    // MARK: - Scene routing
+    mutating func retarget(_ newRate: SIMD2<Double>, at date: Date) {
+        anchorValue = value(at: date)
+        anchorDate = date
+        rate = newRate
+    }
+}
 
-    private var showsSun: Bool {
-        weatherScene == .clearDay
+private struct MotionClocks: Equatable {
+    var start: Date
+    var drift: PhaseClock
+    var rain: PhaseClock
+    var snow: PhaseClock
+
+    init(rates: MotionRates, at date: Date) {
+        start = date
+        drift = PhaseClock(anchorDate: date, rate: rates.drift)
+        rain = PhaseClock(anchorDate: date, rate: SIMD2(rates.rain, 0))
+        snow = PhaseClock(anchorDate: date, rate: rates.snow)
     }
 
-    private var showsStars: Bool {
-        weatherScene == .clearNight || weatherScene == .partlyCloudyNight
+    mutating func retarget(_ rates: MotionRates, at date: Date) {
+        drift.retarget(rates.drift, at: date)
+        rain.retarget(SIMD2(rates.rain, 0), at: date)
+        snow.retarget(rates.snow, at: date)
+    }
+}
+
+private struct LightningStrike: Equatable {
+    var start: Date
+    var x: Float
+
+    func intensity(at date: Date) -> Float {
+        let t = date.timeIntervalSince(start)
+        guard t >= 0, t < 1.2 else { return 0 }
+        return Float(max(
+            pulse(t, at: 0, peak: 1, decay: 0.06),
+            pulse(t, at: 0.12, peak: 0.55, decay: 0.05),
+            pulse(t, at: 0.27, peak: 0.85, decay: 0.14)
+        ))
     }
 
-    private var showsClouds: Bool {
-        weatherScene == .partlyCloudy || weatherScene == .partlyCloudyNight
+    private func pulse(_ t: Double, at onset: Double, peak: Double, decay: Double) -> Double {
+        let x = t - onset
+        guard x >= 0 else { return 0 }
+        return peak * min(x / 0.015, 1) * exp(-x / decay)
     }
+}
 
-    private var showsRain: Bool {
-        weatherScene == .rain || weatherScene == .storm
+private struct WeatherBackgroundPreview: View {
+    let state: WeatherBackgroundState
+
+    var body: some View {
+        WeatherBackgroundView(state: state)
+            .background(
+                LinearGradient(
+                    colors: state.scene.gradientColors,
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .ignoresSafeArea()
     }
+}
 
-    private var showsSnow: Bool { weatherScene == .snow }
-
-    private var showsLightning: Bool { weatherScene == .storm }
-
-    private var cloudTint: SIMD4<Float> {
-        switch weatherScene {
-        case .partlyCloudyNight:
-            return SIMD4(0.55, 0.60, 0.70, 0.55)
-        default:
-            return SIMD4(1.0, 1.0, 1.0, 0.85)
-        }
-    }
-
-    private func precipIntensity(stormBase: Bool) -> Float {
-        let base: Float = stormBase ? 2.4 : 0.9
-        let floor: Float = stormBase ? 2.0 : 0.15
-        guard let mm = precipitation1h, mm > 0 else { return base }
-        let v = Float(sqrt(mm / 2.0))
-        return min(max(v, floor), 3.0)
-    }
-
-    // Normalizes cloudCover, which FMI may report as oktas (0-8) or percent (0-100).
-    // Matches the display logic in CurrentConditionsCard.formatCloudCover.
-    private var coverage: Float {
-        guard let cover = cloudCover else { return 0.5 }
-        let normalized: Double = cover <= 8.5 ? cover / 8.0 : cover / 100.0
-        return Float(min(max(normalized, 0.0), 1.0))
-    }
+#Preview("Clear day") {
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .clearDay, cloudCover: 1))
 }
 
 #Preview("Clear night") {
-    WeatherBackgroundView(weatherScene: .clearNight, precipitation1h: nil, cloudCover: nil)
-        .background(
-            LinearGradient(
-                colors: WeatherScene.clearNight.gradientColors,
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-        .ignoresSafeArea()
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .clearNight))
 }
 
 #Preview("Partly cloudy") {
-    WeatherBackgroundView(weatherScene: .partlyCloudy, precipitation1h: nil, cloudCover: 6)
-        .background(
-            LinearGradient(
-                colors: WeatherScene.partlyCloudy.gradientColors,
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-        .ignoresSafeArea()
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .partlyCloudy, cloudCover: 5, windSpeed: 6, windDirection: 250))
+}
+
+#Preview("Partly cloudy night") {
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .partlyCloudyNight, cloudCover: 5))
+}
+
+#Preview("Overcast") {
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .overcast, cloudCover: 8, windSpeed: 4, windDirection: 180))
 }
 
 #Preview("Rain") {
-    WeatherBackgroundView(weatherScene: .rain, precipitation1h: 0.25, cloudCover: 7)
-        .background(
-            LinearGradient(
-                colors: WeatherScene.rain.gradientColors,
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-        .ignoresSafeArea()
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .rain, precipitation1h: 0.6, cloudCover: 8, windSpeed: 7, windDirection: 240))
 }
 
 #Preview("Snow") {
-    WeatherBackgroundView(weatherScene: .snow, precipitation1h: 0.8, cloudCover: 8)
-        .background(
-            LinearGradient(
-                colors: WeatherScene.snow.gradientColors,
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-        .ignoresSafeArea()
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .snow, precipitation1h: 0.8, cloudCover: 8, windSpeed: 4, windDirection: 300))
 }
 
 #Preview("Storm") {
-    WeatherBackgroundView(weatherScene: .storm, precipitation1h: 3.0, cloudCover: 8)
-        .background(
-            LinearGradient(
-                colors: WeatherScene.storm.gradientColors,
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-        .ignoresSafeArea()
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .storm, precipitation1h: 3.0, cloudCover: 8, windSpeed: 12, windDirection: 220))
 }
