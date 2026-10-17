@@ -13,12 +13,20 @@ type Props = {
 
 const { city } = Astro.props;
 
-// Legend ticks as [mm/h, in/h] pairs, matching the map page's smooth ramp.
+// Legend ticks as [mm/h, in/h] pairs, matching the map page's smooth and
+// stepped ramps.
 const rainTicks = [
   ["0.1", "0.004"],
   ["1", "0.04"],
   ["5", "0.2"],
   ["20+", "0.8+"],
+];
+const rainSteppedTicks = [
+  ["0.1", "0.004"],
+  ["0.5", "0.02"],
+  ["2.5", "0.1"],
+  ["10", "0.4"],
+  ["15+", "0.6+"],
 ];
 ---
 
@@ -38,9 +46,26 @@ const rainTicks = [
 
     <div class="pointer-events-none absolute bottom-2 left-2 z-10 rounded-md border border-line bg-surface/90 px-2 py-1.5 backdrop-blur">
       <p class="mb-1 text-[0.65rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain <UnitText metric="mm/h" imperial="in/h" /></p>
-      <div class="h-1.5 w-32 rounded" style="background:linear-gradient(to right,#a8e0ff,#3fa0ff,#1436ff,#8b00ff,#ff00aa)"></div>
-      <div class="mt-0.5 flex w-32 justify-between text-[0.6rem] font-[650] text-muted">
-        {rainTicks.map(([metric, imperial]) => <span><UnitText metric={metric} imperial={imperial} /></span>)}
+      <div data-precip-legend="smooth">
+        <div class="h-1.5 w-32 rounded" style="background:linear-gradient(to right,#a8e0ff,#3fa0ff,#1436ff,#8b00ff,#ff00aa)"></div>
+        <div class="mt-0.5 flex w-32 justify-between text-[0.6rem] font-[650] text-muted">
+          {rainTicks.map(([metric, imperial]) => <span><UnitText metric={metric} imperial={imperial} /></span>)}
+        </div>
+      </div>
+      <div data-precip-legend="stepped" hidden>
+        <div class="flex h-1.5 w-32 overflow-hidden rounded">
+          <span class="flex-1" style="background:#adf3fa"></span>
+          <span class="flex-1" style="background:#86bef3"></span>
+          <span class="flex-1" style="background:#5f8aec"></span>
+          <span class="flex-1" style="background:#3955e5"></span>
+          <span class="flex-1" style="background:#1421de"></span>
+          <span class="flex-1" style="background:#8238ec"></span>
+          <span class="flex-1" style="background:#b943f4"></span>
+          <span class="flex-1" style="background:#f14efb"></span>
+        </div>
+        <div class="mt-0.5 flex w-32 justify-between text-[0.6rem] font-[650] text-muted">
+          {rainSteppedTicks.map(([metric, imperial]) => <span><UnitText metric={metric} imperial={imperial} /></span>)}
+        </div>
       </div>
     </div>
   </div>
@@ -74,12 +99,11 @@ const rainTicks = [
     bakeOverlayImage,
     basemapStyleFor,
     FINLAND_CORNERS,
+    type Frame,
     type FrameSet,
     fallbackFrameSet,
-    fixedFrame,
     formatFrameClock,
     formatFrameOffset,
-    frameTimeParam,
     loadImage,
     loadManifest,
     observeTheme,
@@ -87,6 +111,8 @@ const rainTicks = [
     TRANSPARENT_PNG,
     tuneBasemap,
   } from "../lib/mapOverlay";
+  import { storedOpacity, storedRamp } from "../lib/mapSettings";
+  import { createRadarFrames } from "../lib/radarFrames";
 
   // The controls row sits outside the map box, so resolve everything from the
   // card, not the map element.
@@ -143,31 +169,29 @@ const rainTicks = [
     pin.setAttribute("aria-hidden", "true");
     new maplibregl.Marker({ element: pin }).setLngLat([lon, lat]).addTo(map);
 
-    const frameUrl = (index: number) =>
-      fixedFrame("precipitation", frameTimeParam(frames, index)).url;
+    let ramp = storedRamp();
+    let opacity = storedOpacity();
+    const radar = createRadarFrames(() => ramp);
+    const legends = widget?.querySelectorAll<HTMLElement>("[data-precip-legend]") ?? [];
 
     // Baked (Mercator canvas) data URLs keyed by overlay URL, so each frame is
     // fetched and encoded once per loop.
     const bakedFrameCache = new Map<string, string>();
-    const preloads = new Map<string, HTMLImageElement>();
 
-    async function bakedFrame(url: string): Promise<string> {
-      const cached = bakedFrameCache.get(url);
+    async function bakedFrame(frame: Frame): Promise<string> {
+      const cached = bakedFrameCache.get(frame.url);
       if (cached !== undefined) return cached;
-      const baked = bakeOverlayImage(await loadImage(url), FINLAND_CORNERS);
-      bakedFrameCache.set(url, baked);
+      const baked = bakeOverlayImage(await loadImage(frame.url), frame.corners, {
+        warp: frame.warp,
+      });
+      bakedFrameCache.set(frame.url, baked);
       return baked;
     }
 
     function prefetchAround(center: number, span: number) {
       const len = frames.times.length;
       for (let offset = 1; offset <= span; offset++) {
-        const idx = (center + offset) % len;
-        const url = frameUrl(idx);
-        if (preloads.has(url) || bakedFrameCache.has(url)) continue;
-        const img = new Image();
-        img.src = url;
-        preloads.set(url, img);
+        radar.prefetch(frames, (center + offset) % len);
       }
     }
 
@@ -183,7 +207,7 @@ const rainTicks = [
           id: OVERLAY_LAYER,
           type: "raster",
           source: OVERLAY_SRC,
-          paint: { "raster-opacity": 0.8, "raster-fade-duration": 0 },
+          paint: { "raster-opacity": opacity, "raster-fade-duration": 0 },
         },
         overlayBeforeId(map, "precipitation"),
       );
@@ -209,16 +233,18 @@ const rainTicks = [
       if (!styleReady) return;
       ensureOverlayLayer();
       const seq = ++refreshSeq;
+      let frame: Frame;
       let imageUrl: string;
       try {
-        imageUrl = await bakedFrame(frameUrl(frameIndex));
+        frame = await radar.frameAt(frames, frameIndex);
+        imageUrl = await bakedFrame(frame);
       } catch (err) {
         console.error("precipitation overlay refresh failed", err);
         return;
       }
       if (seq !== refreshSeq || !styleReady) return;
       const src = map.getSource(OVERLAY_SRC) as maplibregl.ImageSource | undefined;
-      src?.updateImage({ url: imageUrl, coordinates: FINLAND_CORNERS });
+      src?.updateImage({ url: imageUrl, coordinates: frame.corners });
     }
 
     // Loop playback: runs while the user wants it (on by default, off under
@@ -289,6 +315,28 @@ const rainTicks = [
       { threshold: 0.25 },
     ).observe(root);
     document.addEventListener("visibilitychange", syncPlayback);
+
+    // Follow the map page's ramp and opacity, including changes made there
+    // while this page sat in another tab or in the back/forward cache.
+    function applySettings() {
+      const nextRamp = storedRamp();
+      opacity = storedOpacity();
+      for (const legend of legends) {
+        legend.hidden = legend.dataset.precipLegend !== nextRamp;
+      }
+      if (map.getLayer(OVERLAY_LAYER)) {
+        map.setPaintProperty(OVERLAY_LAYER, "raster-opacity", opacity);
+      }
+      if (nextRamp !== ramp) {
+        ramp = nextRamp;
+        refreshOverlay();
+      }
+    }
+    applySettings();
+    window.addEventListener("storage", applySettings);
+    window.addEventListener("pageshow", (e) => {
+      if (e.persisted) applySettings();
+    });
 
     // MapLibre opens the compact attribution expanded and only minimises it on
     // the first drag — which a non-interactive map never gets. Collapse it to

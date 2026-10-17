@@ -147,11 +147,7 @@ const rainSteppedTicks = [
 <script>
   import * as maplibregl from "maplibre-gl";
   import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-  import {
-    isMapLayer,
-    type MapLayer as Layer,
-    type OverlayPngLayer,
-  } from "../lib/mapLayers";
+  import { isMapLayer, type MapLayer as Layer } from "../lib/mapLayers";
   import {
     bakeOverlayImage,
     basemapStyleFor,
@@ -171,6 +167,25 @@ const rainSteppedTicks = [
     TRANSPARENT_PNG,
     tuneBasemap,
   } from "../lib/mapOverlay";
+  import {
+    parseRamp,
+    storedOpacity,
+    storedRamp,
+    storeOpacity,
+    storeRamp,
+  } from "../lib/mapSettings";
+  import {
+    createRadarFrames,
+    type FieldGrid,
+    gridCorners,
+    PRECIP_GRID_QUERY,
+    type PrecipRamp,
+    precipitationRampRGBA,
+    type RampStops,
+    type RGBA,
+    rampColor,
+    rasterizeGrid,
+  } from "../lib/radarFrames";
 
   maplibregl.setWorkerUrl(workerUrl);
 
@@ -199,31 +214,6 @@ const rainSteppedTicks = [
     history.replaceState(null, "", url);
   }
 
-  // Ramp and opacity persist across visits; a ?ramp= URL still wins for the
-  // ramp so shared links open as intended.
-  const RAMP_STORAGE_KEY = "map-ramp";
-  const OPACITY_STORAGE_KEY = "map-opacity";
-  function readStored(key: string): string | null {
-    try {
-      return localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  }
-  function writeStored(key: string, value: string | null) {
-    try {
-      if (value === null) localStorage.removeItem(key);
-      else localStorage.setItem(key, value);
-    } catch {
-      // Storage unavailable (private mode, quota); the page still updates.
-    }
-  }
-  function storedOpacity(): number {
-    const raw = readStored(OPACITY_STORAGE_KEY);
-    const stored = raw === null ? NaN : Number(raw);
-    return Number.isFinite(stored) && stored >= 0 && stored <= 1 ? stored : 0.8;
-  }
-
   let layer: Layer = layerFromURL();
   let opacity = storedOpacity();
   const opacityInput = document.getElementById("opacity") as HTMLInputElement;
@@ -246,12 +236,7 @@ const rainSteppedTicks = [
 
   // The frame instant for the active scrubber position, or null for the live
   // "now" frame.
-  const timeParamAt = (index: number) => frameTimeParam(manifest[layer], index);
-  const timeParam = () => timeParamAt(frameIndex);
-
-  type RGB = [number, number, number];
-  type RGBA = [number, number, number, number];
-  type RampStops = [number, RGB][];
+  const timeParam = () => frameTimeParam(manifest[layer], frameIndex);
 
   // 8-stop temperature ramp, matching the server's rampColorForTemperature
   // (internal/weather/overlay.go) so the grid render agrees with the PNG/iOS.
@@ -266,174 +251,32 @@ const rainSteppedTicks = [
     [40, [109, 22, 11]],
   ];
 
-  function rampColor(stops: RampStops, value: number): RGB {
-    if (value <= stops[0][0]) return stops[0][1];
-    const last = stops.length - 1;
-    if (value >= stops[last][0]) return stops[last][1];
-    for (let i = 0; i < last; i++) {
-      const [at, a] = stops[i];
-      const [bt, b] = stops[i + 1];
-      if (value > bt) continue;
-      const t = (value - at) / (bt - at);
-      return [
-        Math.round(a[0] + (b[0] - a[0]) * t),
-        Math.round(a[1] + (b[1] - a[1]) * t),
-        Math.round(a[2] + (b[2] - a[2]) * t),
-      ];
-    }
-    return stops[last][1];
-  }
-
   const temperatureRGBA = (v: number): RGBA => [
     ...rampColor(TEMP_STOPS, v),
     255,
   ];
 
-  // Precipitation ramp + alpha for the 12h grid, approximating the FMI WMS
-  // radar palette of the 1h PNG frames (see the shared legend) so the two
-  // precipitation layers read as one scheme. The alpha treatment follows the
-  // iOS Metal shader (TemperatureShader.metal, precipitation_grid_fragment):
-  // below PRECIP_DRY a cell is transparent, and alpha ramps from 45% at
-  // 0.1 mm/h to full at 1 mm/h. Dry cells keep the first stop's RGB so the
-  // GPU's bilinear upscale blends toward light blue at rain edges instead of
-  // fringing dark.
-  const PRECIP_STOPS: RampStops = [
-    [0.1, [168, 224, 255]],
-    [1, [63, 160, 255]],
-    [5, [20, 54, 255]],
-    [20, [139, 0, 255]],
-    [50, [255, 0, 170]],
-  ];
-  const PRECIP_DRY = 0.1;
-  const PRECIP_OPAQUE = 1;
-  const PRECIP_MIN_ALPHA = 0.45;
-
-  function precipitationRGBA(v: number): RGBA {
-    const [r, g, b] = rampColor(PRECIP_STOPS, v);
-    if (v < PRECIP_DRY) return [r, g, b, 0];
-    const intensity =
-      v >= PRECIP_OPAQUE ? 1 : (v - PRECIP_DRY) / (PRECIP_OPAQUE - PRECIP_DRY);
-    return [
-      r,
-      g,
-      b,
-      Math.round(255 * (PRECIP_MIN_ALPHA + (1 - PRECIP_MIN_ALPHA) * intensity)),
-    ];
-  }
-
-  // FMI's Mobile_dark radar classes: 8 discrete bands at a constant ~70%
-  // alpha, colors and thresholds lifted from the WMS legend so the grid render
-  // is indistinguishable from the official tiles.
-  const STEPPED_CLASS_EDGES = [0.1, 0.3, 0.5, 1, 2.5, 5, 10, 15];
-  const STEPPED_CLASS_COLORS: RGB[] = [
-    [173, 243, 250],
-    [134, 190, 243],
-    [95, 138, 236],
-    [57, 85, 229],
-    [20, 33, 222],
-    [130, 56, 236],
-    [185, 67, 244],
-    [241, 78, 251],
-  ];
-  const STEPPED_CLASS_ALPHA = 179;
-
-  function precipitationSteppedRGBA(v: number): RGBA {
-    if (v < STEPPED_CLASS_EDGES[0]) return [0, 0, 0, 0];
-    let cls = STEPPED_CLASS_EDGES.length - 1;
-    for (let i = 1; i < STEPPED_CLASS_EDGES.length; i++) {
-      if (v < STEPPED_CLASS_EDGES[i]) {
-        cls = i - 1;
-        break;
-      }
-    }
-    const [r, g, b] = STEPPED_CLASS_COLORS[cls];
-    return [r, g, b, STEPPED_CLASS_ALPHA];
-  }
-
   // The active precipitation color style, mirrored to ?ramp= like the layer.
-  type PrecipRamp = "smooth" | "stepped";
+  // Ramp and opacity persist across visits (lib/mapSettings); a ?ramp= URL
+  // still wins for the ramp so shared links open as intended.
   function initialRamp(): PrecipRamp {
     const fromURL = new URLSearchParams(window.location.search).get("ramp");
-    const chosen = fromURL ?? readStored(RAMP_STORAGE_KEY);
-    return chosen === "stepped" ? "stepped" : "smooth";
+    return fromURL === null ? storedRamp() : parseRamp(fromURL);
   }
   function writeRamp(next: PrecipRamp) {
     const url = new URL(window.location.href);
     if (next === "smooth") url.searchParams.delete("ramp");
     else url.searchParams.set("ramp", next);
     history.replaceState(null, "", url);
-    writeStored(RAMP_STORAGE_KEY, next === "smooth" ? null : next);
+    storeRamp(next);
   }
   let precipRamp: PrecipRamp = initialRamp();
-  const activePrecipRGBA = () =>
-    precipRamp === "stepped" ? precipitationSteppedRGBA : precipitationRGBA;
 
-  type FieldGrid = {
-    rows: number;
-    cols: number;
-    min_lat: number;
-    max_lat: number;
-    min_lon: number;
-    max_lon: number;
-    values: (number | null)[];
-  };
+  // The ±1h radar layer's frames (see lib/radarFrames).
+  const radar = createRadarFrames(() => precipRamp);
 
-  // Rasterize the dense GRIB grid to a cols×rows canvas colored by the given
-  // colorizer (masked cells transparent). MapLibre's raster layer
-  // bilinear-upscales the small texture on the GPU, giving the smooth field iOS
-  // renders with Metal — instead of flattening the grid back into IDW points
-  // server-side.
-  function rasterizeGrid(grid: FieldGrid, rgba: (v: number) => RGBA): string {
-    const { rows, cols, values } = grid;
-    const canvas = document.createElement("canvas");
-    canvas.width = cols;
-    canvas.height = rows;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("no 2d canvas context");
-    const img = ctx.createImageData(cols, rows);
-    // values are row-major north-to-south (row 0 = max_lat), so index maps
-    // directly to canvas pixels with y=0 at the top (north).
-    for (let i = 0; i < values.length; i++) {
-      const v = values[i];
-      const o = i * 4;
-      if (v == null) {
-        img.data[o + 3] = 0;
-        continue;
-      }
-      const [r, g, b, a] = rgba(v);
-      img.data[o] = r;
-      img.data[o + 1] = g;
-      img.data[o + 2] = b;
-      img.data[o + 3] = a;
-    }
-    ctx.putImageData(img, 0, 0);
-    return canvas.toDataURL("image/png");
-  }
-
-  function gridCorners(grid: FieldGrid): Corners {
-    return [
-      [grid.min_lon, grid.max_lat],
-      [grid.max_lon, grid.max_lat],
-      [grid.max_lon, grid.min_lat],
-      [grid.min_lon, grid.min_lat],
-    ];
-  }
-
-  // The layers rendered client-side from the GRIB grid JSON (the ±1h radar
-  // layer stays on server PNGs).
+  // The layers rendered client-side from the GRIB grid JSON.
   type GridLayer = Exclude<Layer, "precipitation">;
-
-  // The 12h grid is fetched over the full fixed map canvas (FINLAND, slightly
-  // padded — the server downloads GRIB over this same extent, GRIB_BBOX) so the
-  // layer spans the same area as the 1h radar PNGs; the response's own corners
-  // are used, so a model-domain edge inside this bbox still renders correctly.
-  // Width/height are required by the endpoint but unused for the grid payload;
-  // keeping them constant keeps the server cache key stable.
-  const PRECIP_GRID_QUERY = new URLSearchParams({
-    bbox: "10,56.5,37.6,71.5",
-    width: "600",
-    height: "600",
-  }).toString();
 
   function gridFrameURL(l: GridLayer, at: string): string {
     return l === "temperature"
@@ -444,76 +287,8 @@ const rainSteppedTicks = [
   // The GRIB grid is whole-Finland and independent of the viewport, so a given
   // (layer, instant) always rasterizes to the same texture. Memoize so panning
   // and re-scrubbing to a visited frame skip both the fetch and the synchronous
-  // PNG encode. `null` records a known GRIB miss. Radar observation frames
-  // share the map under a "precipitation-obs" key prefix.
+  // PNG encode. `null` records a known GRIB miss.
   const gridFrameCache = new Map<string, Frame | null>();
-
-  // Radar-derived grid (observation composite or extrapolation nowcast) for
-  // one instant of the ±1h layer, rendered client-side with the shared precip
-  // ramp. 404 = frame not on the server (radar disabled, or a gap) — a known
-  // miss the caller falls back on.
-  async function fetchRadarGridFrame(
-    endpoint: "precipitation-observed" | "precipitation-nowcast",
-    at: string,
-  ): Promise<Frame | null> {
-    const res = await fetch(
-      `/api/map/${endpoint}?${PRECIP_GRID_QUERY}&time=${encodeURIComponent(at)}`,
-    );
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`${endpoint} grid fetch failed: ${res.status}`);
-    const data = (await res.json()) as { grid?: FieldGrid | null };
-    if (!data.grid || data.grid.values.length === 0) return null;
-    return {
-      url: rasterizeGrid(data.grid, activePrecipRGBA()),
-      corners: gridCorners(data.grid),
-      warp: true,
-    };
-  }
-
-  const fetchObservedGridFrame = (at: string) =>
-    fetchRadarGridFrame("precipitation-observed", at);
-  const fetchNowcastGridFrame = (at: string) =>
-    fetchRadarGridFrame("precipitation-nowcast", at);
-
-  // Nowcast frames are re-predicted every run (~5 min), so unlike observation
-  // frames they can't be memoized for the page lifetime; entries expire after
-  // the proxy's cache window and re-rasterize from the browser HTTP cache.
-  const NOWCAST_FRAME_TTL_MS = 60_000;
-  const nowcastFrameCache = new Map<
-    string,
-    { frame: Frame | null; fetchedAt: number }
-  >();
-  function cachedNowcastFrame(key: string): Frame | null | undefined {
-    const entry = nowcastFrameCache.get(key);
-    if (!entry) return undefined;
-    if (Date.now() - entry.fetchedAt > NOWCAST_FRAME_TTL_MS) {
-      nowcastFrameCache.delete(key);
-      return undefined;
-    }
-    return entry.frame;
-  }
-
-  // Past/now frames of the ±1h radar layer come from the observation grid,
-  // future frames from the extrapolation nowcast grid. null = miss, the
-  // caller falls back to the server PNG.
-  async function radarFrame(): Promise<Frame | null> {
-    const at = manifest.precipitation.times[frameIndex];
-    if (!at) return null;
-    if (Date.parse(at) <= Date.now()) {
-      const key = observedFrameKey(at);
-      const cached = gridFrameCache.get(key);
-      if (cached !== undefined) return cached;
-      const frame = await fetchObservedGridFrame(at);
-      gridFrameCache.set(key, frame);
-      return frame;
-    }
-    const key = nowcastFrameKey(at);
-    const cached = cachedNowcastFrame(key);
-    if (cached !== undefined) return cached;
-    const frame = await fetchNowcastGridFrame(at);
-    nowcastFrameCache.set(key, { frame, fetchedAt: Date.now() });
-    return frame;
-  }
 
   async function fetchGridFrame(l: GridLayer, at: string): Promise<Frame | null> {
     const res = await fetch(gridFrameURL(l, at));
@@ -523,7 +298,8 @@ const rainSteppedTicks = [
     if (!res.ok) throw new Error(`grid fetch failed: ${res.status}`);
     const data = (await res.json()) as { grid?: FieldGrid | null };
     if (!data.grid || data.grid.values.length === 0) return null;
-    const rgba = l === "temperature" ? temperatureRGBA : activePrecipRGBA();
+    const rgba =
+      l === "temperature" ? temperatureRGBA : precipitationRampRGBA(precipRamp);
     return { url: rasterizeGrid(data.grid, rgba), corners: gridCorners(data.grid) };
   }
 
@@ -532,9 +308,6 @@ const rainSteppedTicks = [
   function gridFrameKey(l: GridLayer, at: string): string {
     return l === "temperature" ? `${l}|${at}` : `${l}|${at}|${precipRamp}`;
   }
-  const observedFrameKey = (at: string) => `precipitation-obs|${at}|${precipRamp}`;
-  const nowcastFrameKey = (at: string) =>
-    `precipitation-nowcast|${at}|${precipRamp}`;
 
   // Fetch the GRIB grid JSON for the active frame and render it client-side —
   // for every frame including "now" (the server serves GRIB from the current
@@ -551,24 +324,13 @@ const rainSteppedTicks = [
     return frame;
   }
 
-  // Server PNG for the active layer over the fixed Finland extent. Only the PNG
-  // layers ever reach this (precipitation12h renders grids exclusively).
-  const fixedView = (t: string | null = timeParam()): Frame =>
-    fixedFrame(layer as OverlayPngLayer, t);
-
-  // Holds refs to decoded precipitation preloads so the browser keeps the HTTP
-  // responses cached; keyed by overlay URL. URLs are viewport-independent now
-  // (fixed extent), so they never go stale — the map holds at most one entry per
-  // frame. Temperature future frames use gridFrameCache instead.
-  const precipPreloads = new Map<string, HTMLImageElement>();
-
   // Warm caches for every frame within `span` steps of `center` so scrubbing and
   // animation land on already-fetched data instead of a fresh round-trip. The
   // window wraps around the list (modulo length) so the loop-restart frame is
   // warm before playback jumps back to it — otherwise the wrap stalls on a live
   // fetch. Grid layers warm gridFrameCache (GRIB grid); the radar layer warms
-  // the browser HTTP cache via an <img> preload. Fire-and-forget; failures fall
-  // back to a live fetch on demand.
+  // its own grid caches. Fire-and-forget; failures fall back to a live fetch
+  // on demand.
   function prefetchAround(center: number, span: number) {
     const frames = manifest[layer];
     const len = frames.times.length;
@@ -576,39 +338,15 @@ const rainSteppedTicks = [
       if (offset === 0) continue;
       const idx = ((center + offset) % len + len) % len;
       if (idx === center) continue;
-      if (layer !== "precipitation") {
-        const at = frames.times[idx];
-        const key = gridFrameKey(layer, at);
-        if (gridFrameCache.has(key)) continue;
-        fetchGridFrame(layer, at)
-          .then((frame) => gridFrameCache.set(key, frame))
-          .catch(() => {});
+      if (layer === "precipitation") {
+        radar.prefetch(frames, idx);
         continue;
       }
-      // ±1h layer: past frames warm the observation grid cache; future frames
-      // warm the nowcast grid cache, preloading the fallback PNG on a miss.
       const at = frames.times[idx];
-      if (!at) continue;
-      if (Date.parse(at) <= Date.now()) {
-        const key = observedFrameKey(at);
-        if (gridFrameCache.has(key)) continue;
-        fetchObservedGridFrame(at)
-          .then((frame) => gridFrameCache.set(key, frame))
-          .catch(() => {});
-        continue;
-      }
-      const key = nowcastFrameKey(at);
-      if (cachedNowcastFrame(key) !== undefined) continue;
-      fetchNowcastGridFrame(at)
-        .then((frame) => {
-          nowcastFrameCache.set(key, { frame, fetchedAt: Date.now() });
-          if (frame) return;
-          const { url } = fixedView(timeParamAt(idx));
-          if (precipPreloads.has(url)) return;
-          const img = new Image();
-          img.src = url;
-          precipPreloads.set(url, img);
-        })
+      const key = gridFrameKey(layer, at);
+      if (gridFrameCache.has(key)) continue;
+      fetchGridFrame(layer, at)
+        .then((frame) => gridFrameCache.set(key, frame))
         .catch(() => {});
     }
   }
@@ -620,21 +358,15 @@ const rainSteppedTicks = [
     // layer renders past/now frames from the radar observation grid and
     // future frames from the extrapolation nowcast grid, falling back to the
     // server PNG on a miss.
-    if (layer !== "precipitation") {
-      const grid = await gridFrame(layer);
-      if (grid) return grid;
-      if (layer === "precipitation12h") {
-        return { url: TRANSPARENT_PNG, corners: FINLAND_CORNERS };
-      }
-    } else {
-      try {
-        const radar = await radarFrame();
-        if (radar) return radar;
-      } catch (err) {
-        console.error("radar grid fetch failed, using PNG", err);
-      }
+    if (layer === "precipitation") {
+      return radar.frameAt(manifest.precipitation, frameIndex);
     }
-    return fixedView();
+    const grid = await gridFrame(layer);
+    if (grid) return grid;
+    if (layer === "precipitation12h") {
+      return { url: TRANSPARENT_PNG, corners: FINLAND_CORNERS };
+    }
+    return fixedFrame("temperature", timeParam());
   }
 
   // A single persistent image source + raster layer, whose texture we swap per
@@ -808,7 +540,7 @@ const rainSteppedTicks = [
     }
   });
   opacityInput.addEventListener("change", () => {
-    writeStored(OPACITY_STORAGE_KEY, opacity === 0.8 ? null : String(opacity));
+    storeOpacity(opacity);
   });
 
   // Time scrubber. The slider indexes into the active layer's frame list, with
