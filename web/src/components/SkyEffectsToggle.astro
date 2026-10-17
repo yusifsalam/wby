@@ -2,12 +2,17 @@
 // Turns the animated weather background on or off. Only "off" is stored
 // ("sky-effects" in localStorage); BaseLayout applies it before first paint as
 // <html data-sky-effects="off">, which also picks the icon.
+type Props = {
+  class?: string;
+};
+
+const { class: className = "" } = Astro.props;
 ---
 
 <button
   id="sky-effects-toggle"
   type="button"
-  class="flex-none rounded-lg border border-transparent p-2 text-muted hover:border-line hover:bg-surface hover:text-ink"
+  class:list={["rounded-lg p-2 text-muted hover:bg-current/10 hover:text-ink", className]}
   aria-label="Background effects"
   aria-pressed="true"
   title="Background effects"

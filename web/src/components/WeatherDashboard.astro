@@ -18,6 +18,7 @@ import Footer from "./Footer.astro";
 import HourlySettings from "./HourlySettings.astro";
 import Measure from "./Measure.astro";
 import PrecipitationMap from "./PrecipitationMap.astro";
+import SkyEffectsToggle from "./SkyEffectsToggle.astro";
 import TopBar from "./TopBar.astro";
 import UVIndexCard from "./UVIndexCard.astro";
 import WeatherSky from "./WeatherSky.astro";
@@ -97,9 +98,9 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
 <WeatherSky state={sky} />
 
 <main class="mx-auto flex min-h-screen w-[min(1180px,100%)] flex-col p-6 max-[820px]:p-4">
-  <TopBar activeSlug={city.slug} skyToggle />
+  <TopBar activeSlug={city.slug} />
 
-  <section class="hero-gradient sky-hero mb-4.5 grid min-h-77.5 grid-cols-[minmax(0,1fr)_minmax(120px,260px)] items-center gap-7 rounded-lg border border-line p-[clamp(22px,5vw,48px)] shadow-hero max-[820px]:min-h-fit max-[820px]:grid-cols-1" data-sky-fg={prefersLightForeground(sky.scene) ? "light" : "dark"}>
+  <section class="hero-gradient sky-hero relative mb-4.5 grid min-h-77.5 grid-cols-[minmax(0,1fr)_minmax(120px,260px)] items-center gap-7 rounded-lg border border-line p-[clamp(22px,5vw,48px)] shadow-hero max-[820px]:min-h-fit max-[820px]:grid-cols-1" data-sky-fg={prefersLightForeground(sky.scene) ? "light" : "dark"}>
     <div>
       <p class="mb-3 text-[0.9rem] font-bold text-muted">{data.station.name}</p>
       <h1 class="mb-3 text-[clamp(3rem,10vw,7rem)] font-bold leading-[0.92]">{city.name}</h1>
@@ -116,6 +117,7 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
         <img class="w-[min(240px,100%)] filter-[drop-shadow(0_18px_24px_rgba(23,33,43,0.16))]" src="/wby-weather.svg" alt="" />
       )}
     </div>
+    <SkyEffectsToggle class="absolute top-3 right-3" />
   </section>
 
   {hourly.length > 0 && (
