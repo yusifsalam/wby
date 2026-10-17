@@ -64,6 +64,7 @@ const url = new URL(Astro.url.pathname.replace(/(.)\/$/, "$1"), Astro.site ?? As
           // Unit system: only "imperial" is stored; CSS (.u-metric/.u-imperial)
           // picks which rendered copy of each value shows.
           if (localStorage.getItem("units") === "imperial") root.dataset.units = "imperial";
+          if (localStorage.getItem("sky-effects") === "off") root.dataset.skyEffects = "off";
         } catch {}
       })();
     </script>

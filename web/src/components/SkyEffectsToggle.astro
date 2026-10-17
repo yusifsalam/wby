@@ -1,0 +1,39 @@
+---
+// Turns the animated weather background on or off. Only "off" is stored
+// ("sky-effects" in localStorage); BaseLayout applies it before first paint as
+// <html data-sky-effects="off">, which also picks the icon.
+---
+
+<button
+  id="sky-effects-toggle"
+  type="button"
+  class="flex-none rounded-lg border border-transparent p-2 text-muted hover:border-line hover:bg-surface hover:text-ink"
+  aria-label="Background effects"
+  aria-pressed="true"
+  title="Background effects"
+>
+  <svg class="sky-icon sky-icon--on h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 2v2M4.93 4.93l1.41 1.41M20 12h2M19.07 4.93l-1.41 1.41M15.95 12.65a4 4 0 0 0-5.93-4.13M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z" />
+  </svg>
+  <svg class="sky-icon sky-icon--off h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="m2 2 20 20M5.78 5.78A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.31-.19M21.53 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7 7 0 0 0 10 5.07" />
+  </svg>
+</button>
+
+<script>
+  import { setSkyEnabled } from "../lib/sky/controller";
+
+  const root = document.documentElement;
+  const toggle = document.getElementById("sky-effects-toggle");
+
+  function sync() {
+    toggle?.setAttribute("aria-pressed", String(root.dataset.skyEffects !== "off"));
+  }
+
+  toggle?.addEventListener("click", () => {
+    setSkyEnabled(root.dataset.skyEffects === "off");
+    sync();
+  });
+
+  sync();
+</script>

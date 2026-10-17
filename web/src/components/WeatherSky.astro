@@ -1,0 +1,29 @@
+---
+// Animated weather sky behind the weather page, ported from the iOS app. The
+// gradient renders server-side; the WebGL layers start on the client unless
+// the visitor turned background effects off (<html data-sky-effects="off">).
+import { type SkyState, skyGradientVars } from "../lib/sky/state";
+
+type Props = {
+  state: SkyState;
+};
+
+const { state } = Astro.props;
+const style = Object.entries(skyGradientVars(state.scene))
+  .map(([name, value]) => `${name}:${value}`)
+  .join(";");
+---
+
+<div class="weather-sky" aria-hidden="true" data-sky={JSON.stringify(state)} style={style}>
+  <canvas></canvas>
+</div>
+
+<script>
+  import { initSky } from "../lib/sky/controller";
+
+  const sky = document.querySelector<HTMLElement>(".weather-sky");
+  if (sky) initSky(sky);
+  if (import.meta.env.DEV) {
+    import("../lib/sky/devPanel").then(({ mountSkyDevPanel }) => mountSkyDevPanel());
+  }
+</script>

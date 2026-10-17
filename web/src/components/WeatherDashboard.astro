@@ -3,6 +3,7 @@ import type { City } from "../lib/cities";
 import { groupHoursByLocalDate } from "../lib/dayDetail";
 import { dayLabel, formatObservedTime, hourLabel, type MeasureKind } from "../lib/formatters";
 import { HOURLY_METRICS, type HourlyMetricKey } from "../lib/hourlyMetrics";
+import { prefersLightForeground, skyStateFromWeather } from "../lib/sky/state";
 import type {
   DailyClimateNormalsResponse,
   DailyForecast,
@@ -19,6 +20,7 @@ import Measure from "./Measure.astro";
 import PrecipitationMap from "./PrecipitationMap.astro";
 import TopBar from "./TopBar.astro";
 import UVIndexCard from "./UVIndexCard.astro";
+import WeatherSky from "./WeatherSky.astro";
 import WeatherSymbol from "./WeatherSymbol.astro";
 
 type Props = {
@@ -41,6 +43,7 @@ const hasDayDetail = (day: DailyForecast) => (hoursByDate.get(day.date)?.length 
 const primarySymbol = hourly[0]?.symbol ?? daily[0]?.symbol;
 const hasPrimarySymbol = symbolAssetFile(primarySymbol, "light") != null;
 const condition = symbolDescription(primarySymbol);
+const sky = skyStateFromWeather(data);
 const lows = daily.map((day) => day.low).filter((value): value is number => value != null);
 const highs = daily.map((day) => day.high).filter((value): value is number => value != null);
 const overallLow = lows.length > 0 ? Math.min(...lows) : 0;
@@ -91,10 +94,12 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
 }
 ---
 
-<main class="mx-auto flex min-h-screen w-[min(1180px,100%)] flex-col p-6 max-[820px]:p-4">
-  <TopBar activeSlug={city.slug} />
+<WeatherSky state={sky} />
 
-  <section class="hero-gradient mb-4.5 grid min-h-77.5 grid-cols-[minmax(0,1fr)_minmax(120px,260px)] items-center gap-7 rounded-lg border border-line p-[clamp(22px,5vw,48px)] shadow-hero max-[820px]:min-h-fit max-[820px]:grid-cols-1">
+<main class="mx-auto flex min-h-screen w-[min(1180px,100%)] flex-col p-6 max-[820px]:p-4">
+  <TopBar activeSlug={city.slug} skyToggle />
+
+  <section class="hero-gradient sky-hero mb-4.5 grid min-h-77.5 grid-cols-[minmax(0,1fr)_minmax(120px,260px)] items-center gap-7 rounded-lg border border-line p-[clamp(22px,5vw,48px)] shadow-hero max-[820px]:min-h-fit max-[820px]:grid-cols-1" data-sky-fg={prefersLightForeground(sky.scene) ? "light" : "dark"}>
     <div>
       <p class="mb-3 text-[0.9rem] font-bold text-muted">{data.station.name}</p>
       <h1 class="mb-3 text-[clamp(3rem,10vw,7rem)] font-bold leading-[0.92]">{city.name}</h1>

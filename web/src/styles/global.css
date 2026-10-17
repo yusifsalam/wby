@@ -1300,3 +1300,105 @@
     display: flex;
   }
 }
+
+/* Weather sky (WeatherSky.astro). Unlayered so these rules beat the Tailwind
+   utilities on the hero, top bar, footer and symbol artwork. They apply only
+   on pages that render the sky, unless background effects are turned off
+   (<html data-sky-effects="off">), which restores the regular page. */
+.weather-sky {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100lvh;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    var(--sky-top),
+    var(--sky-mid),
+    var(--sky-bottom)
+  );
+}
+
+.weather-sky canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+.weather-sky canvas[data-ready] {
+  opacity: 1;
+}
+
+:root[data-sky-effects="off"] .weather-sky {
+  display: none;
+}
+
+:root:not([data-sky-effects="off"]):has(.weather-sky) body {
+  background: transparent;
+}
+
+:root:not([data-sky-effects="off"]):has(.weather-sky) .top-bar {
+  background-color: color-mix(in oklab, var(--color-surface) 92%, transparent);
+}
+
+:root:not([data-sky-effects="off"]):has(.weather-sky) .site-footer {
+  margin-top: 18px;
+  padding: 16px 18px 18px;
+  border: 1px solid var(--color-line);
+  border-radius: 0.5rem;
+  background-color: color-mix(in oklab, var(--color-surface) 92%, transparent);
+}
+
+:root:not([data-sky-effects="off"]) .sky-hero {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  color: var(--color-ink);
+}
+
+:root:not([data-sky-effects="off"]) .sky-hero[data-sky-fg="light"] {
+  --color-ink: #ffffff;
+  --color-muted: rgb(255 255 255 / 0.78);
+  text-shadow: 0 1px 14px rgb(0 0 0 / 0.18);
+}
+
+:root:not([data-sky-effects="off"]) .sky-hero[data-sky-fg="dark"] {
+  --color-ink: #17212b;
+  --color-muted: rgb(23 33 43 / 0.72);
+}
+
+:root:not([data-sky-effects="off"])
+  .sky-hero[data-sky-fg="light"]
+  img[data-symbol-theme="light"],
+:root:not([data-sky-effects="off"])
+  .sky-hero[data-sky-fg="dark"]
+  img[data-symbol-theme="dark"] {
+  display: none;
+}
+
+:root:not([data-sky-effects="off"])
+  .sky-hero[data-sky-fg="light"]
+  img[data-symbol-theme="dark"],
+:root:not([data-sky-effects="off"])
+  .sky-hero[data-sky-fg="dark"]
+  img[data-symbol-theme="light"] {
+  display: block;
+}
+
+/* Background effects toggle: the icon follows <html data-sky-effects>. */
+.sky-icon {
+  display: block;
+}
+
+.sky-icon--off,
+:root[data-sky-effects="off"] .sky-icon--on {
+  display: none;
+}
+
+:root[data-sky-effects="off"] .sky-icon--off {
+  display: block;
+}

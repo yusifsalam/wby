@@ -30,7 +30,7 @@ const label = symbolDescription(code) ?? "";
 
 {light && dark && (
   <>
-    <img class:list={["dark:hidden", className]} src={light.src} width={light.width} height={light.height} alt={label} title={label} loading={loading} decoding="async" />
-    <img class:list={["hidden dark:block", className]} src={dark.src} width={dark.width} height={dark.height} alt="" title={label} aria-hidden="true" loading={loading} decoding="async" />
+    <img class:list={["dark:hidden", className]} data-symbol-theme="light" src={light.src} width={light.width} height={light.height} alt={label} title={label} loading={loading} decoding="async" />
+    <img class:list={["hidden dark:block", className]} data-symbol-theme="dark" src={dark.src} width={dark.width} height={dark.height} alt="" title={label} aria-hidden="true" loading={loading} decoding="async" />
   </>
 )}
