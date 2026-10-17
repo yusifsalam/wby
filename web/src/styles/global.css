@@ -1342,7 +1342,8 @@
 }
 
 :root:not([data-sky-effects="off"]):has(.weather-sky) .top-bar {
-  background-color: color-mix(in oklab, var(--color-surface) 92%, transparent);
+  background-color: color-mix(in oklab, var(--color-surface) 60%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
 }
 
 :root:not([data-sky-effects="off"]):has(.weather-sky) .site-footer {
