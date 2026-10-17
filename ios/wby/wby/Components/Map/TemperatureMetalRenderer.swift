@@ -23,6 +23,7 @@ private struct ShaderUniforms {
     var gridMaxLon: Float = 0
     var gridRows: Float = 0
     var gridCols: Float = 0
+    var tempStepped: UInt32 = 0
 }
 
 private struct ShaderSample {
@@ -59,6 +60,7 @@ private enum RenderMode {
 /// Which field a grid texture holds, selecting the colour ramp / alpha shader.
 enum GridField {
     case temperature
+    case temperatureStepped
     case precipitation
     case precipitationStepped
 }
@@ -140,7 +142,7 @@ final class TemperatureMetalRenderer {
         )
     }
 
-    func setSamples(_ samples: [TemperatureSample]) {
+    func setSamples(_ samples: [TemperatureSample], stepped: Bool = false) {
         let capped = Array(samples.prefix(maxSampleCount))
         let pointer = samplesBuffer.contents().bindMemory(to: ShaderSample.self, capacity: maxSampleCount)
         for (i, sample) in capped.enumerated() {
@@ -152,6 +154,7 @@ final class TemperatureMetalRenderer {
         }
         sampleCount = capped.count
         uniforms.sampleCount = UInt32(capped.count)
+        uniforms.tempStepped = stepped ? 1 : 0
         mode = .points
     }
 
@@ -198,6 +201,7 @@ final class TemperatureMetalRenderer {
         uniforms.gridMaxLon = Float(grid.maxLon)
         uniforms.gridRows = Float(grid.rows)
         uniforms.gridCols = Float(grid.cols)
+        uniforms.tempStepped = field == .temperatureStepped ? 1 : 0
         gridField = field
         mode = .grid
         return true
@@ -247,7 +251,7 @@ final class TemperatureMetalRenderer {
         case .grid:
             let gridState: MTLRenderPipelineState
             switch gridField {
-            case .temperature: gridState = gridPipeline
+            case .temperature, .temperatureStepped: gridState = gridPipeline
             case .precipitation: gridState = gridPrecipPipeline
             case .precipitationStepped: gridState = gridPrecipSteppedPipeline
             }

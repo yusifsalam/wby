@@ -33,7 +33,7 @@ final class PrecipitationMapSnapshotLoader {
         weatherService: WeatherService,
         force: Bool = false
     ) async -> PrecipitationMapSnapshot? {
-        let ramp = PrecipRampStyle.load()
+        let ramp = MapRampStyle.load()
         let key = String(
             format: "%.2f,%.2f,%d,%@",
             coordinate.latitude, coordinate.longitude, style.rawValue, ramp.rawValue
@@ -100,7 +100,7 @@ final class PrecipitationMapSnapshotLoader {
         )
     }
 
-    private func render(_ response: PrecipitationForecastResponse, ramp: PrecipRampStyle) -> RenderedOverlay? {
+    private func render(_ response: PrecipitationForecastResponse, ramp: MapRampStyle) -> RenderedOverlay? {
         guard let renderer, let grid = response.grid,
               renderer.setGrid(grid, field: ramp == .stepped ? .precipitationStepped : .precipitation)
         else { return nil }

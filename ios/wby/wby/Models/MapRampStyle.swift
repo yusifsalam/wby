@@ -1,9 +1,9 @@
 import Foundation
 
-/// Color style for the precipitation grid overlays: the app's smooth gradient,
-/// or the stepped radar classes matching FMI's WMS tiles. Applies to both the
-/// 1h radar layer and the 12h forecast layer.
-enum PrecipRampStyle: String, CaseIterable {
+/// Color style for the Metal map overlays: the app's smooth gradients, or
+/// stepped bands — 2 °C temperature bands, and for rain the radar classes
+/// matching FMI's WMS tiles. Applies to every map layer.
+enum MapRampStyle: String, CaseIterable {
     case smooth
     case stepped
 
@@ -16,9 +16,9 @@ enum PrecipRampStyle: String, CaseIterable {
         }
     }
 
-    static func load(defaults: UserDefaults = .standard) -> PrecipRampStyle {
+    static func load(defaults: UserDefaults = .standard) -> MapRampStyle {
         if let raw = defaults.string(forKey: storageKey),
-           let style = PrecipRampStyle(rawValue: raw) {
+           let style = MapRampStyle(rawValue: raw) {
             return style
         }
         return .smooth

@@ -524,10 +524,10 @@ final class WeatherMapViewModel {
 
     // Rendered precip frames bake the ramp in; when the Settings style changes,
     // drop them so scrubbing re-renders instead of mixing styles.
-    @ObservationIgnored private var renderedPrecipRamp = PrecipRampStyle.load()
+    @ObservationIgnored private var renderedPrecipRamp = MapRampStyle.load()
 
     private func invalidatePrecipFramesIfRampChanged() {
-        let ramp = PrecipRampStyle.load()
+        let ramp = MapRampStyle.load()
         guard ramp != renderedPrecipRamp else { return }
         renderedPrecipRamp = ramp
         precipPrefetchTask?.cancel()
@@ -537,7 +537,7 @@ final class WeatherMapViewModel {
     // The grid field for the active precipitation ramp, selecting the Metal
     // fragment (smooth gradient vs stepped radar classes).
     private var precipGridField: GridField {
-        PrecipRampStyle.load() == .stepped ? .precipitationStepped : .precipitation
+        MapRampStyle.load() == .stepped ? .precipitationStepped : .precipitation
     }
 
     private func fetchPrecipFrame(for hour: Date) async {
@@ -801,10 +801,11 @@ final class WeatherMapViewModel {
         guard let renderer = metalRenderer else { return }
         // Forecast frames carry the dense GRIB raster (texture bilinear); station
         // fallbacks (now/past) carry irregular samples (point IDW).
+        let stepped = MapRampStyle.load() == .stepped
         if let grid = response.grid {
-            renderer.setGrid(grid)
+            renderer.setGrid(grid, field: stepped ? .temperatureStepped : .temperature)
         } else {
-            renderer.setSamples(response.samples)
+            renderer.setSamples(response.samples, stepped: stepped)
         }
         guard let image = renderer.renderImage(
             bounds: MercatorBounds.finland,

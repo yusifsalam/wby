@@ -21,6 +21,8 @@ struct Uniforms {
     float gridMaxLon;
     float gridRows;
     float gridCols;
+    // Non-zero quantizes temperature into kTempBandWidth bands.
+    uint  tempStepped;
 };
 
 struct Sample {
@@ -73,6 +75,18 @@ static float3 rampColor(float temp) {
     return kPaletteStops[7];
 }
 
+// Stepped temperature: bands on even degrees, each painted with the smooth
+// ramp's color at the band midpoint (matching the web's TEMP_BAND_WIDTH in
+// radarFrames.ts).
+constant float kTempBandWidth = 2.0;
+
+static float3 temperatureColor(float temp, constant Uniforms& uniforms) {
+    if (uniforms.tempStepped != 0) {
+        temp = (floor(temp / kTempBandWidth) + 0.5) * kTempBandWidth;
+    }
+    return rampColor(temp);
+}
+
 static float inverseMercatorLat(float mercY) {
     float latRad = 2.0 * atan(exp(mercY)) - M_PI_F / 2.0;
     return latRad * 180.0 / M_PI_F;
@@ -115,7 +129,7 @@ fragment float4 temperature_fragment(
     }
 
     float temp = sumTemp / sumWeight;
-    float3 rgb = rampColor(temp);
+    float3 rgb = temperatureColor(temp, uniforms);
 
     // Coverage mask (smoothstep between inner/outer distance).
     float dist = sqrt(nearestSq);
@@ -184,7 +198,7 @@ fragment float4 temperature_grid_fragment(
     if (weight <= 0.0) {
         return float4(0.0);
     }
-    float3 rgb = rampColor(vw.x);
+    float3 rgb = temperatureColor(vw.x, uniforms);
     float alpha = uniforms.baseAlpha * smoothstep(0.0, 0.6, clamp(weight, 0.0, 1.0));
     if (alpha <= 0.0) {
         return float4(0.0);
