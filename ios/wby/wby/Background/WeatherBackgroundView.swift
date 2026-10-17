@@ -21,8 +21,13 @@ struct WeatherBackgroundView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            TimelineView(.animation(minimumInterval: frameInterval, paused: isPaused)) { context in
-                layers(size: proxy.size, date: reduceMotion ? clocks.start : context.date)
+            ZStack {
+                TimelineView(.animation(minimumInterval: skyFrameInterval, paused: isPaused)) { context in
+                    skyLayers(size: proxy.size, date: reduceMotion ? clocks.start : context.date)
+                }
+                TimelineView(.animation(minimumInterval: 1.0 / 60, paused: isPaused || !state.scene.hasPrecipitation)) { context in
+                    precipitationLayers(size: proxy.size, date: reduceMotion ? clocks.start : context.date)
+                }
             }
         }
         .allowsHitTesting(false)
@@ -49,6 +54,8 @@ struct WeatherBackgroundView: View {
                 try? await Task.sleep(for: .seconds(Double.random(in: 6...16)))
                 if Task.isCancelled { break }
                 strike = LightningStrike(start: .now, x: Float.random(in: 0.15...0.85))
+                try? await Task.sleep(for: .seconds(LightningStrike.duration))
+                strike = nil
             }
         }
     }
@@ -61,15 +68,14 @@ struct WeatherBackgroundView: View {
         state.scene == .storm && !isPaused
     }
 
-    private var frameInterval: Double {
-        if state.scene.hasPrecipitation { return 1.0 / 60 }
+    private var skyFrameInterval: Double {
+        if strike != nil { return 1.0 / 60 }
         return sunFade > 0 ? 1.0 / 30 : 1.0 / 15
     }
 
     @ViewBuilder
-    private func layers(size: CGSize, date: Date) -> some View {
+    private func skyLayers(size: CGSize, date: Date) -> some View {
         let time = Float(date.timeIntervalSince(clocks.start))
-        let flash = strike?.intensity(at: date) ?? 0
         let style = state.scene.skyStyle(coverage: state.coverage)
         ZStack {
             if style.stars > 0 {
@@ -84,11 +90,18 @@ struct WeatherBackgroundView: View {
                 time: time,
                 drift: SIMD2<Float>(clocks.drift.value(at: date)),
                 sunFade: Float(sunFade),
-                flash: flash,
+                flash: strike?.intensity(at: date) ?? 0,
                 flashX: strike?.x ?? 0.5
             )
             .animation(.easeInOut(duration: 1.5), value: state)
+        }
+    }
 
+    @ViewBuilder
+    private func precipitationLayers(size: CGSize, date: Date) -> some View {
+        let time = Float(date.timeIntervalSince(clocks.start))
+        let flash = strike?.intensity(at: date) ?? 0
+        ZStack {
             if state.scene.hasRain {
                 RainLayer(
                     intensity: state.precipitationIntensity,
@@ -159,9 +172,11 @@ private struct LightningStrike: Equatable {
     var start: Date
     var x: Float
 
+    static let duration = 1.2
+
     func intensity(at date: Date) -> Float {
         let t = date.timeIntervalSince(start)
-        guard t >= 0, t < 1.2 else { return 0 }
+        guard t >= 0, t < Self.duration else { return 0 }
         return Float(max(
             pulse(t, at: 0, peak: 1, decay: 0.06),
             pulse(t, at: 0.12, peak: 0.55, decay: 0.05),

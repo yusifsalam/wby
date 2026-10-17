@@ -113,31 +113,33 @@ static float wby_cloud_density(float3 p, float coverage, float deck, float top, 
     float cumulusProfile = smoothstep(0.0, 0.12, h) * (1.0 - smoothstep(0.25, 1.0, h));
     float deckProfile = smoothstep(0.0, 0.10, h) * (1.0 - smoothstep(0.55, 1.0, h));
     float profile = mix(cumulusProfile, deckProfile, deck);
-    if (profile <= 0.0) { return 0.0; }
+    float threshold = mix(0.78, 0.30, coverage);
+    if (profile <= threshold) { return 0.0; }
 
+    float weight = 1.0 - 1.0 / float(1 << octaves);
+    float needed = threshold * weight / profile;
     float3 q = p * mix(3.0, 3.8, deck) + offset;
     float f = 0.5 * wby_noise3(q);
+    if (f + weight - 0.5 <= needed) { return 0.0; }
     q = wby_rotate3(q) * 2.02;
     f += 0.25 * wby_noise3(q);
-    float weight = 0.75;
+    if (f + weight - 0.75 <= needed) { return 0.0; }
     if (octaves > 2) {
         q = wby_rotate3(q) * 2.03;
         f += 0.125 * wby_noise3(q);
-        weight += 0.125;
+        if (f + weight - 0.875 <= needed) { return 0.0; }
     }
     if (octaves > 3) {
         q = wby_rotate3(q) * 2.01;
         f += 0.0625 * wby_noise3(q);
-        weight += 0.0625;
+        if (f + weight - 0.9375 <= needed) { return 0.0; }
     }
     if (octaves > 4) {
         q = wby_rotate3(q) * 2.04;
         f += 0.03125 * wby_noise3(q);
-        weight += 0.03125;
     }
     f /= weight;
 
-    float threshold = mix(0.78, 0.30, coverage);
     return clamp((f * profile - threshold) / (1.0 - threshold) * 3.2, 0.0, 1.0);
 }
 
