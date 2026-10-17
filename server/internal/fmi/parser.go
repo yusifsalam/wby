@@ -181,6 +181,9 @@ func ParseObservations(data []byte) (*ObservationResult, error) {
 			case "precipitationintensity", "ri_10min":
 				obs.PrecipIntensity = val
 			case "snowdepth", "snow_aws":
+				if val != nil && *val < 0 {
+					val = new(0.0)
+				}
 				obs.SnowDepth = val
 			case "visibility", "vis":
 				obs.Visibility = val

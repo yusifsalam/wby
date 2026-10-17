@@ -1,6 +1,7 @@
 package fmi
 
 import (
+	"bytes"
 	"math"
 	"os"
 	"slices"
@@ -42,6 +43,36 @@ func TestParseObservations(t *testing.T) {
 	if obs.Temperature == nil {
 		t.Error("latest observation should have temperature")
 	}
+}
+
+func TestParseObservationsNoSnowMarkerIsZero(t *testing.T) {
+	data, err := os.ReadFile("testdata/observations.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	series := bytes.Index(data, []byte(`gml:id="obs-obs-1-1-snow_aws"`))
+	if series < 0 {
+		t.Fatal("expected snow_aws series in fixture")
+	}
+	data = slices.Concat(data[:series], bytes.Replace(data[series:],
+		[]byte("<wml2:value>25.0</wml2:value>"), []byte("<wml2:value>-1.0</wml2:value>"), 1))
+
+	result, err := ParseObservations(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	at := time.Date(2026, 2, 15, 19, 50, 0, 0, time.UTC)
+	for _, o := range result.Observations {
+		if o.FMISID != 100971 || !o.ObservedAt.Equal(at) {
+			continue
+		}
+		if o.SnowDepth == nil || *o.SnowDepth != 0 {
+			t.Fatalf("SnowDepth = %v, want 0", o.SnowDepth)
+		}
+		return
+	}
+	t.Fatal("expected observation for FMISID 100971 at 19:50")
 }
 
 func TestCircularMeanDegreesPtrWrapAround(t *testing.T) {
