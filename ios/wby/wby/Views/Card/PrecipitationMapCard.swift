@@ -42,7 +42,9 @@ struct PrecipitationMapCard: View {
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 HStack {
-                    Text(statusText)
+                    if let statusText {
+                        Text(statusText)
+                    }
                     Spacer()
                     if let dataTime = snapshot?.dataTime {
                         Text("Radar \(dataTime, format: timeFormat)")
@@ -89,12 +91,9 @@ struct PrecipitationMapCard: View {
         }
     }
 
-    private var statusText: String {
+    private var statusText: String? {
         guard let snapshot else { return failed ? "Tap to open the map" : "Loading radar…" }
-        guard let maxRate = snapshot.maxRate else { return "Radar unavailable" }
-        if maxRate < 0.1 { return "No precipitation nearby" }
-        let rate = maxRate < 1 ? String(format: "%.1f", maxRate) : "\(Int(maxRate.rounded()))"
-        return "Up to \(rate) mm/h nearby"
+        return snapshot.dataTime == nil ? "Radar unavailable" : nil
     }
 
     private var timeFormat: Date.FormatStyle {

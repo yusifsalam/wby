@@ -5,7 +5,6 @@ import UIKit
 struct PrecipitationMapSnapshot {
     let image: UIImage
     let dataTime: Date?
-    let maxRate: Double?
 }
 
 /// Composites the latest radar rain-rate raster over an `MKMapSnapshotter`
@@ -50,8 +49,7 @@ final class PrecipitationMapSnapshotLoader {
         let image = compose(base: base, coordinate: coordinate, overlay: overlay)
         let snapshot = PrecipitationMapSnapshot(
             image: image,
-            dataTime: response?.dataTime,
-            maxRate: overlay == nil ? nil : response?.max
+            dataTime: overlay == nil ? nil : response?.dataTime
         )
         cache[key] = CacheEntry(snapshot: snapshot, createdAt: Date())
         return snapshot
