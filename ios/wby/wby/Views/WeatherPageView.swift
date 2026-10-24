@@ -6,7 +6,7 @@ struct WeatherPageView: View {
     let locationService: LocationService
     let weatherService: WeatherService
     let disableAutoLoad: Bool
-    let onBackgroundUpdate: (WeatherBackgroundState) -> Void
+    let onBackgroundUpdate: (WeatherBackgroundState?) -> Void
     let onScrollOffsetChange: (CGFloat) -> Void
     let onOpenMap: () -> Void
 
@@ -30,7 +30,7 @@ struct WeatherPageView: View {
         weatherService: WeatherService,
         disableAutoLoad: Bool = false,
         initialWeather: WeatherResponse? = nil,
-        onBackgroundUpdate: @escaping (WeatherBackgroundState) -> Void = { _ in },
+        onBackgroundUpdate: @escaping (WeatherBackgroundState?) -> Void = { _ in },
         onScrollOffsetChange: @escaping (CGFloat) -> Void = { _ in },
         onOpenMap: @escaping () -> Void = {}
     ) {
@@ -83,14 +83,15 @@ struct WeatherPageView: View {
         )
     }
 
-    private var backgroundState: WeatherBackgroundState {
-        let nextHour = weather?.hourlyForecast.first
+    private var backgroundState: WeatherBackgroundState? {
+        guard let weather else { return nil }
+        let nextHour = weather.hourlyForecast.first
         return WeatherBackgroundState(
             scene: currentScene,
             precipitation1h: nextHour?.precipitation1h,
-            cloudCover: weather?.current.resolvedCloudCover,
-            windSpeed: weather?.current.resolvedWindSpeed ?? nextHour?.windSpeed,
-            windDirection: weather?.current.resolvedWindDirection ?? nextHour?.windDirection
+            cloudCover: weather.current.resolvedCloudCover,
+            windSpeed: weather.current.resolvedWindSpeed ?? nextHour?.windSpeed,
+            windDirection: weather.current.resolvedWindDirection ?? nextHour?.windDirection
         )
     }
 

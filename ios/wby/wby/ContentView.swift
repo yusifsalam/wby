@@ -47,8 +47,8 @@ struct ContentView: View {
         Set(pages.map(\.id))
     }
 
-    private var activeBackground: WeatherBackgroundState {
-        pageBackgrounds[currentPageID] ?? .placeholder
+    private var activeBackground: WeatherBackgroundState? {
+        pageBackgrounds[currentPageID]
     }
 
     init(disableAutoLoad: Bool = false, initialWeather: WeatherResponse? = nil) {
@@ -219,7 +219,7 @@ struct ContentView: View {
 /// scroll-driven sun fade re-evaluates only this view rather than the whole
 /// `ContentView` body.
 private struct RootBackgroundView: View {
-    let state: WeatherBackgroundState
+    let state: WeatherBackgroundState?
     let dynamicEffectsEnabled: Bool
     let isCovered: Bool
     let currentPageID: PageID
@@ -232,23 +232,28 @@ private struct RootBackgroundView: View {
         return (Double(fade) * 12).rounded() / 12
     }
 
+    private var gradientScene: WeatherScene {
+        state?.scene ?? .clearDay
+    }
+
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: state.scene.gradientColors,
+                colors: gradientScene.gradientColors,
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-            .id(state.scene)
+            .id(gradientScene)
             .transition(.opacity)
 
-            if dynamicEffectsEnabled {
+            if dynamicEffectsEnabled, let state {
                 WeatherBackgroundView(state: state, sunFade: sunFade, isCovered: isCovered)
                     .ignoresSafeArea()
+                    .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 1.5), value: state.scene)
+        .animation(.easeInOut(duration: 1.5), value: state?.scene)
     }
 }
 

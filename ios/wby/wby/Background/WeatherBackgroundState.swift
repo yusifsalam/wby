@@ -7,8 +7,6 @@ struct WeatherBackgroundState: Equatable {
     var windSpeed: Double?
     var windDirection: Double?
 
-    static let placeholder = WeatherBackgroundState(scene: .clearDay)
-
     init(
         scene: WeatherScene,
         precipitation1h: Double? = nil,
