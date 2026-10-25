@@ -26,12 +26,16 @@ vec4 stars(vec2 pos) {
   vec2 d = cellPos - starPos;
   d.x *= cellSize.x / cellSize.y;
   float radius = 0.03 + hash(cell + ivec2(91, 11)) * 0.04;
-  float intensity = ss(radius, 0.0, length(d));
+  float footprint = max(radius, 1.5 / (u_scale * cellSize.y));
+  float intensity = ss(footprint, 0.0, length(d)) * radius / footprint;
   if (intensity <= 0.0) { return vec4(0.0); }
 
-  float phase = hash(cell + ivec2(5, 50)) * 6.2831853;
-  float freq = 0.35 + hash(cell + ivec2(27, 2)) * 0.55;
-  float twinkle = 0.35 + 0.65 * (0.5 + 0.5 * sin(u_time * freq + phase));
+  float twinkle = 0.8;
+  if (hash(cell + ivec2(41, 8)) < 0.3) {
+    float phase = hash(cell + ivec2(5, 50)) * 6.2831853;
+    float freq = 1.25 + hash(cell + ivec2(27, 2)) * 1.9;
+    twinkle = 0.2 + 0.8 * (0.5 + 0.5 * sin(u_time * freq + phase));
+  }
   vec3 tint = mix(vec3(0.80, 0.87, 1.0), vec3(1.0, 0.93, 0.82), hash(cell + ivec2(63, 19)));
   float a = intensity * twinkle * u_stars * (1.0 - ss(0.55, 0.90, y01));
   return vec4(tint * a, a);
