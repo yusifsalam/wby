@@ -174,7 +174,9 @@ describe("fetchHourlyForecastForCity", () => {
       calls.push(String(url));
       return new Response(
         JSON.stringify({
-          hourly_forecast: [{ time: "2026-09-10T04:00:00Z", temperature: 12.5 }],
+          hourly_forecast: [
+            { time: "2026-09-10T04:00:00Z", temperature: 12.5 },
+          ],
           timezone: "Europe/Helsinki",
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },

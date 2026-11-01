@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  SYMBOL_DESCRIPTIONS,
   parseSymbolCode,
+  SYMBOL_DESCRIPTIONS,
   symbolAssetFile,
   symbolDescription,
 } from "./weatherSymbols";

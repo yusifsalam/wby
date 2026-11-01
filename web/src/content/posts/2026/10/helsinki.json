@@ -1,1690 +1,1623 @@
 {
- "station": {
-  "name": "Helsinki Kaisaniemi",
-  "fmisid": 100971
- },
- "month": "2026-10",
- "through": "2026-10-31",
- "observed": {
-  "temp_avg": 9.82,
-  "temp_high": 11.96,
-  "temp_low": 7.46,
-  "abs_high": 16.2,
-  "abs_low": 0.83,
-  "precip_mm": 44.9,
-  "wet_days": 18.0,
-  "wet_days_1mm": 11.0,
-  "max_day_precip": 11.6,
-  "days_high_15": 3.0,
-  "days_high_10": 25.0,
-  "days_mean_10": 12.0,
-  "days_mean_5": 0.0,
-  "days_low_5": 8.0,
-  "frost_days": 0.0,
-  "hdd": 117.11,
-  "abs_high_date": "2026-10-01",
-  "abs_low_date": "2026-10-20",
-  "max_day_precip_date": "2026-10-09",
-  "abs_low_measured": 1.1,
-  "abs_low_measured_at": "2026-10-19T06:20:00+03:00",
-  "abs_high_measured": 16.2,
-  "feels_avg": 6.75
- },
- "normals": {
-  "1991-2020": {
-   "temp_avg": 6.6,
-   "temp_high": 9.2,
-   "temp_low": 4.2,
-   "precip_mm": 73.3,
-   "wet_days": 16.3,
-   "wet_days_1mm": 10.2,
-   "feels_avg": 3.59
-  },
-  "1996-2025": {
-   "temp_avg": 7.03,
-   "temp_high": 9.54,
-   "temp_low": 4.66,
-   "precip_mm": 75.6,
-   "wet_days": 16.2,
-   "wet_days_1mm": 10.5,
-   "feels_avg": 3.78
-  }
- },
- "rank_warmest": {
-  "rank": 2,
-  "of": 66,
-  "ties": 0,
-  "since": 1961,
-  "warmer_years": [
-   1961
-  ]
- },
- "years": [
-  {
-   "year": 1961,
-   "temp_avg": 10.19,
-   "running30": null
-  },
-  {
-   "year": 1962,
-   "temp_avg": 7.69,
-   "running30": null
-  },
-  {
-   "year": 1963,
-   "temp_avg": 7.2,
-   "running30": null
-  },
-  {
-   "year": 1964,
-   "temp_avg": 8.22,
-   "running30": null
-  },
-  {
-   "year": 1965,
-   "temp_avg": 6.65,
-   "running30": null
-  },
-  {
-   "year": 1966,
-   "temp_avg": 5.99,
-   "running30": null
-  },
-  {
-   "year": 1967,
-   "temp_avg": 9.53,
-   "running30": null
-  },
-  {
-   "year": 1968,
-   "temp_avg": 3.54,
-   "running30": null
-  },
-  {
-   "year": 1969,
-   "temp_avg": 6.2,
-   "running30": null
-  },
-  {
-   "year": 1970,
-   "temp_avg": 5.16,
-   "running30": null
-  },
-  {
-   "year": 1971,
-   "temp_avg": 5.66,
-   "running30": null
-  },
-  {
-   "year": 1972,
-   "temp_avg": 5.62,
-   "running30": null
-  },
-  {
-   "year": 1973,
-   "temp_avg": 3.52,
-   "running30": null
-  },
-  {
-   "year": 1974,
-   "temp_avg": 6.74,
-   "running30": null
-  },
-  {
-   "year": 1975,
-   "temp_avg": 5.94,
-   "running30": null
-  },
-  {
-   "year": 1976,
-   "temp_avg": 2.99,
-   "running30": null
-  },
-  {
-   "year": 1977,
-   "temp_avg": 6.02,
-   "running30": null
-  },
-  {
-   "year": 1978,
-   "temp_avg": 4.93,
-   "running30": null
-  },
-  {
-   "year": 1979,
-   "temp_avg": 4.86,
-   "running30": null
-  },
-  {
-   "year": 1980,
-   "temp_avg": 6.53,
-   "running30": null
-  },
-  {
-   "year": 1981,
-   "temp_avg": 7.43,
-   "running30": null
-  },
-  {
-   "year": 1982,
-   "temp_avg": 6.28,
-   "running30": null
-  },
-  {
-   "year": 1983,
-   "temp_avg": 6.95,
-   "running30": null
-  },
-  {
-   "year": 1984,
-   "temp_avg": 8.26,
-   "running30": null
-  },
-  {
-   "year": 1985,
-   "temp_avg": 7.76,
-   "running30": null
-  },
-  {
-   "year": 1986,
-   "temp_avg": 6.55,
-   "running30": null
-  },
-  {
-   "year": 1987,
-   "temp_avg": 7.95,
-   "running30": null
-  },
-  {
-   "year": 1988,
-   "temp_avg": 5.72,
-   "running30": null
-  },
-  {
-   "year": 1989,
-   "temp_avg": 6.44,
-   "running30": null
-  },
-  {
-   "year": 1990,
-   "temp_avg": 6.2,
-   "running30": 6.42
-  },
-  {
-   "year": 1991,
-   "temp_avg": 6.83,
-   "running30": 6.31
-  },
-  {
-   "year": 1992,
-   "temp_avg": 1.97,
-   "running30": 6.12
-  },
-  {
-   "year": 1993,
-   "temp_avg": 4.87,
-   "running30": 6.04
-  },
-  {
-   "year": 1994,
-   "temp_avg": 5.61,
-   "running30": 5.96
-  },
-  {
-   "year": 1995,
-   "temp_avg": 8.68,
-   "running30": 6.02
-  },
-  {
-   "year": 1996,
-   "temp_avg": 7.74,
-   "running30": 6.08
-  },
-  {
-   "year": 1997,
-   "temp_avg": 3.78,
-   "running30": 5.89
-  },
-  {
-   "year": 1998,
-   "temp_avg": 6.67,
-   "running30": 5.99
-  },
-  {
-   "year": 1999,
-   "temp_avg": 7.45,
-   "running30": 6.04
-  },
-  {
-   "year": 2000,
-   "temp_avg": 9.55,
-   "running30": 6.18
-  },
-  {
-   "year": 2001,
-   "temp_avg": 8.74,
-   "running30": 6.28
-  },
-  {
-   "year": 2002,
-   "temp_avg": 1.54,
-   "running30": 6.15
-  },
-  {
-   "year": 2003,
-   "temp_avg": 4.41,
-   "running30": 6.18
-  },
-  {
-   "year": 2004,
-   "temp_avg": 6.82,
-   "running30": 6.18
-  },
-  {
-   "year": 2005,
-   "temp_avg": 8.28,
-   "running30": 6.26
-  },
-  {
-   "year": 2006,
-   "temp_avg": 8.53,
-   "running30": 6.44
-  },
-  {
-   "year": 2007,
-   "temp_avg": 7.29,
-   "running30": 6.49
-  },
-  {
-   "year": 2008,
-   "temp_avg": 9.26,
-   "running30": 6.63
-  },
-  {
-   "year": 2009,
-   "temp_avg": 4.22,
-   "running30": 6.61
-  },
-  {
-   "year": 2010,
-   "temp_avg": 6.03,
-   "running30": 6.59
-  },
-  {
-   "year": 2011,
-   "temp_avg": 8.52,
-   "running30": 6.63
-  },
-  {
-   "year": 2012,
-   "temp_avg": 6.68,
-   "running30": 6.64
-  },
-  {
-   "year": 2013,
-   "temp_avg": 7.47,
-   "running30": 6.66
-  },
-  {
-   "year": 2014,
-   "temp_avg": 6.66,
-   "running30": 6.61
-  },
-  {
-   "year": 2015,
-   "temp_avg": 6.42,
-   "running30": 6.56
-  },
-  {
-   "year": 2016,
-   "temp_avg": 5.55,
-   "running30": 6.53
-  },
-  {
-   "year": 2017,
-   "temp_avg": 5.83,
-   "running30": 6.46
-  },
-  {
-   "year": 2018,
-   "temp_avg": 7.68,
-   "running30": 6.52
-  },
-  {
-   "year": 2019,
-   "temp_avg": 6.22,
-   "running30": 6.52
-  },
-  {
-   "year": 2020,
-   "temp_avg": 9.27,
-   "running30": 6.62
-  },
-  {
-   "year": 2021,
-   "temp_avg": 8.68,
-   "running30": 6.68
-  },
-  {
-   "year": 2022,
-   "temp_avg": 8.79,
-   "running30": 6.91
-  },
-  {
-   "year": 2023,
-   "temp_avg": 5.64,
-   "running30": 6.93
-  },
-  {
-   "year": 2024,
-   "temp_avg": 9.15,
-   "running30": 7.05
-  },
-  {
-   "year": 2025,
-   "temp_avg": 8.1,
-   "running30": 7.03
-  },
-  {
-   "year": 2026,
-   "temp_avg": 9.82,
-   "running30": null
-  }
- ],
- "standard_normals": [
-  {
-   "period": "1961-1990",
-   "start": 1961,
-   "end": 1990,
-   "temp_avg": 6.42
-  },
-  {
-   "period": "1991-2020",
-   "start": 1991,
-   "end": 2020,
-   "temp_avg": 6.62
-  }
- ],
- "days": [
-  {
-   "date": "2026-10-01",
-   "temp_avg": 11.1,
-   "temp_high": 16.2,
-   "temp_low": 6.3,
-   "precip_mm": 0.0,
-   "precip_cum": 0.0,
-   "feels_avg": 9.4,
-   "feels_high": 13.7,
-   "feels_low": 4.9,
-   "sky": "sun",
-   "n91": {
-    "temp_avg": 9.7,
-    "precip_cum": 2.0,
-    "feels_avg": 7.02
-   },
-   "n96": {
-    "temp_avg": 10.0,
-    "temp_high": 12.88,
-    "temp_low": 7.33,
-    "precip_cum": 2.1,
-    "feels_avg": 7.15,
-    "feels_high": 9.8,
-    "feels_low": 4.32
-   }
-  },
-  {
-   "date": "2026-10-02",
-   "temp_avg": 11.8,
-   "temp_high": 14.2,
-   "temp_low": 8.1,
-   "precip_mm": 0.0,
-   "precip_cum": 0.0,
-   "feels_avg": 10.3,
-   "feels_high": 12.4,
-   "feels_low": 7.6,
-   "sky": "cloud",
-   "n91": {
-    "temp_avg": 9.56,
-    "precip_cum": 4.0,
-    "feels_avg": 6.86
-   },
-   "n96": {
-    "temp_avg": 9.85,
-    "temp_high": 12.66,
-    "temp_low": 7.22,
-    "precip_cum": 4.2,
-    "feels_avg": 6.98,
-    "feels_high": 9.55,
-    "feels_low": 4.21
-   }
-  },
-  {
-   "date": "2026-10-03",
-   "temp_avg": 12.3,
-   "temp_high": 14.1,
-   "temp_low": 10.7,
-   "precip_mm": 0.2,
-   "precip_cum": 0.2,
-   "feels_avg": 10.0,
-   "feels_high": 12.3,
-   "feels_low": 8.1,
-   "sky": "cloud",
-   "n91": {
-    "temp_avg": 9.4,
-    "precip_cum": 6.1,
-    "feels_avg": 6.67
-   },
-   "n96": {
-    "temp_avg": 9.71,
-    "temp_high": 12.44,
-    "temp_low": 7.15,
-    "precip_cum": 6.4,
-    "feels_avg": 6.8,
-    "feels_high": 9.3,
-    "feels_low": 4.09
-   }
-  },
-  {
-   "date": "2026-10-04",
-   "temp_avg": 12.7,
-   "temp_high": 15.0,
-   "temp_low": 10.1,
-   "precip_mm": 0.7,
-   "precip_cum": 0.9,
-   "feels_avg": 10.2,
-   "feels_high": 12.1,
-   "feels_low": 7.3,
-   "sky": "partly",
-   "n91": {
-    "temp_avg": 9.2,
-    "precip_cum": 8.3,
-    "feels_avg": 6.43
-   },
-   "n96": {
-    "temp_avg": 9.52,
-    "temp_high": 12.22,
-    "temp_low": 7.02,
-    "precip_cum": 8.8,
-    "feels_avg": 6.56,
-    "feels_high": 9.03,
-    "feels_low": 3.89
-   }
-  },
-  {
-   "date": "2026-10-05",
-   "temp_avg": 12.3,
-   "temp_high": 14.3,
-   "temp_low": 9.4,
-   "precip_mm": 2.8,
-   "precip_cum": 3.7,
-   "feels_avg": 9.8,
-   "feels_high": 11.3,
-   "feels_low": 7.1,
-   "sky": "rain",
-   "n91": {
-    "temp_avg": 8.94,
-    "precip_cum": 10.7,
-    "feels_avg": 6.15
-   },
-   "n96": {
-    "temp_avg": 9.26,
-    "temp_high": 11.94,
-    "temp_low": 6.81,
-    "precip_cum": 11.2,
-    "feels_avg": 6.27,
-    "feels_high": 8.72,
-    "feels_low": 3.65
-   }
-  },
-  {
-   "date": "2026-10-06",
-   "temp_avg": 14.3,
-   "temp_high": 16.0,
-   "temp_low": 11.2,
-   "precip_mm": 0.3,
-   "precip_cum": 4.0,
-   "feels_avg": 10.7,
-   "feels_high": 12.0,
-   "feels_low": 8.2,
-   "sky": "partly",
-   "n91": {
-    "temp_avg": 8.72,
-    "precip_cum": 13.1,
-    "feels_avg": 5.88
-   },
-   "n96": {
-    "temp_avg": 9.01,
-    "temp_high": 11.71,
-    "temp_low": 6.54,
-    "precip_cum": 13.9,
-    "feels_avg": 6.0,
-    "feels_high": 8.46,
-    "feels_low": 3.36
-   }
-  },
-  {
-   "date": "2026-10-07",
-   "temp_avg": 11.3,
-   "temp_high": 14.6,
-   "temp_low": 6.6,
-   "precip_mm": 0.0,
-   "precip_cum": 4.0,
-   "feels_avg": 8.2,
-   "feels_high": 11.3,
-   "feels_low": 4.4,
-   "sky": "sun",
-   "n91": {
-    "temp_avg": 8.49,
-    "precip_cum": 15.6,
-    "feels_avg": 5.6
-   },
-   "n96": {
-    "temp_avg": 8.78,
-    "temp_high": 11.49,
-    "temp_low": 6.3,
-    "precip_cum": 16.6,
-    "feels_avg": 5.74,
-    "feels_high": 8.21,
-    "feels_low": 3.07
-   }
-  },
-  {
-   "date": "2026-10-08",
-   "temp_avg": 9.5,
-   "temp_high": 13.0,
-   "temp_low": 4.6,
-   "precip_mm": 0.0,
-   "precip_cum": 4.0,
-   "feels_avg": 6.9,
-   "feels_high": 9.6,
-   "feels_low": 3.1,
-   "sky": "partly",
-   "n91": {
-    "temp_avg": 8.25,
-    "precip_cum": 18.0,
-    "feels_avg": 5.3
-   },
-   "n96": {
-    "temp_avg": 8.54,
-    "temp_high": 11.22,
-    "temp_low": 6.08,
-    "precip_cum": 19.3,
-    "feels_avg": 5.45,
-    "feels_high": 7.9,
-    "feels_low": 2.82
-   }
-  },
-  {
-   "date": "2026-10-09",
-   "temp_avg": 11.7,
-   "temp_high": 13.1,
-   "temp_low": 9.0,
-   "precip_mm": 11.6,
-   "precip_cum": 15.6,
-   "feels_avg": 8.8,
-   "feels_high": 9.6,
-   "feels_low": 6.9,
-   "sky": "rain",
-   "n91": {
-    "temp_avg": 8.06,
-    "precip_cum": 20.4,
-    "feels_avg": 5.07
-   },
-   "n96": {
-    "temp_avg": 8.35,
-    "temp_high": 10.97,
-    "temp_low": 5.93,
-    "precip_cum": 21.8,
-    "feels_avg": 5.23,
-    "feels_high": 7.61,
-    "feels_low": 2.64
-   }
-  },
-  {
-   "date": "2026-10-10",
-   "temp_avg": 6.3,
-   "temp_high": 9.8,
-   "temp_low": 4.6,
-   "precip_mm": 2.1,
-   "precip_cum": 17.7,
-   "feels_avg": 2.6,
-   "feels_high": 6.8,
-   "feels_low": 0.7,
-   "sky": "rain",
-   "n91": {
-    "temp_avg": 7.88,
-    "precip_cum": 22.7,
-    "feels_avg": 4.8
-   },
-   "n96": {
-    "temp_avg": 8.14,
-    "temp_high": 10.74,
-    "temp_low": 5.75,
-    "precip_cum": 24.2,
-    "feels_avg": 4.97,
-    "feels_high": 7.35,
-    "feels_low": 2.42
-   }
-  },
-  {
-   "date": "2026-10-11",
-   "temp_avg": 6.1,
-   "temp_high": 7.9,
-   "temp_low": 4.4,
-   "precip_mm": 1.6,
-   "precip_cum": 19.3,
-   "feels_avg": 2.7,
-   "feels_high": 4.4,
-   "feels_low": 0.5,
-   "sky": "rain",
-   "n91": {
-    "temp_avg": 7.67,
-    "precip_cum": 25.0,
-    "feels_avg": 4.53
-   },
-   "n96": {
-    "temp_avg": 7.92,
-    "temp_high": 10.52,
-    "temp_low": 5.54,
-    "precip_cum": 26.5,
-    "feels_avg": 4.7,
-    "feels_high": 7.1,
-    "feels_low": 2.11
-   }
-  },
-  {
-   "date": "2026-10-12",
-   "temp_avg": 6.6,
-   "temp_high": 7.3,
-   "temp_low": 6.0,
-   "precip_mm": 7.3,
-   "precip_cum": 26.6,
-   "feels_avg": 2.6,
-   "feels_high": 3.2,
-   "feels_low": 1.7,
-   "sky": "rain",
-   "n91": {
-    "temp_avg": 7.4,
-    "precip_cum": 27.3,
-    "feels_avg": 4.23
-   },
-   "n96": {
-    "temp_avg": 7.64,
-    "temp_high": 10.26,
-    "temp_low": 5.29,
-    "precip_cum": 28.7,
-    "feels_avg": 4.39,
-    "feels_high": 6.82,
-    "feels_low": 1.8
-   }
-  },
-  {
-   "date": "2026-10-13",
-   "temp_avg": 6.6,
-   "temp_high": 8.8,
-   "temp_low": 4.7,
-   "precip_mm": 0.0,
-   "precip_cum": 26.6,
-   "feels_avg": 4.2,
-   "feels_high": 6.5,
-   "feels_low": 2.2,
-   "sky": "cloud",
-   "n91": {
-    "temp_avg": 7.11,
-    "precip_cum": 29.6,
-    "feels_avg": 3.92
-   },
-   "n96": {
-    "temp_avg": 7.36,
-    "temp_high": 9.97,
-    "temp_low": 5.0,
-    "precip_cum": 31.0,
-    "feels_avg": 4.09,
-    "feels_high": 6.52,
-    "feels_low": 1.51
-   }
-  },
-  {
-   "date": "2026-10-14",
-   "temp_avg": 10.0,
-   "temp_high": 11.6,
-   "temp_low": 8.6,
-   "precip_mm": 0.5,
-   "precip_cum": 27.1,
-   "feels_avg": 6.3,
-   "feels_high": 8.1,
-   "feels_low": 4.8,
-   "sky": "cloud",
-   "n91": {
-    "temp_avg": 6.79,
-    "precip_cum": 31.9,
-    "feels_avg": 3.6
-   },
-   "n96": {
-    "temp_avg": 7.08,
-    "temp_high": 9.72,
-    "temp_low": 4.73,
-    "precip_cum": 33.1,
-    "feels_avg": 3.78,
-    "feels_high": 6.24,
-    "feels_low": 1.21
-   }
-  },
-  {
-   "date": "2026-10-15",
-   "temp_avg": 10.9,
-   "temp_high": 11.7,
-   "temp_low": 10.2,
-   "precip_mm": 0.0,
-   "precip_cum": 27.1,
-   "feels_avg": 7.9,
-   "feels_high": 8.6,
-   "feels_low": 7.4,
-   "sky": "cloud",
-   "n91": {
-    "temp_avg": 6.51,
-    "precip_cum": 34.2,
-    "feels_avg": 3.33
-   },
-   "n96": {
-    "temp_avg": 6.84,
-    "temp_high": 9.45,
-    "temp_low": 4.46,
-    "precip_cum": 35.2,
-    "feels_avg": 3.52,
-    "feels_high": 5.97,
-    "feels_low": 0.96
-   }
-  },
-  {
-   "date": "2026-10-16",
-   "temp_avg": 12.4,
-   "temp_high": 13.5,
-   "temp_low": 11.1,
-   "precip_mm": 0.1,
-   "precip_cum": 27.2,
-   "feels_avg": 8.7,
-   "feels_high": 10.0,
-   "feels_low": 7.5,
-   "sky": "cloud",
-   "n91": {
-    "temp_avg": 6.24,
-    "precip_cum": 36.4,
-    "feels_avg": 3.07
-   },
-   "n96": {
-    "temp_avg": 6.61,
-    "temp_high": 9.23,
-    "temp_low": 4.24,
-    "precip_cum": 37.2,
-    "feels_avg": 3.27,
-    "feels_high": 5.71,
-    "feels_low": 0.71
-   }
-  },
-  {
-   "date": "2026-10-17",
-   "temp_avg": 10.4,
-   "temp_high": 12.8,
-   "temp_low": 4.8,
-   "precip_mm": 1.0,
-   "precip_cum": 28.2,
-   "feels_avg": 6.8,
-   "feels_high": 9.3,
-   "feels_low": 1.3,
-   "sky": "rain",
-   "n91": {
-    "temp_avg": 6.01,
-    "precip_cum": 38.5,
-    "feels_avg": 2.85
-   },
-   "n96": {
-    "temp_avg": 6.4,
-    "temp_high": 9.01,
-    "temp_low": 4.02,
-    "precip_cum": 39.0,
-    "feels_avg": 3.04,
-    "feels_high": 5.48,
-    "feels_low": 0.48
-   }
-  },
-  {
-   "date": "2026-10-18",
-   "temp_avg": 5.1,
-   "temp_high": 10.1,
-   "temp_low": 1.3,
-   "precip_mm": 0.0,
-   "precip_cum": 28.2,
-   "feels_avg": 1.8,
-   "feels_high": 6.6,
-   "feels_low": -2.3,
-   "sky": "sun",
-   "n91": {
-    "temp_avg": 5.84,
-    "precip_cum": 40.4,
-    "feels_avg": 2.68
-   },
-   "n96": {
-    "temp_avg": 6.23,
-    "temp_high": 8.83,
-    "temp_low": 3.84,
-    "precip_cum": 40.8,
-    "feels_avg": 2.86,
-    "feels_high": 5.3,
-    "feels_low": 0.29
-   }
-  },
-  {
-   "date": "2026-10-19",
-   "temp_avg": 5.0,
-   "temp_high": 9.8,
-   "temp_low": 1.1,
-   "precip_mm": 0.0,
-   "precip_cum": 28.2,
-   "feels_avg": 2.8,
-   "feels_high": 7.0,
-   "feels_low": -0.7,
-   "sky": "sun",
-   "n91": {
-    "temp_avg": 5.66,
-    "precip_cum": 42.5,
-    "feels_avg": 2.49
-   },
-   "n96": {
-    "temp_avg": 6.07,
-    "temp_high": 8.62,
-    "temp_low": 3.7,
-    "precip_cum": 42.7,
-    "feels_avg": 2.68,
-    "feels_high": 5.06,
-    "feels_low": 0.15
-   }
-  },
-  {
-   "date": "2026-10-20",
-   "temp_avg": 6.1,
-   "temp_high": 10.5,
-   "temp_low": 0.8,
-   "precip_mm": 0.0,
-   "precip_cum": 28.2,
-   "feels_avg": 3.5,
-   "feels_high": 6.7,
-   "feels_low": -0.4,
-   "sky": "sun",
-   "n91": {
-    "temp_avg": 5.52,
-    "precip_cum": 44.6,
-    "feels_avg": 2.35
-   },
-   "n96": {
-    "temp_avg": 5.96,
-    "temp_high": 8.45,
-    "temp_low": 3.59,
-    "precip_cum": 44.7,
-    "feels_avg": 2.55,
-    "feels_high": 4.9,
-    "feels_low": 0.01
-   }
-  },
-  {
-   "date": "2026-10-21",
-   "temp_avg": 9.8,
-   "temp_high": 11.4,
-   "temp_low": 7.9,
-   "precip_mm": 0.0,
-   "precip_cum": 28.2,
-   "feels_avg": 6.4,
-   "feels_high": 7.5,
-   "feels_low": 5.1,
-   "sky": "sun",
-   "n91": {
-    "temp_avg": 5.39,
-    "precip_cum": 46.8,
-    "feels_avg": 2.2
-   },
-   "n96": {
-    "temp_avg": 5.84,
-    "temp_high": 8.29,
-    "temp_low": 3.49,
-    "precip_cum": 47.0,
-    "feels_avg": 2.41,
-    "feels_high": 4.73,
-    "feels_low": -0.09
-   }
-  },
-  {
-   "date": "2026-10-22",
-   "temp_avg": 11.1,
-   "temp_high": 12.7,
-   "temp_low": 9.4,
-   "precip_mm": 0.0,
-   "precip_cum": 28.2,
-   "feels_avg": 7.6,
-   "feels_high": 8.6,
-   "feels_low": 5.8,
-   "sky": "sun",
-   "n91": {
-    "temp_avg": 5.26,
-    "precip_cum": 49.2,
-    "feels_avg": 2.07
-   },
-   "n96": {
-    "temp_avg": 5.74,
-    "temp_high": 8.15,
-    "temp_low": 3.43,
-    "precip_cum": 49.4,
-    "feels_avg": 2.28,
-    "feels_high": 4.58,
-    "feels_low": -0.16
-   }
-  },
-  {
-   "date": "2026-10-23",
-   "temp_avg": 10.9,
-   "temp_high": 11.7,
-   "temp_low": 10.3,
-   "precip_mm": 7.5,
-   "precip_cum": 35.7,
-   "feels_avg": 7.4,
-   "feels_high": 8.1,
-   "feels_low": 6.9,
-   "sky": "rain",
-   "n91": {
-    "temp_avg": 5.14,
-    "precip_cum": 51.6,
-    "feels_avg": 1.95
-   },
-   "n96": {
-    "temp_avg": 5.64,
-    "temp_high": 8.02,
-    "temp_low": 3.36,
-    "precip_cum": 51.9,
-    "feels_avg": 2.17,
-    "feels_high": 4.43,
-    "feels_low": -0.27
-   }
-  },
-  {
-   "date": "2026-10-24",
-   "temp_avg": 10.7,
-   "temp_high": 12.4,
-   "temp_low": 9.3,
-   "precip_mm": 1.9,
-   "precip_cum": 37.6,
-   "feels_avg": 7.7,
-   "feels_high": 9.4,
-   "feels_low": 6.0,
-   "sky": "rain",
-   "n91": {
-    "temp_avg": 4.99,
-    "precip_cum": 54.0,
-    "feels_avg": 1.85
-   },
-   "n96": {
-    "temp_avg": 5.54,
-    "temp_high": 7.88,
-    "temp_low": 3.26,
-    "precip_cum": 54.4,
-    "feels_avg": 2.06,
-    "feels_high": 4.33,
-    "feels_low": -0.36
-   }
-  },
-  {
-   "date": "2026-10-25",
-   "temp_avg": 10.4,
-   "temp_high": 12.5,
-   "temp_low": 9.1,
-   "precip_mm": 0.0,
-   "precip_cum": 37.6,
-   "feels_avg": 6.8,
-   "feels_high": 8.5,
-   "feels_low": 5.3,
-   "sky": "cloud",
-   "n91": {
-    "temp_avg": 4.89,
-    "precip_cum": 56.4,
-    "feels_avg": 1.75
-   },
-   "n96": {
-    "temp_avg": 5.46,
-    "temp_high": 7.8,
-    "temp_low": 3.19,
-    "precip_cum": 57.0,
-    "feels_avg": 1.97,
-    "feels_high": 4.23,
-    "feels_low": -0.44
-   }
-  },
-  {
-   "date": "2026-10-26",
-   "temp_avg": 11.6,
-   "temp_high": 12.9,
-   "temp_low": 10.8,
-   "precip_mm": 0.2,
-   "precip_cum": 37.8,
-   "feels_avg": 7.8,
-   "feels_high": 8.9,
-   "feels_low": 7.0,
-   "sky": "cloud",
-   "n91": {
-    "temp_avg": 4.78,
-    "precip_cum": 58.9,
-    "feels_avg": 1.61
-   },
-   "n96": {
-    "temp_avg": 5.37,
-    "temp_high": 7.66,
-    "temp_low": 3.11,
-    "precip_cum": 59.8,
-    "feels_avg": 1.85,
-    "feels_high": 4.06,
-    "feels_low": -0.5
-   }
-  },
-  {
-   "date": "2026-10-27",
-   "temp_avg": 11.4,
-   "temp_high": 12.1,
-   "temp_low": 10.5,
-   "precip_mm": 1.5,
-   "precip_cum": 39.3,
-   "feels_avg": 7.5,
-   "feels_high": 8.4,
-   "feels_low": 6.4,
-   "sky": "rain",
-   "n91": {
-    "temp_avg": 4.72,
-    "precip_cum": 61.4,
-    "feels_avg": 1.54
-   },
-   "n96": {
-    "temp_avg": 5.34,
-    "temp_high": 7.57,
-    "temp_low": 3.1,
-    "precip_cum": 62.5,
-    "feels_avg": 1.81,
-    "feels_high": 3.98,
-    "feels_low": -0.51
-   }
-  },
-  {
-   "date": "2026-10-28",
-   "temp_avg": 10.1,
-   "temp_high": 10.9,
-   "temp_low": 8.8,
-   "precip_mm": 0.9,
-   "precip_cum": 40.2,
-   "feels_avg": 6.3,
-   "feels_high": 7.0,
-   "feels_low": 4.9,
-   "sky": "cloud",
-   "n91": {
-    "temp_avg": 4.66,
-    "precip_cum": 63.8,
-    "feels_avg": 1.48
-   },
-   "n96": {
-    "temp_avg": 5.31,
-    "temp_high": 7.47,
-    "temp_low": 3.1,
-    "precip_cum": 65.2,
-    "feels_avg": 1.75,
-    "feels_high": 3.86,
-    "feels_low": -0.54
-   }
-  },
-  {
-   "date": "2026-10-29",
-   "temp_avg": 9.9,
-   "temp_high": 11.0,
-   "temp_low": 8.5,
-   "precip_mm": 3.0,
-   "precip_cum": 43.2,
-   "feels_avg": 6.9,
-   "feels_high": 8.3,
-   "feels_low": 5.9,
-   "sky": "rain",
-   "n91": {
-    "temp_avg": 4.62,
-    "precip_cum": 66.2,
-    "feels_avg": 1.42
-   },
-   "n96": {
-    "temp_avg": 5.27,
-    "temp_high": 7.38,
-    "temp_low": 3.07,
-    "precip_cum": 67.8,
-    "feels_avg": 1.68,
-    "feels_high": 3.76,
-    "feels_low": -0.59
-   }
-  },
-  {
-   "date": "2026-10-30",
-   "temp_avg": 8.4,
-   "temp_high": 10.5,
-   "temp_low": 5.9,
-   "precip_mm": 1.7,
-   "precip_cum": 44.9,
-   "feels_avg": 5.5,
-   "feels_high": 7.6,
-   "feels_low": 2.9,
-   "sky": "rain",
-   "n91": {
-    "temp_avg": 4.56,
-    "precip_cum": 68.6,
-    "feels_avg": 1.31
-   },
-   "n96": {
-    "temp_avg": 5.2,
-    "temp_high": 7.27,
-    "temp_low": 3.04,
-    "precip_cum": 70.4,
-    "feels_avg": 1.6,
-    "feels_high": 3.66,
-    "feels_low": -0.64
-   }
-  },
-  {
-   "date": "2026-10-31",
-   "temp_avg": 7.6,
-   "temp_high": 8.4,
-   "temp_low": 7.0,
-   "precip_mm": 0.0,
-   "precip_cum": 44.9,
-   "feels_avg": 5.3,
-   "feels_high": 6.3,
-   "feels_low": 4.0,
-   "sky": "cloud",
-   "n91": {
-    "temp_avg": 4.5,
-    "precip_cum": 71.1,
-    "feels_avg": 1.21
-   },
-   "n96": {
-    "temp_avg": 5.16,
-    "temp_high": 7.18,
-    "temp_low": 3.03,
-    "precip_cum": 73.1,
-    "feels_avg": 1.54,
-    "feels_high": 3.57,
-    "feels_low": -0.65
-   }
-  }
- ],
- "stations": [
-  {
-   "fmisid": 100971,
-   "name": "Kaisaniemi",
-   "temp_avg": 9.82,
-   "temp_high": 12.0,
-   "temp_low": 7.5,
-   "abs_high": 16.2,
-   "abs_low": 0.8,
-   "abs_low_date": "2026-10-20",
-   "frost_days": 0,
-   "first_frost": null,
-   "precip_mm": 44.9,
-   "gust_max": 18.5,
-   "feels_avg": 6.75,
-   "feels_hours": 745,
-   "feels_anomaly_1991_2020": 3.16,
-   "feels_anomaly_1996_2025": 2.97,
-   "official_temp_avg": 6.6,
-   "official_precip_mm": 73.3,
-   "normal_1991_2020_temp_avg": 6.66,
-   "anomaly_1991_2020": 3.16,
-   "normal_1996_2025_temp_avg": 7.07,
-   "anomaly_1996_2025": 2.75,
-   "anomaly_official": 3.22,
-   "normal_1991_2020_precip_mm": 71.1
-  },
-  {
-   "fmisid": 101004,
-   "name": "Kumpula",
-   "temp_avg": 9.4,
-   "temp_high": 11.7,
-   "temp_low": 6.8,
-   "abs_high": 15.8,
-   "abs_low": -1.0,
-   "abs_low_date": "2026-10-20",
-   "frost_days": 2,
-   "first_frost": "2026-10-19",
-   "precip_mm": 50.2,
-   "gust_max": 18.6,
-   "feels_avg": 6.08,
-   "feels_hours": 745,
-   "feels_anomaly_1991_2020": null,
-   "feels_anomaly_1996_2025": null,
-   "official_temp_avg": null,
-   "official_precip_mm": null,
-   "normal_1991_2020_temp_avg": null,
-   "anomaly_1991_2020": null,
-   "normal_1996_2025_temp_avg": null,
-   "anomaly_1996_2025": null,
-   "anomaly_official": null,
-   "normal_1991_2020_precip_mm": null
-  },
-  {
-   "fmisid": 100996,
-   "name": "Harmaja",
-   "temp_avg": 10.56,
-   "temp_high": 12.0,
-   "temp_low": 9.1,
-   "abs_high": 15.2,
-   "abs_low": 4.2,
-   "abs_low_date": "2026-10-18",
-   "frost_days": 0,
-   "first_frost": null,
-   "precip_mm": null,
-   "gust_max": 21.7,
-   "feels_avg": 6.25,
-   "feels_hours": 745,
-   "feels_anomaly_1991_2020": 3.23,
-   "feels_anomaly_1996_2025": 3.05,
-   "official_temp_avg": 7.3,
-   "official_precip_mm": null,
-   "normal_1991_2020_temp_avg": 7.3,
-   "anomaly_1991_2020": 3.26,
-   "normal_1996_2025_temp_avg": 7.75,
-   "anomaly_1996_2025": 2.81,
-   "anomaly_official": 3.26,
-   "normal_1991_2020_precip_mm": null
-  },
-  {
-   "fmisid": 100968,
-   "name": "Helsinki-Vantaa",
-   "temp_avg": 8.76,
-   "temp_high": 11.5,
-   "temp_low": 5.7,
-   "abs_high": 16.2,
-   "abs_low": -3.2,
-   "abs_low_date": "2026-10-20",
-   "frost_days": 3,
-   "first_frost": "2026-10-18",
-   "precip_mm": 51.9,
-   "gust_max": 18.1,
-   "feels_avg": 5.46,
-   "feels_hours": 745,
-   "feels_anomaly_1991_2020": 3.09,
-   "feels_anomaly_1996_2025": 2.86,
-   "official_temp_avg": 5.8,
-   "official_precip_mm": 79.1,
-   "normal_1991_2020_temp_avg": 5.72,
-   "anomaly_1991_2020": 3.04,
-   "normal_1996_2025_temp_avg": 6.1,
-   "anomaly_1996_2025": 2.66,
-   "anomaly_official": 2.96,
-   "normal_1991_2020_precip_mm": 77.7
-  }
- ],
- "sunshine": {
-  "normal_1991_2020": {
-   "sun_h": 84.0,
-   "glob_mj": 120.0
-  },
-  "primary": {
-   "name": "Helsinki-Vantaa",
-   "total_h": 78.1,
-   "glob_kwh": 32.2,
-   "glob_mj": 116.0,
-   "daylight_h": 315.8,
-   "pct_possible": 25.0,
-   "base_years": [
-    1999,
-    2025
-   ],
-   "base_count": 26,
-   "base_mean_h": 84.2,
-   "base_mean_glob_mj": 121.0,
-   "base_min": [
-    2006,
-    28.4
-   ],
-   "base_max": [
-    2015,
-    172.8
-   ],
-   "years_sunnier": [
-    2002,
-    2004,
-    2005,
-    2008,
-    2009,
-    2010,
-    2011,
-    2013,
-    2015,
-    2016,
-    2018,
-    2022,
-    2023,
-    2024
-   ],
-   "rank": 15,
-   "of": 27,
-   "sunniest_day": [
-    "2026-10-07",
-    9.7,
-    89.0
-   ],
-   "dull_days": 17,
-   "sunless_days": 14,
-   "bright_days": 7,
-   "bright_threshold_h": 6,
-   "dull_days_normal": 12.7,
-   "bright_days_normal": 6.1,
-   "thirds": {
-    "1-10": {
-     "sun_h": 31.1,
-     "normal_h": 32.8
+  "station": {
+    "name": "Helsinki Kaisaniemi",
+    "fmisid": 100971
+  },
+  "month": "2026-10",
+  "through": "2026-10-31",
+  "observed": {
+    "temp_avg": 9.82,
+    "temp_high": 11.96,
+    "temp_low": 7.46,
+    "abs_high": 16.2,
+    "abs_low": 0.83,
+    "precip_mm": 44.9,
+    "wet_days": 18.0,
+    "wet_days_1mm": 11.0,
+    "max_day_precip": 11.6,
+    "days_high_15": 3.0,
+    "days_high_10": 25.0,
+    "days_mean_10": 12.0,
+    "days_mean_5": 0.0,
+    "days_low_5": 8.0,
+    "frost_days": 0.0,
+    "hdd": 117.11,
+    "abs_high_date": "2026-10-01",
+    "abs_low_date": "2026-10-20",
+    "max_day_precip_date": "2026-10-09",
+    "abs_low_measured": 1.1,
+    "abs_low_measured_at": "2026-10-19T06:20:00+03:00",
+    "abs_high_measured": 16.2,
+    "feels_avg": 6.75
+  },
+  "normals": {
+    "1991-2020": {
+      "temp_avg": 6.6,
+      "temp_high": 9.2,
+      "temp_low": 4.2,
+      "precip_mm": 73.3,
+      "wet_days": 16.3,
+      "wet_days_1mm": 10.2,
+      "feels_avg": 3.59
     },
-    "11-20": {
-     "sun_h": 27.8,
-     "normal_h": 27.9
-    },
-    "21-31": {
-     "sun_h": 19.3,
-     "normal_h": 22.1
+    "1996-2025": {
+      "temp_avg": 7.03,
+      "temp_high": 9.54,
+      "temp_low": 4.66,
+      "precip_mm": 75.6,
+      "wet_days": 16.2,
+      "wet_days_1mm": 10.5,
+      "feels_avg": 3.78
     }
-   },
-   "hour_profile": [
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.003,
-    0.108,
-    0.21,
-    0.308,
-    0.32,
-    0.305,
-    0.315,
-    0.266,
-    0.27,
-    0.254,
-    0.144,
-    0.016,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0
-   ],
-   "days": [
+  },
+  "rank_warmest": {
+    "rank": 2,
+    "of": 66,
+    "ties": 0,
+    "since": 1961,
+    "warmer_years": [1961]
+  },
+  "years": [
     {
-     "date": "2026-10-01",
-     "sun_h": 8.38,
-     "daylight_h": 11.55,
-     "normal_h": 3.5
+      "year": 1961,
+      "temp_avg": 10.19,
+      "running30": null
     },
     {
-     "date": "2026-10-02",
-     "sun_h": 0.91,
-     "daylight_h": 11.46,
-     "normal_h": 3.43
+      "year": 1962,
+      "temp_avg": 7.69,
+      "running30": null
     },
     {
-     "date": "2026-10-03",
-     "sun_h": 0.0,
-     "daylight_h": 11.37,
-     "normal_h": 3.36
+      "year": 1963,
+      "temp_avg": 7.2,
+      "running30": null
     },
     {
-     "date": "2026-10-04",
-     "sun_h": 1.58,
-     "daylight_h": 11.28,
-     "normal_h": 3.33
+      "year": 1964,
+      "temp_avg": 8.22,
+      "running30": null
     },
     {
-     "date": "2026-10-05",
-     "sun_h": 0.14,
-     "daylight_h": 11.19,
-     "normal_h": 3.29
+      "year": 1965,
+      "temp_avg": 6.65,
+      "running30": null
     },
     {
-     "date": "2026-10-06",
-     "sun_h": 9.46,
-     "daylight_h": 11.1,
-     "normal_h": 3.28
+      "year": 1966,
+      "temp_avg": 5.99,
+      "running30": null
     },
     {
-     "date": "2026-10-07",
-     "sun_h": 9.74,
-     "daylight_h": 11.01,
-     "normal_h": 3.25
+      "year": 1967,
+      "temp_avg": 9.53,
+      "running30": null
     },
     {
-     "date": "2026-10-08",
-     "sun_h": 0.85,
-     "daylight_h": 10.91,
-     "normal_h": 3.22
+      "year": 1968,
+      "temp_avg": 3.54,
+      "running30": null
     },
     {
-     "date": "2026-10-09",
-     "sun_h": 0.0,
-     "daylight_h": 10.82,
-     "normal_h": 3.1
+      "year": 1969,
+      "temp_avg": 6.2,
+      "running30": null
     },
     {
-     "date": "2026-10-10",
-     "sun_h": 0.0,
-     "daylight_h": 10.73,
-     "normal_h": 3.05
+      "year": 1970,
+      "temp_avg": 5.16,
+      "running30": null
     },
     {
-     "date": "2026-10-11",
-     "sun_h": 0.0,
-     "daylight_h": 10.64,
-     "normal_h": 2.99
+      "year": 1971,
+      "temp_avg": 5.66,
+      "running30": null
     },
     {
-     "date": "2026-10-12",
-     "sun_h": 0.0,
-     "daylight_h": 10.55,
-     "normal_h": 3.04
+      "year": 1972,
+      "temp_avg": 5.62,
+      "running30": null
     },
     {
-     "date": "2026-10-13",
-     "sun_h": 4.51,
-     "daylight_h": 10.46,
-     "normal_h": 2.99
+      "year": 1973,
+      "temp_avg": 3.52,
+      "running30": null
     },
     {
-     "date": "2026-10-14",
-     "sun_h": 0.0,
-     "daylight_h": 10.37,
-     "normal_h": 2.89
+      "year": 1974,
+      "temp_avg": 6.74,
+      "running30": null
     },
     {
-     "date": "2026-10-15",
-     "sun_h": 0.0,
-     "daylight_h": 10.28,
-     "normal_h": 2.81
+      "year": 1975,
+      "temp_avg": 5.94,
+      "running30": null
     },
     {
-     "date": "2026-10-16",
-     "sun_h": 0.0,
-     "daylight_h": 10.18,
-     "normal_h": 2.82
+      "year": 1976,
+      "temp_avg": 2.99,
+      "running30": null
     },
     {
-     "date": "2026-10-17",
-     "sun_h": 0.0,
-     "daylight_h": 10.09,
-     "normal_h": 2.76
+      "year": 1977,
+      "temp_avg": 6.02,
+      "running30": null
     },
     {
-     "date": "2026-10-18",
-     "sun_h": 8.94,
-     "daylight_h": 10.0,
-     "normal_h": 2.67
+      "year": 1978,
+      "temp_avg": 4.93,
+      "running30": null
     },
     {
-     "date": "2026-10-19",
-     "sun_h": 5.47,
-     "daylight_h": 9.91,
-     "normal_h": 2.52
+      "year": 1979,
+      "temp_avg": 4.86,
+      "running30": null
     },
     {
-     "date": "2026-10-20",
-     "sun_h": 8.89,
-     "daylight_h": 9.82,
-     "normal_h": 2.41
+      "year": 1980,
+      "temp_avg": 6.53,
+      "running30": null
     },
     {
-     "date": "2026-10-21",
-     "sun_h": 8.59,
-     "daylight_h": 9.73,
-     "normal_h": 2.3
+      "year": 1981,
+      "temp_avg": 7.43,
+      "running30": null
     },
     {
-     "date": "2026-10-22",
-     "sun_h": 6.22,
-     "daylight_h": 9.64,
-     "normal_h": 2.31
+      "year": 1982,
+      "temp_avg": 6.28,
+      "running30": null
     },
     {
-     "date": "2026-10-23",
-     "sun_h": 0.53,
-     "daylight_h": 9.55,
-     "normal_h": 2.24
+      "year": 1983,
+      "temp_avg": 6.95,
+      "running30": null
     },
     {
-     "date": "2026-10-24",
-     "sun_h": 3.27,
-     "daylight_h": 9.46,
-     "normal_h": 2.17
+      "year": 1984,
+      "temp_avg": 8.26,
+      "running30": null
     },
     {
-     "date": "2026-10-25",
-     "sun_h": 0.0,
-     "daylight_h": 9.37,
-     "normal_h": 2.1
+      "year": 1985,
+      "temp_avg": 7.76,
+      "running30": null
     },
     {
-     "date": "2026-10-26",
-     "sun_h": 0.0,
-     "daylight_h": 9.28,
-     "normal_h": 2.06
+      "year": 1986,
+      "temp_avg": 6.55,
+      "running30": null
     },
     {
-     "date": "2026-10-27",
-     "sun_h": 0.45,
-     "daylight_h": 9.19,
-     "normal_h": 1.91
+      "year": 1987,
+      "temp_avg": 7.95,
+      "running30": null
     },
     {
-     "date": "2026-10-28",
-     "sun_h": 0.0,
-     "daylight_h": 9.1,
-     "normal_h": 1.81
+      "year": 1988,
+      "temp_avg": 5.72,
+      "running30": null
     },
     {
-     "date": "2026-10-29",
-     "sun_h": 0.0,
-     "daylight_h": 9.01,
-     "normal_h": 1.77
+      "year": 1989,
+      "temp_avg": 6.44,
+      "running30": null
     },
     {
-     "date": "2026-10-30",
-     "sun_h": 0.22,
-     "daylight_h": 8.92,
-     "normal_h": 1.74
+      "year": 1990,
+      "temp_avg": 6.2,
+      "running30": 6.42
     },
     {
-     "date": "2026-10-31",
-     "sun_h": 0.0,
-     "daylight_h": 8.83,
-     "normal_h": 1.65
+      "year": 1991,
+      "temp_avg": 6.83,
+      "running30": 6.31
+    },
+    {
+      "year": 1992,
+      "temp_avg": 1.97,
+      "running30": 6.12
+    },
+    {
+      "year": 1993,
+      "temp_avg": 4.87,
+      "running30": 6.04
+    },
+    {
+      "year": 1994,
+      "temp_avg": 5.61,
+      "running30": 5.96
+    },
+    {
+      "year": 1995,
+      "temp_avg": 8.68,
+      "running30": 6.02
+    },
+    {
+      "year": 1996,
+      "temp_avg": 7.74,
+      "running30": 6.08
+    },
+    {
+      "year": 1997,
+      "temp_avg": 3.78,
+      "running30": 5.89
+    },
+    {
+      "year": 1998,
+      "temp_avg": 6.67,
+      "running30": 5.99
+    },
+    {
+      "year": 1999,
+      "temp_avg": 7.45,
+      "running30": 6.04
+    },
+    {
+      "year": 2000,
+      "temp_avg": 9.55,
+      "running30": 6.18
+    },
+    {
+      "year": 2001,
+      "temp_avg": 8.74,
+      "running30": 6.28
+    },
+    {
+      "year": 2002,
+      "temp_avg": 1.54,
+      "running30": 6.15
+    },
+    {
+      "year": 2003,
+      "temp_avg": 4.41,
+      "running30": 6.18
+    },
+    {
+      "year": 2004,
+      "temp_avg": 6.82,
+      "running30": 6.18
+    },
+    {
+      "year": 2005,
+      "temp_avg": 8.28,
+      "running30": 6.26
+    },
+    {
+      "year": 2006,
+      "temp_avg": 8.53,
+      "running30": 6.44
+    },
+    {
+      "year": 2007,
+      "temp_avg": 7.29,
+      "running30": 6.49
+    },
+    {
+      "year": 2008,
+      "temp_avg": 9.26,
+      "running30": 6.63
+    },
+    {
+      "year": 2009,
+      "temp_avg": 4.22,
+      "running30": 6.61
+    },
+    {
+      "year": 2010,
+      "temp_avg": 6.03,
+      "running30": 6.59
+    },
+    {
+      "year": 2011,
+      "temp_avg": 8.52,
+      "running30": 6.63
+    },
+    {
+      "year": 2012,
+      "temp_avg": 6.68,
+      "running30": 6.64
+    },
+    {
+      "year": 2013,
+      "temp_avg": 7.47,
+      "running30": 6.66
+    },
+    {
+      "year": 2014,
+      "temp_avg": 6.66,
+      "running30": 6.61
+    },
+    {
+      "year": 2015,
+      "temp_avg": 6.42,
+      "running30": 6.56
+    },
+    {
+      "year": 2016,
+      "temp_avg": 5.55,
+      "running30": 6.53
+    },
+    {
+      "year": 2017,
+      "temp_avg": 5.83,
+      "running30": 6.46
+    },
+    {
+      "year": 2018,
+      "temp_avg": 7.68,
+      "running30": 6.52
+    },
+    {
+      "year": 2019,
+      "temp_avg": 6.22,
+      "running30": 6.52
+    },
+    {
+      "year": 2020,
+      "temp_avg": 9.27,
+      "running30": 6.62
+    },
+    {
+      "year": 2021,
+      "temp_avg": 8.68,
+      "running30": 6.68
+    },
+    {
+      "year": 2022,
+      "temp_avg": 8.79,
+      "running30": 6.91
+    },
+    {
+      "year": 2023,
+      "temp_avg": 5.64,
+      "running30": 6.93
+    },
+    {
+      "year": 2024,
+      "temp_avg": 9.15,
+      "running30": 7.05
+    },
+    {
+      "year": 2025,
+      "temp_avg": 8.1,
+      "running30": 7.03
+    },
+    {
+      "year": 2026,
+      "temp_avg": 9.82,
+      "running30": null
     }
-   ]
-  },
-  "city": {
-   "name": "Kumpula",
-   "total_h": 81.9,
-   "base_years": [
-    2006,
-    2025
-   ],
-   "base_mean_h": 85.1,
-   "rank": 11,
-   "of": 21
-  }
- },
- "daytime": {
-  "hours": [
-   8,
-   21
   ],
-  "window_hours": 403,
-  "temp_avg": 10.38,
-  "feels_avg": 7.27,
-  "night_temp_avg": 9.17,
-  "base_years": [
-   1996,
-   2025
+  "standard_normals": [
+    {
+      "period": "1961-1990",
+      "start": 1961,
+      "end": 1990,
+      "temp_avg": 6.42
+    },
+    {
+      "period": "1991-2020",
+      "start": 1991,
+      "end": 2020,
+      "temp_avg": 6.62
+    }
   ],
-  "base_temp_avg": 7.68,
-  "base_feels_avg": 4.38,
-  "temp_rank": {
-   "rank": 1,
-   "of": 31
-  },
-  "feels_rank": {
-   "rank": 1,
-   "of": 31
-  },
-  "rain": {
-   "base_years": [
-    2013,
-    2025
-   ],
-   "wet_hours": 43,
-   "night_wet_hours": 46,
-   "base_wet_hours": 58.3,
-   "base_night_wet_hours": 46.1,
-   "wet_hours_max": [
-    2017,
-    126
-   ],
-   "wet_hours_rank": {
-    "rank": 9,
-    "of": 13
-   },
-   "mm": 23.2,
-   "share_pct": 52.0,
-   "base_share_pct": 54.0,
-   "days_1mm": 5,
-   "base_days_1mm": 7.1,
-   "dry_days": 17,
-   "base_dry_days": 18.8
-  },
+  "days": [
+    {
+      "date": "2026-10-01",
+      "temp_avg": 11.1,
+      "temp_high": 16.2,
+      "temp_low": 6.3,
+      "precip_mm": 0.0,
+      "precip_cum": 0.0,
+      "feels_avg": 9.4,
+      "feels_high": 13.7,
+      "feels_low": 4.9,
+      "sky": "sun",
+      "n91": {
+        "temp_avg": 9.7,
+        "precip_cum": 2.0,
+        "feels_avg": 7.02
+      },
+      "n96": {
+        "temp_avg": 10.0,
+        "temp_high": 12.88,
+        "temp_low": 7.33,
+        "precip_cum": 2.1,
+        "feels_avg": 7.15,
+        "feels_high": 9.8,
+        "feels_low": 4.32
+      }
+    },
+    {
+      "date": "2026-10-02",
+      "temp_avg": 11.8,
+      "temp_high": 14.2,
+      "temp_low": 8.1,
+      "precip_mm": 0.0,
+      "precip_cum": 0.0,
+      "feels_avg": 10.3,
+      "feels_high": 12.4,
+      "feels_low": 7.6,
+      "sky": "cloud",
+      "n91": {
+        "temp_avg": 9.56,
+        "precip_cum": 4.0,
+        "feels_avg": 6.86
+      },
+      "n96": {
+        "temp_avg": 9.85,
+        "temp_high": 12.66,
+        "temp_low": 7.22,
+        "precip_cum": 4.2,
+        "feels_avg": 6.98,
+        "feels_high": 9.55,
+        "feels_low": 4.21
+      }
+    },
+    {
+      "date": "2026-10-03",
+      "temp_avg": 12.3,
+      "temp_high": 14.1,
+      "temp_low": 10.7,
+      "precip_mm": 0.2,
+      "precip_cum": 0.2,
+      "feels_avg": 10.0,
+      "feels_high": 12.3,
+      "feels_low": 8.1,
+      "sky": "cloud",
+      "n91": {
+        "temp_avg": 9.4,
+        "precip_cum": 6.1,
+        "feels_avg": 6.67
+      },
+      "n96": {
+        "temp_avg": 9.71,
+        "temp_high": 12.44,
+        "temp_low": 7.15,
+        "precip_cum": 6.4,
+        "feels_avg": 6.8,
+        "feels_high": 9.3,
+        "feels_low": 4.09
+      }
+    },
+    {
+      "date": "2026-10-04",
+      "temp_avg": 12.7,
+      "temp_high": 15.0,
+      "temp_low": 10.1,
+      "precip_mm": 0.7,
+      "precip_cum": 0.9,
+      "feels_avg": 10.2,
+      "feels_high": 12.1,
+      "feels_low": 7.3,
+      "sky": "partly",
+      "n91": {
+        "temp_avg": 9.2,
+        "precip_cum": 8.3,
+        "feels_avg": 6.43
+      },
+      "n96": {
+        "temp_avg": 9.52,
+        "temp_high": 12.22,
+        "temp_low": 7.02,
+        "precip_cum": 8.8,
+        "feels_avg": 6.56,
+        "feels_high": 9.03,
+        "feels_low": 3.89
+      }
+    },
+    {
+      "date": "2026-10-05",
+      "temp_avg": 12.3,
+      "temp_high": 14.3,
+      "temp_low": 9.4,
+      "precip_mm": 2.8,
+      "precip_cum": 3.7,
+      "feels_avg": 9.8,
+      "feels_high": 11.3,
+      "feels_low": 7.1,
+      "sky": "rain",
+      "n91": {
+        "temp_avg": 8.94,
+        "precip_cum": 10.7,
+        "feels_avg": 6.15
+      },
+      "n96": {
+        "temp_avg": 9.26,
+        "temp_high": 11.94,
+        "temp_low": 6.81,
+        "precip_cum": 11.2,
+        "feels_avg": 6.27,
+        "feels_high": 8.72,
+        "feels_low": 3.65
+      }
+    },
+    {
+      "date": "2026-10-06",
+      "temp_avg": 14.3,
+      "temp_high": 16.0,
+      "temp_low": 11.2,
+      "precip_mm": 0.3,
+      "precip_cum": 4.0,
+      "feels_avg": 10.7,
+      "feels_high": 12.0,
+      "feels_low": 8.2,
+      "sky": "partly",
+      "n91": {
+        "temp_avg": 8.72,
+        "precip_cum": 13.1,
+        "feels_avg": 5.88
+      },
+      "n96": {
+        "temp_avg": 9.01,
+        "temp_high": 11.71,
+        "temp_low": 6.54,
+        "precip_cum": 13.9,
+        "feels_avg": 6.0,
+        "feels_high": 8.46,
+        "feels_low": 3.36
+      }
+    },
+    {
+      "date": "2026-10-07",
+      "temp_avg": 11.3,
+      "temp_high": 14.6,
+      "temp_low": 6.6,
+      "precip_mm": 0.0,
+      "precip_cum": 4.0,
+      "feels_avg": 8.2,
+      "feels_high": 11.3,
+      "feels_low": 4.4,
+      "sky": "sun",
+      "n91": {
+        "temp_avg": 8.49,
+        "precip_cum": 15.6,
+        "feels_avg": 5.6
+      },
+      "n96": {
+        "temp_avg": 8.78,
+        "temp_high": 11.49,
+        "temp_low": 6.3,
+        "precip_cum": 16.6,
+        "feels_avg": 5.74,
+        "feels_high": 8.21,
+        "feels_low": 3.07
+      }
+    },
+    {
+      "date": "2026-10-08",
+      "temp_avg": 9.5,
+      "temp_high": 13.0,
+      "temp_low": 4.6,
+      "precip_mm": 0.0,
+      "precip_cum": 4.0,
+      "feels_avg": 6.9,
+      "feels_high": 9.6,
+      "feels_low": 3.1,
+      "sky": "partly",
+      "n91": {
+        "temp_avg": 8.25,
+        "precip_cum": 18.0,
+        "feels_avg": 5.3
+      },
+      "n96": {
+        "temp_avg": 8.54,
+        "temp_high": 11.22,
+        "temp_low": 6.08,
+        "precip_cum": 19.3,
+        "feels_avg": 5.45,
+        "feels_high": 7.9,
+        "feels_low": 2.82
+      }
+    },
+    {
+      "date": "2026-10-09",
+      "temp_avg": 11.7,
+      "temp_high": 13.1,
+      "temp_low": 9.0,
+      "precip_mm": 11.6,
+      "precip_cum": 15.6,
+      "feels_avg": 8.8,
+      "feels_high": 9.6,
+      "feels_low": 6.9,
+      "sky": "rain",
+      "n91": {
+        "temp_avg": 8.06,
+        "precip_cum": 20.4,
+        "feels_avg": 5.07
+      },
+      "n96": {
+        "temp_avg": 8.35,
+        "temp_high": 10.97,
+        "temp_low": 5.93,
+        "precip_cum": 21.8,
+        "feels_avg": 5.23,
+        "feels_high": 7.61,
+        "feels_low": 2.64
+      }
+    },
+    {
+      "date": "2026-10-10",
+      "temp_avg": 6.3,
+      "temp_high": 9.8,
+      "temp_low": 4.6,
+      "precip_mm": 2.1,
+      "precip_cum": 17.7,
+      "feels_avg": 2.6,
+      "feels_high": 6.8,
+      "feels_low": 0.7,
+      "sky": "rain",
+      "n91": {
+        "temp_avg": 7.88,
+        "precip_cum": 22.7,
+        "feels_avg": 4.8
+      },
+      "n96": {
+        "temp_avg": 8.14,
+        "temp_high": 10.74,
+        "temp_low": 5.75,
+        "precip_cum": 24.2,
+        "feels_avg": 4.97,
+        "feels_high": 7.35,
+        "feels_low": 2.42
+      }
+    },
+    {
+      "date": "2026-10-11",
+      "temp_avg": 6.1,
+      "temp_high": 7.9,
+      "temp_low": 4.4,
+      "precip_mm": 1.6,
+      "precip_cum": 19.3,
+      "feels_avg": 2.7,
+      "feels_high": 4.4,
+      "feels_low": 0.5,
+      "sky": "rain",
+      "n91": {
+        "temp_avg": 7.67,
+        "precip_cum": 25.0,
+        "feels_avg": 4.53
+      },
+      "n96": {
+        "temp_avg": 7.92,
+        "temp_high": 10.52,
+        "temp_low": 5.54,
+        "precip_cum": 26.5,
+        "feels_avg": 4.7,
+        "feels_high": 7.1,
+        "feels_low": 2.11
+      }
+    },
+    {
+      "date": "2026-10-12",
+      "temp_avg": 6.6,
+      "temp_high": 7.3,
+      "temp_low": 6.0,
+      "precip_mm": 7.3,
+      "precip_cum": 26.6,
+      "feels_avg": 2.6,
+      "feels_high": 3.2,
+      "feels_low": 1.7,
+      "sky": "rain",
+      "n91": {
+        "temp_avg": 7.4,
+        "precip_cum": 27.3,
+        "feels_avg": 4.23
+      },
+      "n96": {
+        "temp_avg": 7.64,
+        "temp_high": 10.26,
+        "temp_low": 5.29,
+        "precip_cum": 28.7,
+        "feels_avg": 4.39,
+        "feels_high": 6.82,
+        "feels_low": 1.8
+      }
+    },
+    {
+      "date": "2026-10-13",
+      "temp_avg": 6.6,
+      "temp_high": 8.8,
+      "temp_low": 4.7,
+      "precip_mm": 0.0,
+      "precip_cum": 26.6,
+      "feels_avg": 4.2,
+      "feels_high": 6.5,
+      "feels_low": 2.2,
+      "sky": "cloud",
+      "n91": {
+        "temp_avg": 7.11,
+        "precip_cum": 29.6,
+        "feels_avg": 3.92
+      },
+      "n96": {
+        "temp_avg": 7.36,
+        "temp_high": 9.97,
+        "temp_low": 5.0,
+        "precip_cum": 31.0,
+        "feels_avg": 4.09,
+        "feels_high": 6.52,
+        "feels_low": 1.51
+      }
+    },
+    {
+      "date": "2026-10-14",
+      "temp_avg": 10.0,
+      "temp_high": 11.6,
+      "temp_low": 8.6,
+      "precip_mm": 0.5,
+      "precip_cum": 27.1,
+      "feels_avg": 6.3,
+      "feels_high": 8.1,
+      "feels_low": 4.8,
+      "sky": "cloud",
+      "n91": {
+        "temp_avg": 6.79,
+        "precip_cum": 31.9,
+        "feels_avg": 3.6
+      },
+      "n96": {
+        "temp_avg": 7.08,
+        "temp_high": 9.72,
+        "temp_low": 4.73,
+        "precip_cum": 33.1,
+        "feels_avg": 3.78,
+        "feels_high": 6.24,
+        "feels_low": 1.21
+      }
+    },
+    {
+      "date": "2026-10-15",
+      "temp_avg": 10.9,
+      "temp_high": 11.7,
+      "temp_low": 10.2,
+      "precip_mm": 0.0,
+      "precip_cum": 27.1,
+      "feels_avg": 7.9,
+      "feels_high": 8.6,
+      "feels_low": 7.4,
+      "sky": "cloud",
+      "n91": {
+        "temp_avg": 6.51,
+        "precip_cum": 34.2,
+        "feels_avg": 3.33
+      },
+      "n96": {
+        "temp_avg": 6.84,
+        "temp_high": 9.45,
+        "temp_low": 4.46,
+        "precip_cum": 35.2,
+        "feels_avg": 3.52,
+        "feels_high": 5.97,
+        "feels_low": 0.96
+      }
+    },
+    {
+      "date": "2026-10-16",
+      "temp_avg": 12.4,
+      "temp_high": 13.5,
+      "temp_low": 11.1,
+      "precip_mm": 0.1,
+      "precip_cum": 27.2,
+      "feels_avg": 8.7,
+      "feels_high": 10.0,
+      "feels_low": 7.5,
+      "sky": "cloud",
+      "n91": {
+        "temp_avg": 6.24,
+        "precip_cum": 36.4,
+        "feels_avg": 3.07
+      },
+      "n96": {
+        "temp_avg": 6.61,
+        "temp_high": 9.23,
+        "temp_low": 4.24,
+        "precip_cum": 37.2,
+        "feels_avg": 3.27,
+        "feels_high": 5.71,
+        "feels_low": 0.71
+      }
+    },
+    {
+      "date": "2026-10-17",
+      "temp_avg": 10.4,
+      "temp_high": 12.8,
+      "temp_low": 4.8,
+      "precip_mm": 1.0,
+      "precip_cum": 28.2,
+      "feels_avg": 6.8,
+      "feels_high": 9.3,
+      "feels_low": 1.3,
+      "sky": "rain",
+      "n91": {
+        "temp_avg": 6.01,
+        "precip_cum": 38.5,
+        "feels_avg": 2.85
+      },
+      "n96": {
+        "temp_avg": 6.4,
+        "temp_high": 9.01,
+        "temp_low": 4.02,
+        "precip_cum": 39.0,
+        "feels_avg": 3.04,
+        "feels_high": 5.48,
+        "feels_low": 0.48
+      }
+    },
+    {
+      "date": "2026-10-18",
+      "temp_avg": 5.1,
+      "temp_high": 10.1,
+      "temp_low": 1.3,
+      "precip_mm": 0.0,
+      "precip_cum": 28.2,
+      "feels_avg": 1.8,
+      "feels_high": 6.6,
+      "feels_low": -2.3,
+      "sky": "sun",
+      "n91": {
+        "temp_avg": 5.84,
+        "precip_cum": 40.4,
+        "feels_avg": 2.68
+      },
+      "n96": {
+        "temp_avg": 6.23,
+        "temp_high": 8.83,
+        "temp_low": 3.84,
+        "precip_cum": 40.8,
+        "feels_avg": 2.86,
+        "feels_high": 5.3,
+        "feels_low": 0.29
+      }
+    },
+    {
+      "date": "2026-10-19",
+      "temp_avg": 5.0,
+      "temp_high": 9.8,
+      "temp_low": 1.1,
+      "precip_mm": 0.0,
+      "precip_cum": 28.2,
+      "feels_avg": 2.8,
+      "feels_high": 7.0,
+      "feels_low": -0.7,
+      "sky": "sun",
+      "n91": {
+        "temp_avg": 5.66,
+        "precip_cum": 42.5,
+        "feels_avg": 2.49
+      },
+      "n96": {
+        "temp_avg": 6.07,
+        "temp_high": 8.62,
+        "temp_low": 3.7,
+        "precip_cum": 42.7,
+        "feels_avg": 2.68,
+        "feels_high": 5.06,
+        "feels_low": 0.15
+      }
+    },
+    {
+      "date": "2026-10-20",
+      "temp_avg": 6.1,
+      "temp_high": 10.5,
+      "temp_low": 0.8,
+      "precip_mm": 0.0,
+      "precip_cum": 28.2,
+      "feels_avg": 3.5,
+      "feels_high": 6.7,
+      "feels_low": -0.4,
+      "sky": "sun",
+      "n91": {
+        "temp_avg": 5.52,
+        "precip_cum": 44.6,
+        "feels_avg": 2.35
+      },
+      "n96": {
+        "temp_avg": 5.96,
+        "temp_high": 8.45,
+        "temp_low": 3.59,
+        "precip_cum": 44.7,
+        "feels_avg": 2.55,
+        "feels_high": 4.9,
+        "feels_low": 0.01
+      }
+    },
+    {
+      "date": "2026-10-21",
+      "temp_avg": 9.8,
+      "temp_high": 11.4,
+      "temp_low": 7.9,
+      "precip_mm": 0.0,
+      "precip_cum": 28.2,
+      "feels_avg": 6.4,
+      "feels_high": 7.5,
+      "feels_low": 5.1,
+      "sky": "sun",
+      "n91": {
+        "temp_avg": 5.39,
+        "precip_cum": 46.8,
+        "feels_avg": 2.2
+      },
+      "n96": {
+        "temp_avg": 5.84,
+        "temp_high": 8.29,
+        "temp_low": 3.49,
+        "precip_cum": 47.0,
+        "feels_avg": 2.41,
+        "feels_high": 4.73,
+        "feels_low": -0.09
+      }
+    },
+    {
+      "date": "2026-10-22",
+      "temp_avg": 11.1,
+      "temp_high": 12.7,
+      "temp_low": 9.4,
+      "precip_mm": 0.0,
+      "precip_cum": 28.2,
+      "feels_avg": 7.6,
+      "feels_high": 8.6,
+      "feels_low": 5.8,
+      "sky": "sun",
+      "n91": {
+        "temp_avg": 5.26,
+        "precip_cum": 49.2,
+        "feels_avg": 2.07
+      },
+      "n96": {
+        "temp_avg": 5.74,
+        "temp_high": 8.15,
+        "temp_low": 3.43,
+        "precip_cum": 49.4,
+        "feels_avg": 2.28,
+        "feels_high": 4.58,
+        "feels_low": -0.16
+      }
+    },
+    {
+      "date": "2026-10-23",
+      "temp_avg": 10.9,
+      "temp_high": 11.7,
+      "temp_low": 10.3,
+      "precip_mm": 7.5,
+      "precip_cum": 35.7,
+      "feels_avg": 7.4,
+      "feels_high": 8.1,
+      "feels_low": 6.9,
+      "sky": "rain",
+      "n91": {
+        "temp_avg": 5.14,
+        "precip_cum": 51.6,
+        "feels_avg": 1.95
+      },
+      "n96": {
+        "temp_avg": 5.64,
+        "temp_high": 8.02,
+        "temp_low": 3.36,
+        "precip_cum": 51.9,
+        "feels_avg": 2.17,
+        "feels_high": 4.43,
+        "feels_low": -0.27
+      }
+    },
+    {
+      "date": "2026-10-24",
+      "temp_avg": 10.7,
+      "temp_high": 12.4,
+      "temp_low": 9.3,
+      "precip_mm": 1.9,
+      "precip_cum": 37.6,
+      "feels_avg": 7.7,
+      "feels_high": 9.4,
+      "feels_low": 6.0,
+      "sky": "rain",
+      "n91": {
+        "temp_avg": 4.99,
+        "precip_cum": 54.0,
+        "feels_avg": 1.85
+      },
+      "n96": {
+        "temp_avg": 5.54,
+        "temp_high": 7.88,
+        "temp_low": 3.26,
+        "precip_cum": 54.4,
+        "feels_avg": 2.06,
+        "feels_high": 4.33,
+        "feels_low": -0.36
+      }
+    },
+    {
+      "date": "2026-10-25",
+      "temp_avg": 10.4,
+      "temp_high": 12.5,
+      "temp_low": 9.1,
+      "precip_mm": 0.0,
+      "precip_cum": 37.6,
+      "feels_avg": 6.8,
+      "feels_high": 8.5,
+      "feels_low": 5.3,
+      "sky": "cloud",
+      "n91": {
+        "temp_avg": 4.89,
+        "precip_cum": 56.4,
+        "feels_avg": 1.75
+      },
+      "n96": {
+        "temp_avg": 5.46,
+        "temp_high": 7.8,
+        "temp_low": 3.19,
+        "precip_cum": 57.0,
+        "feels_avg": 1.97,
+        "feels_high": 4.23,
+        "feels_low": -0.44
+      }
+    },
+    {
+      "date": "2026-10-26",
+      "temp_avg": 11.6,
+      "temp_high": 12.9,
+      "temp_low": 10.8,
+      "precip_mm": 0.2,
+      "precip_cum": 37.8,
+      "feels_avg": 7.8,
+      "feels_high": 8.9,
+      "feels_low": 7.0,
+      "sky": "cloud",
+      "n91": {
+        "temp_avg": 4.78,
+        "precip_cum": 58.9,
+        "feels_avg": 1.61
+      },
+      "n96": {
+        "temp_avg": 5.37,
+        "temp_high": 7.66,
+        "temp_low": 3.11,
+        "precip_cum": 59.8,
+        "feels_avg": 1.85,
+        "feels_high": 4.06,
+        "feels_low": -0.5
+      }
+    },
+    {
+      "date": "2026-10-27",
+      "temp_avg": 11.4,
+      "temp_high": 12.1,
+      "temp_low": 10.5,
+      "precip_mm": 1.5,
+      "precip_cum": 39.3,
+      "feels_avg": 7.5,
+      "feels_high": 8.4,
+      "feels_low": 6.4,
+      "sky": "rain",
+      "n91": {
+        "temp_avg": 4.72,
+        "precip_cum": 61.4,
+        "feels_avg": 1.54
+      },
+      "n96": {
+        "temp_avg": 5.34,
+        "temp_high": 7.57,
+        "temp_low": 3.1,
+        "precip_cum": 62.5,
+        "feels_avg": 1.81,
+        "feels_high": 3.98,
+        "feels_low": -0.51
+      }
+    },
+    {
+      "date": "2026-10-28",
+      "temp_avg": 10.1,
+      "temp_high": 10.9,
+      "temp_low": 8.8,
+      "precip_mm": 0.9,
+      "precip_cum": 40.2,
+      "feels_avg": 6.3,
+      "feels_high": 7.0,
+      "feels_low": 4.9,
+      "sky": "cloud",
+      "n91": {
+        "temp_avg": 4.66,
+        "precip_cum": 63.8,
+        "feels_avg": 1.48
+      },
+      "n96": {
+        "temp_avg": 5.31,
+        "temp_high": 7.47,
+        "temp_low": 3.1,
+        "precip_cum": 65.2,
+        "feels_avg": 1.75,
+        "feels_high": 3.86,
+        "feels_low": -0.54
+      }
+    },
+    {
+      "date": "2026-10-29",
+      "temp_avg": 9.9,
+      "temp_high": 11.0,
+      "temp_low": 8.5,
+      "precip_mm": 3.0,
+      "precip_cum": 43.2,
+      "feels_avg": 6.9,
+      "feels_high": 8.3,
+      "feels_low": 5.9,
+      "sky": "rain",
+      "n91": {
+        "temp_avg": 4.62,
+        "precip_cum": 66.2,
+        "feels_avg": 1.42
+      },
+      "n96": {
+        "temp_avg": 5.27,
+        "temp_high": 7.38,
+        "temp_low": 3.07,
+        "precip_cum": 67.8,
+        "feels_avg": 1.68,
+        "feels_high": 3.76,
+        "feels_low": -0.59
+      }
+    },
+    {
+      "date": "2026-10-30",
+      "temp_avg": 8.4,
+      "temp_high": 10.5,
+      "temp_low": 5.9,
+      "precip_mm": 1.7,
+      "precip_cum": 44.9,
+      "feels_avg": 5.5,
+      "feels_high": 7.6,
+      "feels_low": 2.9,
+      "sky": "rain",
+      "n91": {
+        "temp_avg": 4.56,
+        "precip_cum": 68.6,
+        "feels_avg": 1.31
+      },
+      "n96": {
+        "temp_avg": 5.2,
+        "temp_high": 7.27,
+        "temp_low": 3.04,
+        "precip_cum": 70.4,
+        "feels_avg": 1.6,
+        "feels_high": 3.66,
+        "feels_low": -0.64
+      }
+    },
+    {
+      "date": "2026-10-31",
+      "temp_avg": 7.6,
+      "temp_high": 8.4,
+      "temp_low": 7.0,
+      "precip_mm": 0.0,
+      "precip_cum": 44.9,
+      "feels_avg": 5.3,
+      "feels_high": 6.3,
+      "feels_low": 4.0,
+      "sky": "cloud",
+      "n91": {
+        "temp_avg": 4.5,
+        "precip_cum": 71.1,
+        "feels_avg": 1.21
+      },
+      "n96": {
+        "temp_avg": 5.16,
+        "temp_high": 7.18,
+        "temp_low": 3.03,
+        "precip_cum": 73.1,
+        "feels_avg": 1.54,
+        "feels_high": 3.57,
+        "feels_low": -0.65
+      }
+    }
+  ],
+  "stations": [
+    {
+      "fmisid": 100971,
+      "name": "Kaisaniemi",
+      "temp_avg": 9.82,
+      "temp_high": 12.0,
+      "temp_low": 7.5,
+      "abs_high": 16.2,
+      "abs_low": 0.8,
+      "abs_low_date": "2026-10-20",
+      "frost_days": 0,
+      "first_frost": null,
+      "precip_mm": 44.9,
+      "gust_max": 18.5,
+      "feels_avg": 6.75,
+      "feels_hours": 745,
+      "feels_anomaly_1991_2020": 3.16,
+      "feels_anomaly_1996_2025": 2.97,
+      "official_temp_avg": 6.6,
+      "official_precip_mm": 73.3,
+      "normal_1991_2020_temp_avg": 6.66,
+      "anomaly_1991_2020": 3.16,
+      "normal_1996_2025_temp_avg": 7.07,
+      "anomaly_1996_2025": 2.75,
+      "anomaly_official": 3.22,
+      "normal_1991_2020_precip_mm": 71.1
+    },
+    {
+      "fmisid": 101004,
+      "name": "Kumpula",
+      "temp_avg": 9.4,
+      "temp_high": 11.7,
+      "temp_low": 6.8,
+      "abs_high": 15.8,
+      "abs_low": -1.0,
+      "abs_low_date": "2026-10-20",
+      "frost_days": 2,
+      "first_frost": "2026-10-19",
+      "precip_mm": 50.2,
+      "gust_max": 18.6,
+      "feels_avg": 6.08,
+      "feels_hours": 745,
+      "feels_anomaly_1991_2020": null,
+      "feels_anomaly_1996_2025": null,
+      "official_temp_avg": null,
+      "official_precip_mm": null,
+      "normal_1991_2020_temp_avg": null,
+      "anomaly_1991_2020": null,
+      "normal_1996_2025_temp_avg": null,
+      "anomaly_1996_2025": null,
+      "anomaly_official": null,
+      "normal_1991_2020_precip_mm": null
+    },
+    {
+      "fmisid": 100996,
+      "name": "Harmaja",
+      "temp_avg": 10.56,
+      "temp_high": 12.0,
+      "temp_low": 9.1,
+      "abs_high": 15.2,
+      "abs_low": 4.2,
+      "abs_low_date": "2026-10-18",
+      "frost_days": 0,
+      "first_frost": null,
+      "precip_mm": null,
+      "gust_max": 21.7,
+      "feels_avg": 6.25,
+      "feels_hours": 745,
+      "feels_anomaly_1991_2020": 3.23,
+      "feels_anomaly_1996_2025": 3.05,
+      "official_temp_avg": 7.3,
+      "official_precip_mm": null,
+      "normal_1991_2020_temp_avg": 7.3,
+      "anomaly_1991_2020": 3.26,
+      "normal_1996_2025_temp_avg": 7.75,
+      "anomaly_1996_2025": 2.81,
+      "anomaly_official": 3.26,
+      "normal_1991_2020_precip_mm": null
+    },
+    {
+      "fmisid": 100968,
+      "name": "Helsinki-Vantaa",
+      "temp_avg": 8.76,
+      "temp_high": 11.5,
+      "temp_low": 5.7,
+      "abs_high": 16.2,
+      "abs_low": -3.2,
+      "abs_low_date": "2026-10-20",
+      "frost_days": 3,
+      "first_frost": "2026-10-18",
+      "precip_mm": 51.9,
+      "gust_max": 18.1,
+      "feels_avg": 5.46,
+      "feels_hours": 745,
+      "feels_anomaly_1991_2020": 3.09,
+      "feels_anomaly_1996_2025": 2.86,
+      "official_temp_avg": 5.8,
+      "official_precip_mm": 79.1,
+      "normal_1991_2020_temp_avg": 5.72,
+      "anomaly_1991_2020": 3.04,
+      "normal_1996_2025_temp_avg": 6.1,
+      "anomaly_1996_2025": 2.66,
+      "anomaly_official": 2.96,
+      "normal_1991_2020_precip_mm": 77.7
+    }
+  ],
   "sunshine": {
-   "name": "Helsinki-Vantaa",
-   "sun_h": 78.1,
-   "share_pct": 100.0,
-   "base_years": [
-    1999,
-    2025
-   ],
-   "base_sun_h": 83.4
+    "normal_1991_2020": {
+      "sun_h": 84.0,
+      "glob_mj": 120.0
+    },
+    "primary": {
+      "name": "Helsinki-Vantaa",
+      "total_h": 78.1,
+      "glob_kwh": 32.2,
+      "glob_mj": 116.0,
+      "daylight_h": 315.8,
+      "pct_possible": 25.0,
+      "base_years": [1999, 2025],
+      "base_count": 26,
+      "base_mean_h": 84.2,
+      "base_mean_glob_mj": 121.0,
+      "base_min": [2006, 28.4],
+      "base_max": [2015, 172.8],
+      "years_sunnier": [
+        2002, 2004, 2005, 2008, 2009, 2010, 2011, 2013, 2015, 2016, 2018, 2022,
+        2023, 2024
+      ],
+      "rank": 15,
+      "of": 27,
+      "sunniest_day": ["2026-10-07", 9.7, 89.0],
+      "dull_days": 17,
+      "sunless_days": 14,
+      "bright_days": 7,
+      "bright_threshold_h": 6,
+      "dull_days_normal": 12.7,
+      "bright_days_normal": 6.1,
+      "thirds": {
+        "1-10": {
+          "sun_h": 31.1,
+          "normal_h": 32.8
+        },
+        "11-20": {
+          "sun_h": 27.8,
+          "normal_h": 27.9
+        },
+        "21-31": {
+          "sun_h": 19.3,
+          "normal_h": 22.1
+        }
+      },
+      "hour_profile": [
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.003, 0.108, 0.21, 0.308, 0.32,
+        0.305, 0.315, 0.266, 0.27, 0.254, 0.144, 0.016, 0.0, 0.0, 0.0, 0.0, 0.0
+      ],
+      "days": [
+        {
+          "date": "2026-10-01",
+          "sun_h": 8.38,
+          "daylight_h": 11.55,
+          "normal_h": 3.5
+        },
+        {
+          "date": "2026-10-02",
+          "sun_h": 0.91,
+          "daylight_h": 11.46,
+          "normal_h": 3.43
+        },
+        {
+          "date": "2026-10-03",
+          "sun_h": 0.0,
+          "daylight_h": 11.37,
+          "normal_h": 3.36
+        },
+        {
+          "date": "2026-10-04",
+          "sun_h": 1.58,
+          "daylight_h": 11.28,
+          "normal_h": 3.33
+        },
+        {
+          "date": "2026-10-05",
+          "sun_h": 0.14,
+          "daylight_h": 11.19,
+          "normal_h": 3.29
+        },
+        {
+          "date": "2026-10-06",
+          "sun_h": 9.46,
+          "daylight_h": 11.1,
+          "normal_h": 3.28
+        },
+        {
+          "date": "2026-10-07",
+          "sun_h": 9.74,
+          "daylight_h": 11.01,
+          "normal_h": 3.25
+        },
+        {
+          "date": "2026-10-08",
+          "sun_h": 0.85,
+          "daylight_h": 10.91,
+          "normal_h": 3.22
+        },
+        {
+          "date": "2026-10-09",
+          "sun_h": 0.0,
+          "daylight_h": 10.82,
+          "normal_h": 3.1
+        },
+        {
+          "date": "2026-10-10",
+          "sun_h": 0.0,
+          "daylight_h": 10.73,
+          "normal_h": 3.05
+        },
+        {
+          "date": "2026-10-11",
+          "sun_h": 0.0,
+          "daylight_h": 10.64,
+          "normal_h": 2.99
+        },
+        {
+          "date": "2026-10-12",
+          "sun_h": 0.0,
+          "daylight_h": 10.55,
+          "normal_h": 3.04
+        },
+        {
+          "date": "2026-10-13",
+          "sun_h": 4.51,
+          "daylight_h": 10.46,
+          "normal_h": 2.99
+        },
+        {
+          "date": "2026-10-14",
+          "sun_h": 0.0,
+          "daylight_h": 10.37,
+          "normal_h": 2.89
+        },
+        {
+          "date": "2026-10-15",
+          "sun_h": 0.0,
+          "daylight_h": 10.28,
+          "normal_h": 2.81
+        },
+        {
+          "date": "2026-10-16",
+          "sun_h": 0.0,
+          "daylight_h": 10.18,
+          "normal_h": 2.82
+        },
+        {
+          "date": "2026-10-17",
+          "sun_h": 0.0,
+          "daylight_h": 10.09,
+          "normal_h": 2.76
+        },
+        {
+          "date": "2026-10-18",
+          "sun_h": 8.94,
+          "daylight_h": 10.0,
+          "normal_h": 2.67
+        },
+        {
+          "date": "2026-10-19",
+          "sun_h": 5.47,
+          "daylight_h": 9.91,
+          "normal_h": 2.52
+        },
+        {
+          "date": "2026-10-20",
+          "sun_h": 8.89,
+          "daylight_h": 9.82,
+          "normal_h": 2.41
+        },
+        {
+          "date": "2026-10-21",
+          "sun_h": 8.59,
+          "daylight_h": 9.73,
+          "normal_h": 2.3
+        },
+        {
+          "date": "2026-10-22",
+          "sun_h": 6.22,
+          "daylight_h": 9.64,
+          "normal_h": 2.31
+        },
+        {
+          "date": "2026-10-23",
+          "sun_h": 0.53,
+          "daylight_h": 9.55,
+          "normal_h": 2.24
+        },
+        {
+          "date": "2026-10-24",
+          "sun_h": 3.27,
+          "daylight_h": 9.46,
+          "normal_h": 2.17
+        },
+        {
+          "date": "2026-10-25",
+          "sun_h": 0.0,
+          "daylight_h": 9.37,
+          "normal_h": 2.1
+        },
+        {
+          "date": "2026-10-26",
+          "sun_h": 0.0,
+          "daylight_h": 9.28,
+          "normal_h": 2.06
+        },
+        {
+          "date": "2026-10-27",
+          "sun_h": 0.45,
+          "daylight_h": 9.19,
+          "normal_h": 1.91
+        },
+        {
+          "date": "2026-10-28",
+          "sun_h": 0.0,
+          "daylight_h": 9.1,
+          "normal_h": 1.81
+        },
+        {
+          "date": "2026-10-29",
+          "sun_h": 0.0,
+          "daylight_h": 9.01,
+          "normal_h": 1.77
+        },
+        {
+          "date": "2026-10-30",
+          "sun_h": 0.22,
+          "daylight_h": 8.92,
+          "normal_h": 1.74
+        },
+        {
+          "date": "2026-10-31",
+          "sun_h": 0.0,
+          "daylight_h": 8.83,
+          "normal_h": 1.65
+        }
+      ]
+    },
+    "city": {
+      "name": "Kumpula",
+      "total_h": 81.9,
+      "base_years": [2006, 2025],
+      "base_mean_h": 85.1,
+      "rank": 11,
+      "of": 21
+    }
+  },
+  "daytime": {
+    "hours": [8, 21],
+    "window_hours": 403,
+    "temp_avg": 10.38,
+    "feels_avg": 7.27,
+    "night_temp_avg": 9.17,
+    "base_years": [1996, 2025],
+    "base_temp_avg": 7.68,
+    "base_feels_avg": 4.38,
+    "temp_rank": {
+      "rank": 1,
+      "of": 31
+    },
+    "feels_rank": {
+      "rank": 1,
+      "of": 31
+    },
+    "rain": {
+      "base_years": [2013, 2025],
+      "wet_hours": 43,
+      "night_wet_hours": 46,
+      "base_wet_hours": 58.3,
+      "base_night_wet_hours": 46.1,
+      "wet_hours_max": [2017, 126],
+      "wet_hours_rank": {
+        "rank": 9,
+        "of": 13
+      },
+      "mm": 23.2,
+      "share_pct": 52.0,
+      "base_share_pct": 54.0,
+      "days_1mm": 5,
+      "base_days_1mm": 7.1,
+      "dry_days": 17,
+      "base_dry_days": 18.8
+    },
+    "sunshine": {
+      "name": "Helsinki-Vantaa",
+      "sun_h": 78.1,
+      "share_pct": 100.0,
+      "base_years": [1999, 2025],
+      "base_sun_h": 83.4
+    }
+  },
+  "wind": {
+    "sector_share": {
+      "N": 8.0,
+      "NE": 9.0,
+      "E": 10.0,
+      "SE": 15.0,
+      "S": 17.0,
+      "SW": 22.0,
+      "W": 12.0,
+      "NW": 6.0
+    }
   }
- },
- "wind": {
-  "sector_share": {
-   "N": 8.0,
-   "NE": 9.0,
-   "E": 10.0,
-   "SE": 15.0,
-   "S": 17.0,
-   "SW": 22.0,
-   "W": 12.0,
-   "NW": 6.0
-  }
- }
 }

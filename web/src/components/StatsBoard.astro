@@ -1,5 +1,7 @@
 ---
 import type { City } from "../lib/cities";
+import { formatRelativeTime } from "../lib/formatters";
+import { celsiusToFahrenheit, metersPerSecondToMph } from "../lib/units";
 import type {
   LeaderboardEntry,
   LeaderboardResponse,
@@ -7,8 +9,6 @@ import type {
 } from "../lib/weatherApi";
 import { LEADERBOARD_TIMEFRAMES } from "../lib/weatherApi";
 import type { CacheResult } from "../lib/weatherCache";
-import { formatRelativeTime } from "../lib/formatters";
-import { celsiusToFahrenheit, metersPerSecondToMph } from "../lib/units";
 import Footer from "./Footer.astro";
 import TopBar from "./TopBar.astro";
 import UnitText from "./UnitText.astro";

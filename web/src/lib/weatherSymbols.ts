@@ -67,7 +67,9 @@ export type ParsedSymbol = {
   night: boolean;
 };
 
-export function parseSymbolCode(raw: string | null | undefined): ParsedSymbol | null {
+export function parseSymbolCode(
+  raw: string | null | undefined,
+): ParsedSymbol | null {
   if (raw == null) return null;
   const value = Number.parseInt(raw, 10);
   if (!Number.isFinite(value) || value < 0) return null;
@@ -77,7 +79,9 @@ export function parseSymbolCode(raw: string | null | undefined): ParsedSymbol | 
   return { code, night };
 }
 
-export function symbolDescription(raw: string | null | undefined): string | null {
+export function symbolDescription(
+  raw: string | null | undefined,
+): string | null {
   const parsed = parseSymbolCode(raw);
   return parsed ? SYMBOL_DESCRIPTIONS[parsed.code] : null;
 }
@@ -93,6 +97,8 @@ export function symbolAssetFile(
   const parsed = parseSymbolCode(raw);
   if (!parsed) return null;
   const file =
-    parsed.night && NIGHT_ASSET_CODES.has(parsed.code) ? parsed.code + 100 : parsed.code;
+    parsed.night && NIGHT_ASSET_CODES.has(parsed.code)
+      ? parsed.code + 100
+      : parsed.code;
   return `${theme}/${file}.svg`;
 }

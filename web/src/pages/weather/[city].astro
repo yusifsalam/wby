@@ -3,8 +3,8 @@ import WeatherDashboard from "../../components/WeatherDashboard.astro";
 import WeatherUnavailable from "../../components/WeatherUnavailable.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { cities, findCityBySlug } from "../../lib/cities";
-import { getCityWeather } from "../../lib/weatherPageData";
 import { PAGE_CACHE_POLICY, pageCacheControl } from "../../lib/weatherApi";
+import { getCityWeather } from "../../lib/weatherPageData";
 
 const slug = Astro.params.city ?? "";
 const city = findCityBySlug(slug);

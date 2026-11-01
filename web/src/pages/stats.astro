@@ -3,13 +3,13 @@ import StatsBoard from "../components/StatsBoard.astro";
 import WeatherUnavailable from "../components/WeatherUnavailable.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { cities } from "../lib/cities";
-import { getLeaderboard } from "../lib/weatherPageData";
 import {
-  PAGE_CACHE_POLICY,
-  pageCacheControl,
   LEADERBOARD_TIMEFRAMES,
   type LeaderboardTimeframe,
+  PAGE_CACHE_POLICY,
+  pageCacheControl,
 } from "../lib/weatherApi";
+import { getLeaderboard } from "../lib/weatherPageData";
 
 function parseTimeframe(value: string | null): LeaderboardTimeframe {
   return LEADERBOARD_TIMEFRAMES.includes(value as LeaderboardTimeframe)
