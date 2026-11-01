@@ -8,6 +8,12 @@ import { publishedDate } from "../../lib/formatters";
 
 export const prerender = true;
 
+const infographics = new Set(
+  Object.keys(import.meta.glob("../../content/posts/*/*/*-infographic.svg")).map((file) =>
+    file.replace(/^\.\.\/\.\.\/content\/posts\/(\d+)\/(\d+)\/(.+)-\1-\2-infographic\.svg$/, "$1/$2/$3"),
+  ),
+);
+
 const posts = (await getCollection("posts", (post) => import.meta.env.DEV || !post.data.draft)).sort((a, b) =>
   b.data.published.localeCompare(a.data.published),
 );
@@ -24,23 +30,31 @@ const posts = (await getCollection("posts", (post) => import.meta.env.DEV || !po
     {posts.length > 0 ? (
       <section class="mb-10 grid gap-4.5">
         {posts.map((post) => (
-          <article>
-            <a
-              class="group block rounded-lg border border-line bg-surface/92 px-[clamp(18px,4vw,32px)] py-[clamp(18px,3.5vw,28px)] shadow-panel hover:bg-surface-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal"
-              href={post.data.draft ? `/preview/posts/${post.id}` : `/posts/${post.id}`}
-            >
-              <p class="text-[0.9rem] font-bold text-teal">
-                {post.data.kicker}
-                {post.data.draft && <span class="text-muted"> · Draft</span>}
-              </p>
-              <h2 class="mt-2 text-[clamp(1.5rem,3.5vw,2.2rem)] leading-tight font-bold group-hover:underline group-hover:decoration-line group-hover:underline-offset-4">
+          <article class="group relative rounded-lg border border-line bg-surface/92 px-[clamp(18px,4vw,32px)] py-[clamp(18px,3.5vw,28px)] shadow-panel hover:bg-surface-strong has-[.card-link:focus-visible]:outline-2 has-[.card-link:focus-visible]:outline-offset-2 has-[.card-link:focus-visible]:outline-teal">
+            <p class="text-[0.9rem] font-bold text-teal">
+              {post.data.kicker}
+              {post.data.draft && <span class="text-muted"> · Draft</span>}
+            </p>
+            <h2 class="mt-2 text-[clamp(1.5rem,3.5vw,2.2rem)] leading-tight font-bold group-hover:underline group-hover:decoration-line group-hover:underline-offset-4">
+              <a
+                class="card-link outline-none after:absolute after:inset-0 after:rounded-lg"
+                href={post.data.draft ? `/preview/posts/${post.id}` : `/posts/${post.id}`}
+              >
                 {post.data.title}
-              </h2>
-              <p class="mt-3 max-w-[72ch] leading-normal text-muted">{post.data.description}</p>
-              <p class="mt-4 text-[0.85rem] font-[550] text-muted">
-                <time datetime={post.data.published}>{publishedDate(post.data.published)}</time>
-              </p>
-            </a>
+              </a>
+            </h2>
+            <p class="mt-3 max-w-[72ch] leading-normal text-muted">{post.data.description}</p>
+            <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.85rem] font-[550] text-muted">
+              <time datetime={post.data.published}>{publishedDate(post.data.published)}</time>
+              {!post.data.draft && infographics.has(post.id) && (
+                <a
+                  class="relative z-10 underline decoration-line underline-offset-2 hover:text-teal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal"
+                  href={`/infographics/${post.id}`}
+                >
+                  Infographic
+                </a>
+              )}
+            </div>
           </article>
         ))}
       </section>
