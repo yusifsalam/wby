@@ -1,0 +1,121 @@
+---
+title: October 2026 in Helsinki
+kicker: Monthly climate report
+description: Helsinki's second-mildest October since 1961, 3.2 °C above normal, with no frost in the city center, a late start to thermal autumn, and less than two-thirds of the usual rain.
+published: "2026-11-01"
+---
+
+import data from "./helsinki.json";
+import HeroCollage from "../../../../components/report/collage/HeroCollage.astro";
+import Mark from "../../../../components/report/collage/Mark.astro";
+import SectionHead from "../../../../components/report/collage/SectionHead.astro";
+import TransectExhibit from "../../../../components/report/collage/TransectExhibit.astro";
+import DaytimeSummary from "../../../../components/report/DaytimeSummary.astro";
+import MonthSummary from "../../../../components/report/MonthSummary.astro";
+import ReportChart from "../../../../components/report/ReportChart.astro";
+import StationsTable from "../../../../components/report/StationsTable.astro";
+import V from "../../../../components/report/V.astro";
+import { dailyChart, rainChart, sunshineChart, yearsChart } from "../../../../lib/reportChart";
+
+<HeroCollage art="golden-park" title="Helsinki, October 2026" notes={["mild", "no frost"]} />
+
+October 2026 was the second-mildest in Helsinki since 1961. Kaisaniemi, the weather station in central Helsinki, averaged <V t={9.8} />, <Mark><V dd={3.2} /> above the 1991–2020 normal</Mark> and <V dd={2.8} /> above the average of the last 30 Octobers. Only 1961, the first year of this record, was milder, at <V t={10.2} />.
+
+The city center had no frost all month, and thermal autumn, which begins once the daily mean stays below <V t={10} d={0} />, arrived late, on the 29th. Rain fell more often than usual but lightly: <V mm={44.9} />, 61% of normal.
+
+<MonthSummary report={data} monthName="October" />
+
+<SectionHead id="second-mildest" title="Second-mildest since 1961" art="doorframe" report={data} />
+
+No October in 1991–2020 was as mild, and the mildest of them, 2000, averaged <V t={9.5} />. The days set a record of their own: the average daily high, <V t={12.0} />, was the warmest of any October since 1961, about <V dd={0.2} /> ahead of 1961 and 2024. The nights ranked third, behind 1961 and, by a few hundredths of a degree, 2000.
+
+<ReportChart title="Every October at Kaisaniemi since 1961" spec={yearsChart(data.years, data.standard_normals, 2026, "October")} />
+
+As in the September report, the chart carries two yardsticks: the official 1991–2020 normal and a running normal, the 30 most recent complete years, 1996–2025. For October they are <V t={6.6} /> and <V t={7.03} d={2} />, and this October sat well above both. October has also warmed less than September. Its 1961–1990 normal was <V t={6.4} />, only <V dd={0.2} /> below 1991–2020, where September's two normals are <V dd={1.3} /> apart. The running mean bottomed out at <V t={5.9} /> for 1968–1997.
+
+<SectionHead id="day-by-day" title="Mild spells and two cool snaps" art="clothesline" report={data} />
+
+<ReportChart title="Daily temperature against the normal" spec={dailyChart(data.days)} />
+
+The normal daily mean falls from <V t={10.0} /> to <V t={5.2} /> between October 1 and 31. This year it mostly stayed between <V t={10} d={0} /> and <V t={14} d={0} />. Of the 31 days, 25 were milder than the running normal, 21 of them by <V dd={2} d={0} /> or more, and none fell that far below it. Three days reached <V t={15} d={0} />, where a normal October has about one, and only eight nights dipped below <V t={5} d={0} />, about half the usual 15.
+
+- **October 1–9** were mild and mostly cloudy, with highs of <V t={13} d={0} />–<V t={16} d={0} />. The month's high, <V t={16.2} />, came on the 1st. A blustery westerly on the 6th, behind a low, gusted to <V ms={18.5} /> and made it the mildest day relative to normal in the first half, <V dt={5.3} />. A deeper low on the 9th took the pressure down to <V hpa={987} /> and brought the wettest day of the month, <V mm={11.6} />.
+- **October 10–13** turned northeasterly, gray, and cooler, <V dd={0.8} />–<V dd={1.9} /> below normal, with <V mm={7.3} /> of rain on the 12th.
+- **October 14–17** brought southerly winds and overcast skies. The 16th averaged <V t={12.4} />, <V dt={5.8} /> against the normal.
+- **October 18–20** belonged to high pressure, <V hpa={1041} /> at midday on the 19th. Clear skies let the nights cool to about <V t={1} d={0} /> in the center, and to <V t={-1.0} /> at Kumpula and <V t={-3.2} /> at the airport.
+- **October 21–23** stayed mild under southeasterly winds: sunny on the 21st and 22nd, then <V mm={7.5} /> of rain on the 23rd. These three days ran <V dt={4.9} /> on average.
+- **October 24–31** were gray, breezy, and mild, with southerly winds turning southwesterly and the pressure down to <V hpa={1002} /> on the 25th and 26th. The 26th averaged <V t={11.6} />, <V dt={6.2} /> against the normal, the largest margin of the month, and gusted to <V ms={15.2} />. Light rain fell on most days, <V mm={9.2} /> in all. A westerly cooled the 30th to <V t={8.4} />, and the month ended overcast and nearly calm under a light northerly, at <V t={7.6} /> on the 31st, still <V dt={2.5} /> against the normal.
+
+<SectionHead id="no-frost" title="No frost, and a late thermal autumn" art="frost" report={data} />
+
+Kaisaniemi did not drop below freezing in October. The lowest measured temperature was <V t={1.1} />, at 6:20 am on the 19th. In a typical year (1991–2020), the city center's first frost comes around October 15, and <Mark>only two of those 30 years had none by the end of October</Mark>: 2008 and 2011. The suburbs had theirs. Helsinki-Vantaa airport first went below zero on the 18th and Kumpula on the 19th.
+
+Thermal autumn begins once the daily mean stays below <V t={10} d={0} /> for good. The 28th averaged <V t={10.1} />, the last day of the month to reach it, so thermal autumn began on the 29th, provided November stays below <V t={10} d={0} />. That's late for the city center. By this definition, the median start was October 19 in 1991–2020 and October 23 in 1996–2025. Four of the 30 years in 1991–2020 waited until November, and so did three of the last six: 2020, 2022, and 2025.
+
+The mild days kept heating demand low. Heating degree days only start to add up once a day's mean drops below <V t={10} d={0} />, and in October Kaisaniemi logged <Mark>117 degree days, where a normal October has 286</Mark>. Only 1961 needed less.
+
+<SectionHead id="feels-like" title="The mildest-feeling October since 1996" art="jogger" report={data} />
+
+<ReportChart title="Daily feels-like against the normal" spec={dailyChart(data.days, "feels")} />
+
+With the wind factored in, the month felt like <V t={6.8} />, <V dd={3.2} /> warmer than the 1991–2020 normal and <V dd={3.0} /> warmer than 1996–2025. No October since 1996 felt milder. The wind took off <V dd={3.1} />, a little less than the usual <V dd={3.3} />.
+
+The coldest-feeling hour was 9 am on the 18th, <V t={-2.3} /> (air <V t={1.4} />, wind <V ms={3.3} />). In a typical October the coldest hour feels like about <V t={-6.2} />, and 27 of the last 30 had a colder-feeling one. The warmest-feeling hour was 2 pm on the 1st, <V t={13.7} />.
+
+<SectionHead id="rain" title="Rain came often but lightly" art="puddle" report={data} />
+
+<ReportChart title="Rain, month to date" spec={rainChart(data.days)} />
+
+Kaisaniemi collected <V mm={44.9} /> in October, against a normal <V mm={73.3} />. That is 61% of normal, and 23 of the 30 Octobers in 1991–2020 were wetter. It rained more often than usual: 18 days had at least <V mm={0.1} /> (normal 16.3), and 11 had at least <V mm={1} d={0} /> (normal 10.2). No day brought a downpour. The wettest, the 9th, brought <V mm={11.6} />, where the wettest day of an ordinary October brings about <V mm={18} d={0} />.
+
+The shortfall built up through the middle of the month. October 11–20 brought <V mm={10.5} />, half the normal <V mm={20.5} />, and the clear spell of the 18th–22nd stayed dry. The last eleven days added <V mm={16.7} />, against a normal <V mm={28.4} />, almost half of it on the 23rd.
+
+<SectionHead id="sunshine" title="Almost half the sun in one clear spell" art="sundial" report={data} />
+
+Kaisaniemi has no sunshine recorder, so this section uses Helsinki-Vantaa airport and Kumpula. In October, Helsinki-Vantaa logged <Mark>78.1 hours of sunshine</Mark>, against 84.2 hours on average since 1999, the 15th-sunniest of 27 years on record there. Kumpula saw 81.9 hours against its average of 85.1 since 2006.
+
+<ReportChart title="Hours of sunshine each day at Helsinki-Vantaa" spec={sunshineChart(data.sunshine.primary.days, data.sunshine.primary.name, data.sunshine.primary.base_years)} />
+
+Seventeen days had less than half an hour of sun, where about 13 is normal, and seven had six hours or more, against about six. The 7th was the sunniest day, with 9.7 hours out of a possible 10.9. The clear spell of October 18–22 brought 38.1 hours, almost half the month's total and about three times the usual 12 for those days. The last week was nearly sunless, with 3.9 hours from the 24th to the 31st. Over the month the sun shone for 25% of the hours it was up, against a usual 27%.
+
+<SectionHead id="out-and-about" title="Out and about" report={data} />
+
+This section looks at the hours from 8 am to 9 pm, when most people are outside. It's the window WeatherSpark uses for its tourism score, which rates how pleasant a place's weather is for being outdoors. That makes 13 hours a day, 403 over the month.
+
+<DaytimeSummary daytime={data.daytime} />
+
+Those hours averaged <V t={10.4} />, <V dd={2.7} /> above the same hours in 1996–2025, the mildest since at least 1996. They felt like <V t={7.3} />, against a usual <V t={4.4} />. That is about as far above normal as the month as a whole, so the mildness held around the clock.
+
+The daytime also stayed drier than usual. It rained in 43 of the 403 hours, against a 2013–2025 October average of 58, while the nights had their usual share, 46 rainy hours against 46. Most of it was brief: rain touched 14 days, slightly more than usual, but only five brought <V mm={1} d={0} /> or more during the window, where about seven is normal.
+
+Weekends got the best of the rain and the worst of the sun. Rain touched four of the nine weekend days between 8 am and 9 pm, but only for seven hours and <V mm={1.6} /> in all, against 36 hours and <V mm={21.6} /> on the 22 weekdays, and most weekend rain, <V mm={5.9} /> of <V mm={7.5} />, fell overnight. The sun, meanwhile, mostly skipped them. Helsinki-Vantaa logged 1.5 hours a day on weekends, a little over half the October average of 2.7, against 2.9 on weekdays. That is the most lopsided split against weekends since its record began in 1999; in an average October the two get about the same. The clear spell of October 18–22 did most of the damage, starting on a Sunday and running through the working week, so that Sunday, with 8.9 hours of sun at a cool <V t={6.7} />, was the one bright weekend day.
+
+The light ran out faster than the warmth. Sunset came at 6:54 pm on October 1 and at 4:28 pm on the 31st, an hour of that from the clocks going back on the 25th. So by the 31st, more than a third of the 8 am to 9 pm window came after sunset.
+
+<SectionHead id="wind-humidity-and-cloud" title="Wind, humidity, and cloud" art="weathervane" report={data} />
+
+Mean wind speed was <V ms={4.0} /> against <V ms={3.7} /> in the hourly record since 1996, and only three of the last 30 Octobers were windier. The strongest gust was <V ms={18.5} />, at 2:30 pm on the 6th. The wind blew from every direction, most often from the southwest (22% of the time) and south (17%). Relative humidity averaged 85.5% (usually 84.6%). Cloud cover averaged 5.6 oktas (eighths of the sky), with seven mostly clear days and 20 overcast ones. The pressure swung from <V hpa={987} /> on the evening of the 9th to <V hpa={1041} /> on the 19th.
+
+<SectionHead id="across-helsinki" title="Mildest at sea, frost at the airport" report={data} />
+
+<TransectExhibit stations={data.stations} caption="From the airport to the sea. Each thermometer is filled to the station's mean for October, and the blue tab marks its feels-like." />
+
+<StationsTable stations={data.stations} />
+
+The three stations with normals of their own all ran about <V dd={3} d={0} /> above them. Harmaja, the lighthouse island off Helsinki, was mildest at <V t={10.6} /> and never fell below <V t={4.2} />. Helsinki-Vantaa airport, 17 kilometers to the north, averaged <V t={8.8} /> and had three frosty nights, down to <V t={-3.2} /> on the 20th. Feels-like reorders the list: the sea wind brought Harmaja's down to <V t={6.3} />, below central Helsinki's <V t={6.8} />. The airport collected <V mm={51.9} /> of rain, 67% of its normal.
+
+<SectionHead id="southerly-and-gray" title="Southerly winds and cloud kept it mild" report={data} />
+
+Most of October's weather came from the south. The wind blew from between southeast and southwest 54% of the time, and 20 of the 31 days were overcast. The southerly air kept the days mild and the cloud kept the nights from cooling, so highs and lows both ran about <V dd={3} d={0} /> above the 1991–2020 normal. The pattern explains much of the rest of the month: the suburbs' only frosts came in its one clear spell, October 18–20, and the cloud left the last week almost sunless.
+
+<SectionHead id="about-the-data" title="About the data" art="stamp" report={data} />
+
+- **Stations:** Helsinki Kaisaniemi (FMISID 100971); Kumpula, Harmaja, and Helsinki-Vantaa for the comparison table. Kumpula has too short a record for normals of its own, and Harmaja has no rain gauge. The airport's rain record is missing one hour on the 30th; its rain-intensity sensor read zero throughout, so that hour counts as dry.
+- **October 2026:** The 10-minute observations this site collects from FMI's open data, grouped into Helsinki calendar days. From about 10:30 am on October 19 until the morning of the 23rd, Kaisaniemi reported only wind, along with a temperature every three hours. That stretch is filled from Kumpula, three kilometers away, adjusted by the usual difference between the two stations at each hour of the day and passed through every Kaisaniemi reading there is. Rain for those hours is Kumpula's. The filled daily means are within <V dd={0.3} /> of FMI's own daily means for those days. The night of the 20th, which the fill puts at about <V t={0.8} />, is the coldest in the chart. The lowest temperature actually measured is <V t={1.1} />, and FMI's own minimum for the 20th, published since, is <V t={0.5} />.
+- **History:** FMI's daily observations for 1961–2025, and its hourly observations for wind, gusts, and humidity in 1996–2025. The 2026 daily highs and lows come from the 10-minute observations, the history from FMI's daily maximums and minimums. FMI's own October 2026 maximums average <V t={12.1} />, so the record for daytime highs holds under either method.
+- **Normals:** The 1991–2020 and running 1996–2025 normals are the means of October over each period, computed from the same history. Daily normal curves average each calendar day with the week on either side (five days for rain), as on this site's climate normals card.
+- **Frost and thermal autumn:** A frost is a daily low below <V t={0} d={0} /> at two meters. Thermal autumn begins the day after the last day of the year with a mean of at least <V t={10} d={0} />.
+- **Feels-like:** Hourly mean temperature, wind, and humidity through the site's feels-like formula (wind chill, plus a humidity correction above <V t={14.5} />; no solar radiation). FMI's hourly record at Kaisaniemi starts in 1996.
+- **Sunshine:** FMI's minute-by-minute sunshine and global radiation observations at Helsinki-Vantaa and Kumpula, whose October records start in 1999 and 2006.
+- **Daytime:** The hours from 8 am to 9 pm Helsinki time. A rainy hour is one in which the gauge measured any rain; FMI's hourly rain totals for Kaisaniemi start in 2013. Sunset times are computed for central Helsinki. Weekend comparisons use Helsinki-Vantaa's sunshine since 1999 and Kaisaniemi's hourly rain since 2013, per weekend day, since an October has eight to ten of them.
+- **Heating:** FMI's heating degree days. In autumn, each day with a mean temperature below <V t={10} d={0} /> adds the gap between that mean and <V t={17} d={0} />.

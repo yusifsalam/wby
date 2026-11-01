@@ -25,7 +25,7 @@ import {
   rng,
 } from "../sketch";
 
-function groundStrip(
+export function groundStrip(
   w: number,
   y: number,
   h: number,
@@ -176,6 +176,12 @@ export function calendarScene(days: ReportDay[]): Scene {
   const pageShape = cutRect(24, 42, 132, 154, rng(302), 0.5);
   const header = cutRect(24, 60, 132, 24, rng(303), 0.4);
   const holes = `<circle class="f-kraft" cx="62" cy="50" r="3.2"/><circle class="f-kraft" cx="118" cy="50" r="3.2"/>`;
+  const month = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    timeZone: "UTC",
+  })
+    .format(new Date(`${days[0].date}T00:00:00Z`))
+    .toUpperCase();
   const pages = [...days]
     .map((d, i) => ({ d, i }))
     .reverse()
@@ -186,7 +192,7 @@ export function calendarScene(days: ReportDay[]): Scene {
       const attrs = last
         ? ""
         : ` class="cl-tear" style="--t:${n(0.5 + i * 0.15)}s;--tx:${dir * 22}px;--tr:${dir * 24}deg"`;
-      return `<g${attrs}>${path(pageShape, "paper")}${holes}${path(header, "stamp")}<text class="cl-hand f-white" x="90" y="78" font-size="17" font-weight="700" text-anchor="middle" letter-spacing="1.5">SEPTEMBER</text><text class="cl-hand f-ink" x="90" y="150" font-size="64" font-weight="700" text-anchor="middle">${day}</text>${skyGlyph(d.sky ?? "sun", 90, 176, 1.15, 310 + i)}</g>`;
+      return `<g${attrs}>${path(pageShape, "paper")}${holes}${path(header, "stamp")}<text class="cl-hand f-white" x="90" y="78" font-size="17" font-weight="700" text-anchor="middle" letter-spacing="1.5">${month}</text><text class="cl-hand f-ink" x="90" y="150" font-size="64" font-weight="700" text-anchor="middle">${day}</text>${skyGlyph(d.sky ?? "sun", 90, 176, 1.15, 310 + i)}</g>`;
     })
     .join("");
   const rings = [62, 118]

@@ -15,6 +15,8 @@ export const palette = {
   margin: ["#e58b8b", "#b87171"],
   sky: ["#d6e4ee", "#5d7184"],
   skyDeep: ["#b8cddd", "#4b5f72"],
+  glow: ["#f8dfb6", "#7f6750"],
+  glowDeep: ["#f2c48e", "#8a6a4c"],
   cloud: ["#f6f8fa", "#c3ccd5"],
   cloudShade: ["#dfe5eb", "#a7b2bd"],
   rainCloud: ["#8a9cae", "#66788a"],

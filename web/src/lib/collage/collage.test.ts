@@ -1,20 +1,31 @@
 import { describe, expect, it } from "vitest";
 import data from "../../content/posts/2026/09/helsinki.json";
+import october from "../../content/posts/2026/10/helsinki.json";
 import type { MonthReport } from "../reportChart";
 import { paletteCss } from "./palette";
 import { cutRect, tape, torn } from "./paper";
 import { boil, layerStyle } from "./scene";
+import {
+  clotheslineScene,
+  doorframeScene,
+  frostScene,
+  puddleScene,
+  sundialScene,
+  weathervaneScene,
+} from "./scenes/autumnDoodles";
 import {
   calendarScene,
   rainJarScene,
   recorderScene,
   rulersScene,
 } from "./scenes/doodles";
+import { goldenParkScene } from "./scenes/goldenPark";
 import { heroScene } from "./scenes/hero";
 import { transectScene } from "./scenes/transect";
 import { cloudShape, curve, line, rng } from "./sketch";
 
 const report = data as unknown as MonthReport;
+const octoberReport = october as unknown as MonthReport;
 
 describe("sketch", () => {
   it("draws the same lines for the same seed", () => {
@@ -98,7 +109,7 @@ describe("scene", () => {
 
 describe("scenes", () => {
   it("builds the hero from many pieces with the walker and falling leaves", () => {
-    const scene = heroScene();
+    const scene = heroScene("Helsinki, September 2026", ["wet!", "mild"]);
     expect(scene.layers.length).toBeGreaterThan(25);
     expect(scene.layers.filter((l) => l.className === "cl-leaf")).toHaveLength(
       7,
@@ -148,5 +159,82 @@ describe("scenes", () => {
     expect(marks).toHaveLength(12);
     expect(Math.max(...marks)).toBe(marks[5]);
     expect(recorderScene(profile, 154.8).layers[3].svg).toContain("154.8 h");
+  });
+
+  it("builds the October park with a cycling gull, geese and gusts of leaves", () => {
+    const scene = goldenParkScene("Helsinki, October 2026", [
+      "mild",
+      "no frost",
+    ]);
+    expect(
+      scene.layers.filter((l) => l.className === "cl-flurry"),
+    ).toHaveLength(15);
+    expect(scene.layers.some((l) => l.svg.includes('class="cl-ride"'))).toBe(
+      true,
+    );
+    expect(scene.layers.some((l) => l.loop === "cl-flock")).toBe(true);
+    expect(
+      scene.layers.some((l) => l.svg.includes("Helsinki, October 2026")),
+    ).toBe(true);
+  });
+
+  it("pegs one tag per day, tinted by the day's anomaly", () => {
+    const { days } = octoberReport;
+    const svg = clotheslineScene(days).layers[2].svg;
+    expect(svg.match(/class="cl-pin"/g)).toHaveLength(days.length);
+    const strong = days.filter((d) => d.temp_avg - d.n96.temp_avg >= 3).length;
+    expect(svg.match(/<path class="f-orange" /g)).toHaveLength(strong + 1);
+    expect(svg).toContain(`>${days.length}</text>`);
+  });
+
+  it("stops the window thermometer at the month's lowest reading", () => {
+    const svg = frostScene(1.1)
+      .layers.map((l) => l.svg)
+      .join("");
+    expect(svg.match(/class="cl-fern"/g)).toHaveLength(6);
+    expect(svg).toContain("1.1°");
+    expect(svg).toContain("lowest");
+  });
+
+  it("rules one mark per normal on the door frame, oldest lowest", () => {
+    const svg = doorframeScene(7.09, 7.25, 7.59).layers[2].svg;
+    const ys = [
+      ...svg.matchAll(/class="s-ink cl-draw" d="M[\d.]+ ([\d.]+)/g),
+    ].map((m) => Number(m[1]));
+    expect(ys).toHaveLength(3);
+    expect(ys[0]).toBeGreaterThan(ys[1]);
+    expect(ys[1]).toBeGreaterThan(ys[2]);
+    expect(svg).toContain("+0.5°");
+  });
+
+  it("spreads the puddle in one keyframe per day to its final size", () => {
+    const { days } = octoberReport;
+    const svg = puddleScene(days, 51.7).layers[1].svg;
+    const frames = svg.match(/\d+(\.\d+)?%\{transform:scale\(/g) ?? [];
+    expect(frames).toHaveLength(days.length + 1);
+    expect(svg).toContain("100%{transform:scale(1)}");
+  });
+
+  it("darkens one dial band per daylight hour, most for the sunniest", () => {
+    const profile = Array.from({ length: 24 }, (_, h) =>
+      h >= 8 && h <= 17 ? (h === 13 ? 0.45 : 0.2) : 0,
+    );
+    const svg = sundialScene(profile, 74.2).layers[2].svg;
+    const bands = [
+      ...svg.matchAll(/class="f-sun" d="[^"]+" opacity="([\d.]+)"/g),
+    ].map((m) => Number(m[1]));
+    expect(bands).toHaveLength(10);
+    expect(Math.max(...bands)).toBe(bands[5]);
+    expect(svg).toContain("74.2 h");
+  });
+
+  it("turns the vane between the commonest winds and rests on the first", () => {
+    const svg = weathervaneScene({ SE: 18, SW: 17, W: 14, E: 13, S: 12, N: 7 })
+      .layers.map((l) => l.svg)
+      .join("");
+    expect(svg).toContain(">SE 18%</text>");
+    expect(svg).toContain(">SW 17%</text>");
+    expect(svg).toMatch(/100%\{transform:scaleX\(0\.71\)\}/);
+    expect(svg).toContain("transform:scaleX(0.71)");
   });
 });

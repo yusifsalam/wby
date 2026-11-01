@@ -81,7 +81,7 @@ export type ReportDay = {
   };
 };
 
-export type ReportSeptember = {
+export type ReportYear = {
   year: number;
   temp_avg: number;
   running30: number | null;
@@ -177,6 +177,8 @@ export type MonthReport = {
     feels_avg: number;
     precip_mm: number;
     wet_days_1mm: number;
+    abs_low?: number;
+    abs_low_measured?: number;
   };
   normals: { "1991-2020": ReportNormal; "1996-2025": ReportNormal };
   rank_warmest: {
@@ -185,12 +187,13 @@ export type MonthReport = {
     since: number;
     warmer_years: number[];
   };
-  septembers: ReportSeptember[];
+  years: ReportYear[];
   standard_normals: ReportStandardNormal[];
   days: ReportDay[];
   stations: ReportStation[];
   sunshine: ReportSunshine;
   daytime: ReportDaytime;
+  wind?: { sector_share: Record<string, number> };
 };
 
 export function ordinal(n: number): string {
@@ -327,38 +330,39 @@ function emptySpec(): Pick<
   };
 }
 
-// Every September's mean temperature, the 30-year running mean ending each
-// year, and the standard normals as flat segments over their periods.
-export function septembersChart(
-  septembers: ReportSeptember[],
+// The month's mean temperature every year, the 30-year running mean ending
+// each year, and the standard normals as flat segments over their periods.
+export function yearsChart(
+  years: ReportYear[],
   standardNormals: ReportStandardNormal[],
   year: number,
+  monthName: string,
 ): ChartSpec {
-  const count = septembers.length;
-  const first = septembers[0].year;
-  const values = septembers.map((s) => s.temp_avg);
+  const count = years.length;
+  const first = years[0].year;
+  const values = years.map((s) => s.temp_avg);
   const { yMin, yMax, ticks } = valueAxis(values, 2);
-  const current = septembers.findIndex((s) => s.year === year);
-  const last = septembers.findLastIndex((s) => s.running30 != null);
-  const runningEnd = septembers[last];
+  const current = years.findIndex((s) => s.year === year);
+  const last = years.findLastIndex((s) => s.running30 != null);
+  const runningEnd = years[last];
   return {
     ...emptySpec(),
-    label: `September mean temperature at Kaisaniemi every year from ${first} to ${year}, with the 30-year running mean and the standard normals.`,
+    label: `${monthName} mean temperature at Kaisaniemi every year from ${first} to ${year}, with the 30-year running mean and the standard normals.`,
     kind: "temperature",
     count,
     yMin,
     yMax,
     ticks,
-    xLabels: septembers
+    xLabels: years
       .map((s, index) => ({ index, text: String(s.year) }))
       .filter((t) => Number(t.text) % 10 === 0 || t.index === 0),
     legend: [
       { key: "obs", label: String(year), mark: "dot" },
-      { key: "past", label: "Earlier Septembers", mark: "dot" },
+      { key: "past", label: `Earlier ${monthName}s`, mark: "dot" },
       { key: "n96", label: "30-year running mean", mark: "line" },
       { key: "n91", label: "Standard normal", mark: "line" },
     ],
-    lines: [{ key: "n96", values: septembers.map((s) => s.running30) }],
+    lines: [{ key: "n96", values: years.map((s) => s.running30) }],
     segments: standardNormals.map((n) => ({
       key: "n91" as const,
       from: n.start - first,
@@ -394,8 +398,8 @@ export function septembersChart(
         text: unitPair("temperature", runningEnd.running30 ?? 0, 2),
       },
     ],
-    tooltips: septembers.map((s) => ({
-      title: `September ${s.year}`,
+    tooltips: years.map((s) => ({
+      title: `${monthName} ${s.year}`,
       rows: [
         {
           key: s.year === year ? "obs" : "past",
@@ -414,9 +418,9 @@ export function septembersChart(
       ],
     })),
     table: {
-      caption: "September mean temperature by year",
+      caption: `${monthName} mean temperature by year`,
       headers: ["Year", "Mean", "30-year running mean"],
-      rows: septembers.map((s) => [
+      rows: years.map((s) => [
         String(s.year),
         unitPair("temperature", s.temp_avg),
         s.running30 != null ? unitPair("temperature", s.running30, 2) : "",

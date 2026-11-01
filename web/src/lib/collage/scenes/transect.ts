@@ -805,7 +805,7 @@ function notes(): Layer[] {
 }
 
 // From the airport to the sea: four stations, each with a thermometer that
-// fills to its September mean and a tab at its feels-like.
+// fills to its mean for the month and a tab at its feels-like.
 export function transectScene(stations: ReportStation[]): Scene {
   const byName = (name: string) =>
     stations.find((s) => s.name === name) as ReportStation;

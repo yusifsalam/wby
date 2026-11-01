@@ -16,9 +16,9 @@ import MonthSummary from "../../../../components/report/MonthSummary.astro";
 import ReportChart from "../../../../components/report/ReportChart.astro";
 import StationsTable from "../../../../components/report/StationsTable.astro";
 import V from "../../../../components/report/V.astro";
-import { dailyChart, rainChart, septembersChart, sunshineChart } from "../../../../lib/reportChart";
+import { dailyChart, rainChart, sunshineChart, yearsChart } from "../../../../lib/reportChart";
 
-<HeroCollage />
+<HeroCollage art="rainy-park" title="Helsinki, September 2026" notes={["wet!", "mild"]} />
 
 September 2026 was Helsinki's wettest since 2012. Kaisaniemi, the weather station in central Helsinki whose record goes back to 1844, collected <V mm={89.8} />, <Mark>161% of normal</Mark>, and almost half of it came in the last ten days. At least <V mm={1} d={0} /> fell on 16 days, almost twice the usual 8.6; since 1961 only 1974 and 2012 had more. The sun still logged about as many hours as in an ordinary September, though it came in all-or-nothing days.
 
@@ -44,7 +44,7 @@ A fixed period ages, and in a warming climate it ages in one direction. So this 
 
 For September in Helsinki the two yardsticks are about a third of a degree apart: <V t={12.3} /> against <V t={12.65} d={2} />. The gap comes from a five-year swap: 1991–1995, which averaged <V t={11.1} />, left the window, and 2021–2025, which averaged <V t={13.4} />, joined it. Over a longer view the shift is larger. The 1961–1990 normal was <V t={11.0} />, and the running 30-year mean bottomed out at <V t={10.8} /> for 1968–1997 before climbing to today's <V t={12.65} d={2} />.
 
-<ReportChart title="Every September at Kaisaniemi since 1961" spec={septembersChart(data.septembers, data.standard_normals, 2026)} />
+<ReportChart title="Every September at Kaisaniemi since 1961" spec={yearsChart(data.years, data.standard_normals, 2026, "September")} />
 
 Against either yardstick, 2026 was clearly above normal but not extreme. Three Septembers in 1991–2020 were warmer (2006, 2018, and 2020), and six in 1996–2025. Measured against the 1961–1990 climate, though, it would have been the warmest September of all 30.
 

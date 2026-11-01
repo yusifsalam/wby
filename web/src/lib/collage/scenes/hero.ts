@@ -363,7 +363,7 @@ function rain(): Layer {
   };
 }
 
-function skyline(
+export function skyline(
   seed: number,
   x0: number,
   y0: number,
@@ -1569,7 +1569,7 @@ function walker(): Layer {
   return { x: -110, y: 372, w: 72, h: 100, svg, className: "cl-walker" };
 }
 
-function scrap(): Layer {
+export function scrap(title: string): Layer {
   const r = rng(181);
   const w = 320;
   const h = 64;
@@ -1596,7 +1596,7 @@ function scrap(): Layer {
         "margin",
         1.2,
       ),
-      `<g class="cl-write">${`<text class="cl-hand f-ink" x="${(w + 30) / 2}" y="44" font-size="28" font-weight="600" text-anchor="middle">Helsinki, September 2026</text>`}</g>`,
+      `<g class="cl-write">${`<text class="cl-hand f-ink" x="${(w + 30) / 2}" y="44" font-size="28" font-weight="600" text-anchor="middle">${title}</text>`}</g>`,
       path(tape(14, 14, 44, 16, -38, r), "tape-amber"),
       path(tape(w - 12, h - 14, 40, 15, -30, r), "tape-blue"),
     ].join(""),
@@ -1612,7 +1612,7 @@ function scrap(): Layer {
   };
 }
 
-function note(
+export function note(
   x: number,
   y: number,
   w: number,
@@ -1649,14 +1649,27 @@ function note(
       );
     }, seed),
   ].join("");
-  return { x, y, w, h, svg, enter: { delay, kind: "fade" } };
+  const pad = 14;
+  const left = Math.min(0, ...arrow.map(([px]) => px - pad));
+  const top = Math.min(0, ...arrow.map(([, py]) => py - pad));
+  const right = Math.max(w, ...arrow.map(([px]) => px + pad));
+  const bottom = Math.max(h, ...arrow.map(([, py]) => py + pad));
+  return {
+    x: x + left,
+    y: y + top,
+    w: right - left,
+    h: bottom - top,
+    svg: `<g transform="translate(${-left} ${-top})">${svg}</g>`,
+    enter: { delay, kind: "fade" },
+  };
 }
 
-function at(depth: number, ...layers: Layer[]): Layer[] {
+export function at(depth: number, ...layers: Layer[]): Layer[] {
   return layers.map((layer) => ({ ...layer, depth }));
 }
 
-export function heroScene(): Scene {
+// `notes` label the rain cloud and the sun.
+export function heroScene(title: string, notes: [string, string]): Scene {
   const layers: Layer[] = [
     sky(),
     ...at(0.06, sun()),
@@ -1668,7 +1681,7 @@ export function heroScene(): Scene {
     ...at(0.34, trees()),
     ...at(0.4, ground(), screen(), walker()),
     ...at(0.55, branch(), ...fallingLeaves()),
-    ...at(0.46, scrap()),
+    ...at(0.46, scrap(title)),
     ...at(
       0.18,
       note(
@@ -1676,7 +1689,7 @@ export function heroScene(): Scene {
         214,
         120,
         80,
-        "wet!",
+        notes[0],
         [
           [52, 40],
           [80, 30],
@@ -1691,7 +1704,7 @@ export function heroScene(): Scene {
         28,
         120,
         80,
-        "mild",
+        notes[1],
         [
           [8, 44],
           [-8, 50],

@@ -18,9 +18,13 @@ const load = async (p) =>
 
 const { paletteLiteralCss } = await load("src/lib/collage/palette.ts");
 const { heroScene } = await load("src/lib/collage/scenes/hero.ts");
+const { goldenParkScene } = await load("src/lib/collage/scenes/goldenPark.ts");
 
 const posts = {
-  "2026/09/helsinki": heroScene,
+  "2026/09/helsinki": () =>
+    heroScene("Helsinki, September 2026", ["wet!", "mild"]),
+  "2026/10/helsinki": () =>
+    goldenParkScene("Helsinki, October 2026", ["mild", "no frost"]),
 };
 
 const hidden = [
@@ -58,7 +62,8 @@ function frontmatter(id) {
 function collage(scene) {
   const layers = scene.layers.map((layer, i) => {
     const classes = (layer.className ?? "").split(" ");
-    if (classes.includes("cl-leaf") || classes.includes("cl-walker")) return "";
+    if (["cl-leaf", "cl-walker", "cl-flurry"].some((c) => classes.includes(c)))
+      return "";
     const rain = classes.includes("cl-rain");
     const flat =
       rain || classes.includes("cl-base") || classes.includes("cl-flat");

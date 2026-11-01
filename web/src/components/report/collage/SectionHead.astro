@@ -3,12 +3,28 @@
 // on a taped paper card beside it.
 import { tape, torn } from "../../../lib/collage/paper";
 import type { Scene } from "../../../lib/collage/scene";
+import { clotheslineScene, doorframeScene, frostScene, joggerScene, puddleScene, sundialScene, weathervaneScene } from "../../../lib/collage/scenes/autumnDoodles";
 import { calendarScene, feelsScene, radiatorScene, rainJarScene, recorderScene, rulersScene, stampScene, windsockScene } from "../../../lib/collage/scenes/doodles";
 import { curve, type Pt, rng } from "../../../lib/collage/sketch";
 import type { MonthReport } from "../../../lib/reportChart";
 import CollageStage from "./CollageStage.astro";
 
-type Art = "rulers" | "calendar" | "feels" | "jar" | "recorder" | "windsock" | "radiator" | "stamp";
+type Art =
+  | "rulers"
+  | "calendar"
+  | "feels"
+  | "jar"
+  | "recorder"
+  | "windsock"
+  | "radiator"
+  | "stamp"
+  | "clothesline"
+  | "frost"
+  | "doorframe"
+  | "puddle"
+  | "jogger"
+  | "sundial"
+  | "weathervane";
 
 type Props = {
   id: string;
@@ -29,6 +45,18 @@ const scenes: Record<Art, () => Scene> = {
   windsock: () => windsockScene(),
   radiator: () => radiatorScene(),
   stamp: () => stampScene(),
+  clothesline: () => clotheslineScene(report.days),
+  frost: () => frostScene(report.observed.abs_low_measured ?? report.observed.abs_low ?? 0),
+  doorframe: () =>
+    doorframeScene(
+      report.standard_normals.find((s) => s.period === "1961-1990")?.temp_avg ?? report.normals["1991-2020"].temp_avg,
+      report.normals["1991-2020"].temp_avg,
+      report.normals["1996-2025"].temp_avg,
+    ),
+  puddle: () => puddleScene(report.days, report.normals["1991-2020"].precip_mm),
+  jogger: () => joggerScene(report.observed.feels_avg),
+  sundial: () => sundialScene(report.sunshine.primary.hour_profile, report.sunshine.primary.total_h),
+  weathervane: () => weathervaneScene(report.wind?.sector_share ?? {}),
 };
 const cards: Record<Art, string> = {
   rulers: "notebook",
@@ -39,6 +67,13 @@ const cards: Record<Art, string> = {
   windsock: "sky",
   radiator: "paper",
   stamp: "paper",
+  clothesline: "sky",
+  frost: "paper",
+  doorframe: "paper",
+  puddle: "sky",
+  jogger: "sky",
+  sundial: "sky",
+  weathervane: "sky",
 };
 const scene = art ? scenes[art]() : null;
 const seed = [...id].reduce((sum, c) => sum + c.charCodeAt(0), 0);

@@ -5,11 +5,11 @@ import {
   linePath,
   type ReportDay,
   rainChart,
-  septembersChart,
   sunshineChart,
   valueAxis,
   xAt,
   yAt,
+  yearsChart,
 } from "./reportChart";
 
 function day(n: number, overrides: Partial<ReportDay> = {}): ReportDay {
@@ -73,16 +73,17 @@ describe("geometry", () => {
   });
 });
 
-describe("septembersChart", () => {
-  const septembers = [
+describe("yearsChart", () => {
+  const years = [
     { year: 1990, temp_avg: 11, running30: 11 },
     { year: 1991, temp_avg: 13, running30: 11.2 },
     { year: 1992, temp_avg: 14, running30: null },
   ];
-  const spec = septembersChart(
-    septembers,
+  const spec = yearsChart(
+    years,
     [{ period: "1961-1990", start: 1961, end: 1990, temp_avg: 11 }],
     1992,
+    "September",
   );
 
   it("highlights the report year and greys the rest", () => {

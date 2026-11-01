@@ -87,6 +87,10 @@
   transform-origin: 0% 8%;
 }
 
+.cl-rock > .cl-loop {
+  transform-origin: 50% 85%;
+}
+
 /* Entrances: each piece is laid down by hand when its scene scrolls in. */
 .cl-in--place,
 .cl-in--swing,
@@ -498,6 +502,158 @@
   }
   to {
     transform: rotate(3deg);
+  }
+}
+
+/* October hero: the sun sinks a little and rises again with its pompom
+   wobbling, the low light shimmers, the glasshouse glints, a gull cycles
+   along the path, geese fly over, coffee steams, and every few seconds a
+   gust lifts leaves off the pile. */
+.cl-motion [data-cl].is-in .cl-sink > .cl-loop {
+  animation: cl-sink 7s ease-in-out 1.6s infinite alternate;
+}
+
+@keyframes cl-sink {
+  from {
+    transform: translateY(-2%);
+  }
+  to {
+    transform: translateY(5%);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-pompom {
+  animation: cl-pompom 1.6s ease-in-out 1.2s infinite alternate;
+}
+
+@keyframes cl-pompom {
+  from {
+    transform: rotate(-12deg);
+  }
+  to {
+    transform: rotate(10deg);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-beam-shimmer {
+  animation: cl-shimmer 3.6s ease-in-out calc(2s + var(--bs, 0s)) infinite
+    alternate;
+}
+
+@keyframes cl-shimmer {
+  from {
+    opacity: 0.18;
+  }
+  to {
+    opacity: 0.5;
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-glint {
+  animation: cl-glint 7s ease-in-out 2.4s infinite;
+}
+
+@keyframes cl-glint {
+  0% {
+    transform: translateX(0);
+  }
+  30%,
+  100% {
+    transform: translateX(560px);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-ride {
+  animation: cl-ride 26s linear 2.5s infinite both;
+}
+
+.cl-motion [data-cl].is-in .cl-wheel {
+  animation: cl-spin 0.55s linear infinite;
+}
+
+.cl-motion [data-cl].is-in .cl-flock > .cl-loop {
+  animation: cl-flock 34s linear 4s infinite both;
+}
+
+@keyframes cl-flock {
+  0% {
+    transform: translate(-400%, 30%);
+  }
+  55%,
+  100% {
+    transform: translate(620%, -40%);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-steam {
+  animation: cl-steam 2.4s ease-out calc(1.6s + var(--std, 0s)) infinite both;
+}
+
+@keyframes cl-steam {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.8);
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px) scale(1.15);
+  }
+}
+
+.cl-flurry {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-flurry {
+  animation: cl-flurry 7.5s cubic-bezier(0.3, 0.1, 0.5, 1) var(--fd, 3s)
+    infinite;
+}
+
+.cl-motion [data-cl].is-in .cl-flurry svg {
+  animation: cl-spin var(--spin, 1s) steps(8) infinite;
+}
+
+@keyframes cl-flurry {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  3% {
+    opacity: 1;
+  }
+  14% {
+    transform: translate(calc(var(--fx) * 0.4), var(--fm));
+  }
+  30% {
+    opacity: 1;
+  }
+  36%,
+  100% {
+    opacity: 0;
+    transform: translate(var(--fx), var(--fy));
+  }
+}
+
+.cl-motion .cl-gust-long {
+  stroke-dasharray: 0.3 1;
+  stroke-dashoffset: 0.3;
+}
+
+.cl-motion [data-cl].is-in .cl-gust-long {
+  animation: cl-gust-long 7.5s cubic-bezier(0.4, 0, 0.6, 1) var(--gd, 3s)
+    infinite;
+}
+
+@keyframes cl-gust-long {
+  0% {
+    stroke-dashoffset: 0.3;
+  }
+  20%,
+  100% {
+    stroke-dashoffset: -1;
   }
 }
 
@@ -948,6 +1104,198 @@ html:not(.cl-motion) .cl-tear {
   }
 }
 
+/* Day tags are pegged onto the clothesline one by one, then flutter. */
+.cl-motion [data-cl]:not(.is-in) .cl-pin {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-pin {
+  animation: cl-pin 0.4s cubic-bezier(0.3, 1.5, 0.5, 1) var(--pd, 0.3s) both;
+}
+
+@keyframes cl-pin {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) rotate(-14deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-flutter {
+  animation: cl-flutter var(--fl, 1.4s) ease-in-out calc(2.6s + var(--fd, 0s))
+    infinite alternate;
+}
+
+@keyframes cl-flutter {
+  from {
+    transform: rotate(-5deg);
+  }
+  to {
+    transform: rotate(6deg);
+  }
+}
+
+/* Frost ferns creep across the pane as the thermometer falls, then back off
+   when it stops short of zero. */
+.cl-motion [data-cl]:not(.is-in) .cl-fern {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-fern {
+  animation: cl-fern 3.4s cubic-bezier(0.3, 0, 0.4, 1)
+    calc(0.35s + var(--fnd, 0s)) both;
+}
+
+@keyframes cl-fern {
+  0% {
+    opacity: 0;
+    transform: scale(0.05);
+  }
+  12% {
+    opacity: 0.95;
+  }
+  58% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.6;
+    transform: scale(0.42);
+  }
+}
+
+.cl-motion [data-cl]:not(.is-in) .cl-liquid {
+  transform: scaleY(var(--lq));
+}
+
+.cl-motion [data-cl].is-in .cl-liquid {
+  animation: cl-liquid 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) 0.4s both;
+}
+
+@keyframes cl-liquid {
+  from {
+    transform: scaleY(var(--lq));
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* A pencil rules the door-frame marks (its path comes with the scene). */
+.cl-motion [data-cl]:not(.is-in) .cl-door-pencil {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-door-pencil {
+  animation: cl-door-pencil 3.9s ease-in-out both;
+}
+
+/* The puddle spreads day by day (keyframes come with the scene), drizzle
+   rings its surface and a paper boat rocks on it. */
+.cl-motion [data-cl]:not(.is-in) .cl-puddle {
+  transform: scale(0.04);
+}
+
+.cl-motion [data-cl].is-in .cl-puddle {
+  animation: cl-puddle-grow 4.2s linear 0.4s both;
+}
+
+.cl-motion [data-cl]:not(.is-in) .cl-ripple {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-ripple {
+  animation: cl-ripple 2.8s ease-out calc(1s + var(--rd, 0s)) infinite both;
+}
+
+@keyframes cl-ripple {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  8% {
+    opacity: 0.95;
+  }
+  45%,
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-drizzle {
+  animation: cl-drizzle 0.9s linear var(--zd, 0s) infinite both;
+}
+
+@keyframes cl-drizzle {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+.cl-motion [data-cl].is-in .cl-rock > .cl-loop {
+  animation: cl-rock 2.4s ease-in-out 5.2s infinite alternate;
+}
+
+@keyframes cl-rock {
+  from {
+    transform: rotate(-5deg);
+  }
+  to {
+    transform: translateY(4%) rotate(5deg);
+  }
+}
+
+/* A jogger's breath puffs out and fades. */
+.cl-motion [data-cl]:not(.is-in) .cl-puff {
+  opacity: 0;
+}
+
+.cl-motion [data-cl].is-in .cl-puff {
+  animation: cl-puff 1.9s ease-out calc(0.9s + var(--pfd, 0s)) infinite both;
+}
+
+@keyframes cl-puff {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  18% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(30px, -12px) scale(1.3);
+  }
+}
+
+/* The sun crosses low over the sundial while the shadow sweeps it (both
+   paths come with the scene). */
+.cl-motion [data-cl].is-in .cl-dial-sun {
+  animation: cl-dial-sun 4.4s ease-in-out 0.6s both;
+}
+
+.cl-motion [data-cl].is-in .cl-dial-shadow {
+  animation: cl-dial-shadow 4.4s linear 0.6s both;
+}
+
+/* The weathervane turns between the month's winds (its turns come with the
+   scene). */
+.cl-motion [data-cl].is-in .cl-vane {
+  animation: cl-vane var(--vane, 12s) ease-in-out 1.2s infinite;
+}
+
 /* Section headings: the title with a hand-drawn underline, and a doodle on a
    taped paper card. */
 .cl-head {
@@ -1052,7 +1400,7 @@ html:not(.cl-motion) .cl-tear {
 .cl-doodle {
   position: relative;
   flex: none;
-  width: clamp(124px, 31%, 214px);
+  width: clamp(160px, 42%, 300px);
   rotate: var(--tilt, 0deg);
 }
 
@@ -1120,11 +1468,14 @@ html:not(.cl-motion) .cl-tear {
 
 @media (max-width: 560px) {
   .cl-head {
+    flex-direction: column-reverse;
+    align-items: stretch;
     gap: 0.75rem;
   }
 
   .cl-doodle {
-    width: 118px;
+    align-self: center;
+    width: min(88%, 300px);
   }
 }
 
