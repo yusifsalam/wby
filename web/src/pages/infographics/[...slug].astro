@@ -1,0 +1,59 @@
+---
+import { type CollectionEntry, getCollection } from "astro:content";
+import TopBar from "../../components/TopBar.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+export const prerender = true;
+
+export async function getStaticPaths() {
+  const assets = import.meta.glob<string>("../../content/posts/*/*/*-infographic.{svg,png}", {
+    query: "?url",
+    import: "default",
+    eager: true,
+  });
+  const posts = await getCollection("posts", (post) => !post.data.draft);
+  return posts.flatMap((post) => {
+    const [year, month, slug] = post.id.split("/");
+    const name = `${slug}-${year}-${month}-infographic`;
+    const svg = assets[`../../content/posts/${year}/${month}/${name}.svg`];
+    const png = assets[`../../content/posts/${year}/${month}/${name}.png`];
+    if (!svg || !png) return [];
+    return [{ params: { slug: post.id }, props: { post, svg, png, name } }];
+  });
+}
+
+type Props = {
+  post: CollectionEntry<"posts">;
+  svg: string;
+  png: string;
+  name: string;
+};
+
+const { post, svg, png, name } = Astro.props;
+---
+
+<BaseLayout title={`WBY · ${post.data.title} · Infographic`} description={post.data.description} image={post.data.image}>
+  <main class="mx-auto flex min-h-screen w-[min(1248px,100%)] flex-col p-6 max-[820px]:p-4">
+    <TopBar activeSlug="posts" />
+
+    <div class="mb-4.5 flex flex-wrap items-center justify-between gap-3">
+      <a class="font-[650] text-muted hover:text-ink" href={`/posts/${post.id}`}>← {post.data.title}</a>
+      <a
+        class="inline-flex items-center gap-2 rounded-full border border-line bg-surface/90 px-5 py-2.5 font-[650] text-ink shadow-panel hover:bg-surface-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal"
+        href={png}
+        download={`${name}.png`}
+      >
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 2v9M4 7l4 4 4-4M2 14h12" />
+        </svg>
+        Download PNG
+      </a>
+    </div>
+
+    <img
+      class="mx-auto mb-10 block h-auto w-full max-w-[1200px] rounded-lg border border-line shadow-panel"
+      src={svg}
+      alt={`Infographic: ${post.data.description}`}
+    />
+  </main>
+</BaseLayout>
