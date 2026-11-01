@@ -109,7 +109,8 @@ for (const [id, scene] of Object.entries(posts)) {
     .render()
     .asPng();
   const jpeg = await sharp(png).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
-  const out = `src/content/posts/${id}-og.jpg`;
+  const [year, month, slug] = id.split("/");
+  const out = `src/content/posts/${year}/${month}/${slug}-${year}-${month}-og.jpg`;
   writeFileSync(path(out), jpeg);
   console.log(`${out} (${Math.round(jpeg.length / 1024)} KB)`);
 }
