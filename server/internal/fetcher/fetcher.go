@@ -16,7 +16,7 @@ import (
 
 // FMISource is the part of the FMI client the fetcher polls.
 type FMISource interface {
-	FetchObservations(ctx context.Context) (*fmi.ObservationResult, error)
+	FetchObservations(ctx context.Context, since time.Time) (*fmi.ObservationResult, error)
 	FetchGRIB(ctx context.Context, producer, params, bbox string, w io.Writer) error
 }
 
@@ -32,6 +32,31 @@ type Fetcher struct {
 
 	mu     sync.Mutex
 	status Status
+	// observationInterval is the poll interval of the running observation loop.
+	observationInterval time.Duration
+	// fullObservationsAt is when FMI's whole default window was last fetched.
+	fullObservationsAt time.Time
+}
+
+// The observation poll asks FMI for the last observationRecentWindow, and for
+// its whole default window (12 hours) when the last such fetch is at least
+// observationFullEvery old, to pick up values FMI published late.
+const (
+	observationRecentWindow = 2 * time.Hour
+	observationFullEvery    = 50 * time.Minute
+)
+
+// observationsSince is the start of the window the next poll should ask for;
+// zero means FMI's whole default window.
+func (f *Fetcher) observationsSince(now time.Time) time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.fullObservationsAt.IsZero() ||
+		now.Sub(f.fullObservationsAt) >= observationFullEvery ||
+		2*f.observationInterval > observationRecentWindow {
+		return time.Time{}
+	}
+	return now.Add(-observationRecentWindow)
 }
 
 // Status is when each background fetch last succeeded; a zero time means not
@@ -72,6 +97,9 @@ func cycle(ctx context.Context, interval time.Duration, run func(context.Context
 
 func (f *Fetcher) RunObservationLoop(ctx context.Context, interval time.Duration) {
 	slog.Info("observation fetcher starting", "interval", interval)
+	f.mu.Lock()
+	f.observationInterval = interval
+	f.mu.Unlock()
 
 	cycle(ctx, interval, f.fetchObservations)
 
@@ -91,7 +119,8 @@ func (f *Fetcher) RunObservationLoop(ctx context.Context, interval time.Duration
 
 func (f *Fetcher) fetchObservations(ctx context.Context) {
 	start := time.Now()
-	result, err := f.fmi.FetchObservations(ctx)
+	since := f.observationsSince(start)
+	result, err := f.fmi.FetchObservations(ctx, since)
 	if errors.Is(err, context.Canceled) {
 		return
 	}
@@ -127,12 +156,50 @@ func (f *Fetcher) fetchObservations(ctx context.Context) {
 		s.ObservationsFetchedAt = time.Now()
 		s.NewestObservationAt = newest
 	})
+	window := observationRecentWindow.String()
+	if since.IsZero() {
+		window = "full"
+		f.mu.Lock()
+		f.fullObservationsAt = start
+		f.mu.Unlock()
+	}
 
 	slog.Info("observations fetched",
 		"stations", len(result.Stations),
 		"observations", len(result.Observations),
+		"window", window,
 		"duration", time.Since(start),
 	)
+}
+
+// RunForecastPruneLoop deletes expired forecast rows through prune, once
+// immediately and then on each tick until ctx is cancelled.
+func RunForecastPruneLoop(ctx context.Context, interval time.Duration, prune func(context.Context) (int64, error)) {
+	run := func(ctx context.Context) {
+		deleted, err := prune(ctx)
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if err != nil {
+			slog.Error("failed to prune expired forecasts", "err", err)
+			return
+		}
+		if deleted > 0 {
+			slog.Info("pruned expired forecasts", "rows", deleted)
+		}
+	}
+	cycle(ctx, interval, run)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cycle(ctx, interval, run)
+		}
+	}
 }
 
 // GribJob describes one GRIB2 product to keep fresh on disk: which FMI producer

@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -184,48 +183,117 @@ func TestForecastFeelsLikeRoundTrip(t *testing.T) {
 	check("FeelsLikeAvg", got[0].FeelsLikeAvg, 5.2)
 }
 
-// A single-connection pool must still complete the hourly upsert: the batch
-// connection has to be released before the trailing cleanup DELETE acquires
-// one, or concurrent requests deadlock the pool waiting on each other.
-func TestUpsertHourlyForecastsReleasesBatchConnBeforeCleanup(t *testing.T) {
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		dsn = "postgres://weather:weather@localhost:5432/weather?sslmode=disable"
-	}
-	sep := "?"
-	if strings.Contains(dsn, "?") {
-		sep = "&"
-	}
-	s, err := New(context.Background(), dsn+sep+"pool_max_conns=1")
-	if err != nil {
-		t.Skipf("database not available: %v", err)
-	}
-	t.Cleanup(func() { s.Close() })
+func TestPruneHourlyForecastsRemovesOnlyExpiredHours(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
 
-	// The context outlives the deadlock check: the old code only returned once
-	// the cleanup DELETE's acquire gave up on ctx, which would mask the hang.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	const lat, lon = 89.99, 179.99
+	t.Cleanup(func() {
+		_, _ = s.pool.Exec(ctx, `DELETE FROM hourly_forecasts WHERE grid_lat = $1 AND grid_lon = $2`, lat, lon)
+	})
+
 	now := time.Now().UTC().Truncate(time.Hour)
+	expired, kept := now.Add(-4*24*time.Hour), now.Add(-2*24*time.Hour)
 	temp := 12.5
 	hourly := []weather.HourlyForecast{
+		{Time: expired, FetchedAt: now, Temperature: &temp},
+		{Time: kept, FetchedAt: now, Temperature: &temp},
 		{Time: now, FetchedAt: now, Temperature: &temp},
-		{Time: now.Add(time.Hour), FetchedAt: now, Temperature: &temp},
 	}
-	done := make(chan error, 1)
-	go func() { done <- s.UpsertHourlyForecasts(ctx, 89.99, 179.99, hourly) }()
-	select {
-	case err := <-done:
+	if err := s.UpsertHourlyForecasts(ctx, lat, lon, hourly); err != nil {
+		t.Fatal(err)
+	}
+	stored := func() []time.Time {
+		t.Helper()
+		rows, err := s.GetHourlyForecasts(ctx, lat, lon, expired, 10)
 		if err != nil {
-			t.Fatalf("upsert hourly forecasts: %v", err)
+			t.Fatal(err)
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("UpsertHourlyForecasts deadlocked on a single-connection pool")
+		var times []time.Time
+		for _, h := range rows {
+			times = append(times, h.Time.UTC())
+		}
+		return times
+	}
+	if got := stored(); len(got) != 3 {
+		t.Fatalf("stored %d hours after the upsert, want 3: storing forecasts no longer prunes", len(got))
 	}
 
-	if _, err := s.pool.Exec(context.Background(),
-		`DELETE FROM hourly_forecasts WHERE grid_lat = 89.99 AND grid_lon = 179.99`); err != nil {
-		t.Fatalf("cleanup: %v", err)
+	deleted, err := s.PruneHourlyForecasts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deleted < 1 {
+		t.Errorf("pruned %d rows, want at least the expired one", deleted)
+	}
+	if got := stored(); !slices.Equal(got, []time.Time{kept, now}) {
+		t.Errorf("hours after pruning = %v, want %v", got, []time.Time{kept, now})
+	}
+}
+
+func TestLeaderboardFindsExtremesAcrossStations(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+
+	const cold, hot = 999004, 999005
+	stations := []weather.Station{
+		{FMISID: cold, Name: "Test Cold", Lat: 69.9, Lon: 31.6},
+		{FMISID: hot, Name: "Test Hot And Windy", Lat: 69.8, Lon: 31.6},
+	}
+	if err := s.UpsertStations(ctx, stations); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = s.pool.Exec(ctx, `DELETE FROM observations WHERE fmisid IN ($1, $2)`, cold, hot)
+		_, _ = s.pool.Exec(ctx, `DELETE FROM stations WHERE fmisid IN ($1, $2)`, cold, hot)
+	})
+
+	f := func(v float64) *float64 { return &v }
+	now := time.Now().UTC().Truncate(time.Minute)
+	obs := []weather.Observation{
+		// Latest rows: what "now" ranks.
+		{FMISID: cold, ObservedAt: now.Add(-10 * time.Minute), Temperature: f(-80), WindSpeed: f(1)},
+		{FMISID: hot, ObservedAt: now.Add(-10 * time.Minute), Temperature: f(80), WindSpeed: f(2)},
+		// Six hours back: more extreme, inside 24h but outside 1h and "now".
+		{FMISID: cold, ObservedAt: now.Add(-6 * time.Hour), Temperature: f(-90)},
+		{FMISID: hot, ObservedAt: now.Add(-6 * time.Hour), Temperature: f(90), WindSpeed: f(150)},
+		// Five days back: the most extreme, inside 7d only.
+		{FMISID: cold, ObservedAt: now.Add(-5 * 24 * time.Hour), Temperature: f(-95)},
+		// A row without values must not hide the station's latest reading.
+		{FMISID: cold, ObservedAt: now.Add(-30 * time.Minute), WindSpeed: f(1)},
+	}
+	if err := s.UpsertObservations(ctx, obs); err != nil {
+		t.Fatal(err)
+	}
+
+	type extreme struct {
+		station string
+		value   float64
+	}
+	cases := map[string]map[string]extreme{
+		"now": {"coldest": {"Test Cold", -80}, "warmest": {"Test Hot And Windy", 80}},
+		"1h":  {"coldest": {"Test Cold", -80}, "warmest": {"Test Hot And Windy", 80}},
+		"24h": {"coldest": {"Test Cold", -90}, "warmest": {"Test Hot And Windy", 90}, "windiest": {"Test Hot And Windy", 150}},
+		"3d":  {"coldest": {"Test Cold", -90}, "warmest": {"Test Hot And Windy", 90}, "windiest": {"Test Hot And Windy", 150}},
+		"7d":  {"coldest": {"Test Cold", -95}, "warmest": {"Test Hot And Windy", 90}, "windiest": {"Test Hot And Windy", 150}},
+	}
+	for timeframe, want := range cases {
+		entries, err := s.GetLeaderboard(ctx, 60.17, 24.94, timeframe)
+		if err != nil {
+			t.Fatalf("%s: %v", timeframe, err)
+		}
+		got := map[string]extreme{}
+		for _, e := range entries {
+			got[e.StatType] = extreme{e.StationName, e.Value}
+			if e.DistanceKM < 900 || e.DistanceKM > 1300 {
+				t.Errorf("%s %s: distance %.0f km from Helsinki to the far north-east, want about 1100", timeframe, e.StatType, e.DistanceKM)
+			}
+		}
+		for stat, w := range want {
+			if got[stat] != w {
+				t.Errorf("%s %s = %+v, want %+v", timeframe, stat, got[stat], w)
+			}
+		}
 	}
 }
 

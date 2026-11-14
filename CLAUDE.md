@@ -50,7 +50,7 @@ and radar GeoTIFFs into JSON values, binary float32 rasters
 
 ### Server Data Flow
 
-1. **Background fetcher** (`internal/fetcher/`) polls FMI every 10 minutes, bulk-upserts stations and observations into Postgres.
+1. **Background fetcher** (`internal/fetcher/`) polls FMI every 10 minutes, bulk-upserts stations and observations into Postgres. Each poll asks for the last 2 hours; about once an hour (and on the first poll) it asks for FMI's full 12-hour window instead, to pick up values published late.
 2. **API request** hits `GET /v1/weather?lat=X&lon=Y` (`internal/api/handler.go`).
 3. **Service** (`internal/weather/service.go`) orchestrates the response:
    - Finds nearest station via PostGIS spatial query (`<->` operator)
@@ -67,7 +67,7 @@ Runtime behavior (`cmd/server/main.go`):
 - **Config** (`internal/config/`) is validated at startup: any invalid env var stops the server with every problem listed. Booleans take `1`/`0`/`true`/`false`.
 - **Middleware** (`internal/api/middleware.go`), outermost first: access log (one JSON line per request with `X-Request-ID`, no query string) → panic recovery → request timeout (`REQUEST_TIMEOUT_SECONDS`, default 12; a request that runs out of time gets 504) → HMAC signature.
 - **Health**: `/health` is liveness only. `/health/ready` returns 503 when the database does not answer or the newest fetched observation is over 30 min old (also right after startup, until the first fetch lands); GRIB and radar freshness are reported but do not affect the status. Point uptime monitoring at `/health/ready`.
-- **Background loops** run under `fetcher.Supervise` (restart after a panic, each cycle bounded by its interval) and are drained on SIGTERM. The observation fetch and GRIB download retry inside a cycle (2 s, 8 s, 30 s).
+- **Background loops** run under `fetcher.Supervise` (restart after a panic, each cycle bounded by its interval) and are drained on SIGTERM. The observation fetch and GRIB download retry inside a cycle (2 s, 8 s, 30 s). An hourly loop deletes `hourly_forecasts` rows more than three days in the past.
 - **FMI calls** go through `internal/fmi/http.go`, which strips the API key from errors, caps response sizes, and returns a typed `*fmi.StatusError` for non-200 answers.
 
 ### Shared infrastructure (`infra/`)

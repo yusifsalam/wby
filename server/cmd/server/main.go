@@ -29,6 +29,8 @@ const (
 	// service reports itself not ready.
 	maxObservationAge = 30 * time.Minute
 	maxRadarFrameAge  = 20 * time.Minute
+
+	forecastPruneInterval = time.Hour
 )
 
 func main() {
@@ -86,6 +88,9 @@ func run(logger *slog.Logger) error {
 	}
 	start("observations", func(ctx context.Context) {
 		f.RunObservationLoop(ctx, cfg.ObservationInterval)
+	})
+	start("forecast-prune", func(ctx context.Context) {
+		fetcher.RunForecastPruneLoop(ctx, forecastPruneInterval, db.PruneHourlyForecasts)
 	})
 	if cfg.GribFetchEnable {
 		start("grib", func(ctx context.Context) {

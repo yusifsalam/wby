@@ -54,7 +54,10 @@ func NewClientWithWMS(baseURL, apiKey, timeseriesURL, wmsURL, downloadURL string
 	}
 }
 
-func (c *Client) FetchObservations(ctx context.Context) (*ObservationResult, error) {
+// FetchObservations returns the 10-minute observations of every station from
+// since up to now. A zero since leaves the start to FMI, which then answers
+// with its default window of the last 12 hours.
+func (c *Client) FetchObservations(ctx context.Context, since time.Time) (*ObservationResult, error) {
 	params := url.Values{
 		"service":        {"WFS"},
 		"version":        {"2.0.0"},
@@ -65,6 +68,9 @@ func (c *Client) FetchObservations(ctx context.Context) (*ObservationResult, err
 		// FMI currently returns empty results without an explicit area filter.
 		// This bbox covers Finland where the app data is sourced.
 		"bbox": {"19,59,32,71"},
+	}
+	if !since.IsZero() {
+		params.Set("starttime", since.UTC().Truncate(10*time.Minute).Format(time.RFC3339))
 	}
 
 	data, err := c.fetchWithRetry(ctx, params)

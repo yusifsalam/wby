@@ -15,9 +15,11 @@ import (
 type fakeFMI struct {
 	result *fmi.ObservationResult
 	err    error
+	since  []time.Time
 }
 
-func (f *fakeFMI) FetchObservations(ctx context.Context) (*fmi.ObservationResult, error) {
+func (f *fakeFMI) FetchObservations(ctx context.Context, since time.Time) (*fmi.ObservationResult, error) {
+	f.since = append(f.since, since)
 	return f.result, f.err
 }
 
@@ -154,5 +156,99 @@ func TestSuperviseStopsWhileWaitingToRestart(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("Supervise kept waiting to restart after its context ended")
+	}
+}
+
+func TestObservationPollAsksForARecentWindowBetweenFullFetches(t *testing.T) {
+	source := &fakeFMI{result: &fmi.ObservationResult{
+		Stations:     []weather.Station{{FMISID: 100971}},
+		Observations: []weather.Observation{{FMISID: 100971, ObservedAt: time.Now()}},
+	}}
+	f := New(source, &fakeStore{})
+	f.observationInterval = 10 * time.Minute
+	ctx := context.Background()
+
+	f.fetchObservations(ctx)
+	if !source.since[0].IsZero() {
+		t.Fatalf("first poll asked from %v, want the full window", source.since[0])
+	}
+
+	before := time.Now()
+	f.fetchObservations(ctx)
+	since := source.since[1]
+	if since.IsZero() {
+		t.Fatal("a poll right after a full fetch should ask for the recent window only")
+	}
+	if got := before.Sub(since); got < observationRecentWindow-time.Second || got > observationRecentWindow+time.Second {
+		t.Errorf("recent window starts %v back, want %v", got, observationRecentWindow)
+	}
+
+	f.fullObservationsAt = time.Now().Add(-observationFullEvery)
+	f.fetchObservations(ctx)
+	if !source.since[2].IsZero() {
+		t.Error("the full window is due again once the last full fetch is observationFullEvery old")
+	}
+	f.fetchObservations(ctx)
+	if source.since[3].IsZero() {
+		t.Error("the poll after a full fetch should go back to the recent window")
+	}
+}
+
+func TestObservationPollRetriesTheFullWindowUntilItSucceeds(t *testing.T) {
+	source := &fakeFMI{err: errors.New("FMI unreachable")}
+	f := New(source, &fakeStore{})
+	f.observationInterval = 10 * time.Minute
+	ctx := context.Background()
+
+	f.fetchObservations(ctx)
+	f.fetchObservations(ctx)
+	for i, since := range source.since {
+		if !since.IsZero() {
+			t.Errorf("poll %d asked from %v, want the full window until one has succeeded", i+1, since)
+		}
+	}
+}
+
+func TestObservationPollStaysFullWhenTheIntervalOutgrowsTheRecentWindow(t *testing.T) {
+	source := &fakeFMI{result: &fmi.ObservationResult{
+		Stations:     []weather.Station{{FMISID: 100971}},
+		Observations: []weather.Observation{{FMISID: 100971, ObservedAt: time.Now()}},
+	}}
+	f := New(source, &fakeStore{})
+	f.observationInterval = 90 * time.Minute
+	f.fullObservationsAt = time.Now()
+
+	f.fetchObservations(context.Background())
+	if !source.since[0].IsZero() {
+		t.Error("with polls 90 minutes apart a 2-hour window leaves no overlap; want the full window")
+	}
+}
+
+func TestForecastPruneLoopRunsAtStartAndOnEachTick(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	var runs atomic.Int32
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		RunForecastPruneLoop(ctx, 10*time.Millisecond, func(context.Context) (int64, error) {
+			if runs.Add(1) == 2 {
+				return 0, errors.New("database unreachable")
+			}
+			return 3, nil
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for runs.Load() < 4 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("prune loop did not stop when its context ended")
+	}
+	if runs.Load() < 4 {
+		t.Errorf("prune ran %d times, want it to keep running after a failure", runs.Load())
 	}
 }

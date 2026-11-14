@@ -570,11 +570,20 @@ func (s *Store) UpsertHourlyForecasts(ctx context.Context, gridLat, gridLon floa
 	if err := br.Close(); err != nil {
 		return fmt.Errorf("upsert hourly forecast: %w", err)
 	}
-	_, _ = s.pool.Exec(ctx,
+	return nil
+}
+
+// PruneHourlyForecasts deletes hourly forecast rows for hours more than three
+// days in the past and reports how many it removed.
+func (s *Store) PruneHourlyForecasts(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx,
 		`DELETE FROM hourly_forecasts
 		 WHERE forecast_time < (NOW() - INTERVAL '3 days')`,
 	)
-	return nil
+	if err != nil {
+		return 0, fmt.Errorf("prune hourly forecasts: %w", err)
+	}
+	return tag.RowsAffected(), nil
 }
 
 func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64, from time.Time, limit int) ([]weather.HourlyForecast, error) {
@@ -657,19 +666,21 @@ func (s *Store) GetLeaderboard(ctx context.Context, lat, lon float64, timeframe 
 
 	var query string
 	if timeframe == "now" {
-		// Latest observation per station, then find extremes.
 		query = `
 		WITH latest AS (
-			SELECT DISTINCT ON (s.fmisid)
-				s.fmisid, s.name,
+			SELECT s.name,
 				ST_Y(s.geom::geometry) AS lat,
 				ST_X(s.geom::geometry) AS lon,
 				ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000.0 AS distance_km,
 				o.temperature, o.wind_speed, o.observed_at
 			FROM stations s
-			JOIN observations o ON o.fmisid = s.fmisid
-			WHERE o.observed_at >= NOW() - INTERVAL '` + interval + `'
-			ORDER BY s.fmisid, o.observed_at DESC
+			CROSS JOIN LATERAL (
+				SELECT o.temperature, o.wind_speed, o.observed_at
+				FROM observations o
+				WHERE o.fmisid = s.fmisid
+				  AND o.observed_at >= NOW() - INTERVAL '` + interval + `'
+				ORDER BY o.observed_at DESC LIMIT 1
+			) o
 		)
 		(SELECT 'coldest' AS stat_type, name, lat, lon, temperature AS value, distance_km, observed_at
 		 FROM latest WHERE temperature IS NOT NULL ORDER BY temperature ASC LIMIT 1)
@@ -680,40 +691,7 @@ func (s *Store) GetLeaderboard(ctx context.Context, lat, lon float64, timeframe 
 		(SELECT 'windiest', name, lat, lon, wind_speed, distance_km, observed_at
 		 FROM latest WHERE wind_speed IS NOT NULL ORDER BY wind_speed DESC LIMIT 1)`
 	} else {
-		// Scan all observations in the window for the actual extremes.
-		query = `
-		(SELECT 'coldest' AS stat_type, s.name,
-		        ST_Y(s.geom::geometry) AS lat, ST_X(s.geom::geometry) AS lon,
-		        o.temperature AS value,
-		        ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000.0 AS distance_km,
-		        o.observed_at
-		 FROM observations o
-		 JOIN stations s ON s.fmisid = o.fmisid
-		 WHERE o.observed_at >= NOW() - INTERVAL '` + interval + `'
-		   AND o.temperature IS NOT NULL
-		 ORDER BY o.temperature ASC LIMIT 1)
-		UNION ALL
-		(SELECT 'warmest', s.name,
-		        ST_Y(s.geom::geometry), ST_X(s.geom::geometry),
-		        o.temperature,
-		        ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000.0,
-		        o.observed_at
-		 FROM observations o
-		 JOIN stations s ON s.fmisid = o.fmisid
-		 WHERE o.observed_at >= NOW() - INTERVAL '` + interval + `'
-		   AND o.temperature IS NOT NULL
-		 ORDER BY o.temperature DESC LIMIT 1)
-		UNION ALL
-		(SELECT 'windiest', s.name,
-		        ST_Y(s.geom::geometry), ST_X(s.geom::geometry),
-		        o.wind_speed,
-		        ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000.0,
-		        o.observed_at
-		 FROM observations o
-		 JOIN stations s ON s.fmisid = o.fmisid
-		 WHERE o.observed_at >= NOW() - INTERVAL '` + interval + `'
-		   AND o.wind_speed IS NOT NULL
-		 ORDER BY o.wind_speed DESC LIMIT 1)`
+		query = leaderboardWindowSQL(interval)
 	}
 
 	rows, err := s.pool.Query(ctx, query, lon, lat)
@@ -737,6 +715,30 @@ func (s *Store) GetLeaderboard(ctx context.Context, lat, lon float64, timeframe 
 		entries = append(entries, e)
 	}
 	return entries, rows.Err()
+}
+
+// leaderboardWindowSQL finds the coldest, warmest and windiest observation
+// within the interval. It reads the window's observations once and picks all
+// three extremes from that set.
+func leaderboardWindowSQL(interval string) string {
+	pick := func(statType, column, direction string) string {
+		return `(SELECT '` + statType + `' AS stat_type, s.name,
+		        ST_Y(s.geom::geometry) AS lat, ST_X(s.geom::geometry) AS lon,
+		        w.` + column + ` AS value,
+		        ST_Distance(s.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000.0 AS distance_km,
+		        w.observed_at
+		 FROM (SELECT fmisid, ` + column + `, observed_at FROM win
+		       WHERE ` + column + ` IS NOT NULL ORDER BY ` + column + ` ` + direction + ` LIMIT 1) w
+		 JOIN stations s ON s.fmisid = w.fmisid)`
+	}
+	return `WITH win AS MATERIALIZED (
+		SELECT o.fmisid, o.temperature, o.wind_speed, o.observed_at
+		FROM observations o
+		WHERE o.observed_at >= NOW() - INTERVAL '` + interval + `'
+	)
+	` + pick("coldest", "temperature", "ASC") +
+		" UNION ALL " + pick("warmest", "temperature", "DESC") +
+		" UNION ALL " + pick("windiest", "wind_speed", "DESC")
 }
 
 func timeframeToInterval(tf string) string {

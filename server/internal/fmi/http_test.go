@@ -97,7 +97,7 @@ func TestFetchObservationsRetriesServerErrors(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			_, err := NewClient(srv.URL, "", "").FetchObservations(context.Background())
+			_, err := NewClient(srv.URL, "", "").FetchObservations(context.Background(), time.Time{})
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -173,5 +173,30 @@ func TestFetchUVForecastReportsUnparseableResponses(t *testing.T) {
 	points, err := NewClient(srv.URL, testAPIKey, srv.URL).FetchUVForecast(context.Background(), 60.17, 24.94, time.Now())
 	if err == nil {
 		t.Fatalf("got %d points and no error for a response that is not JSON", len(points))
+	}
+}
+
+func TestFetchObservationsSendsTheWindowStart(t *testing.T) {
+	var starts []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		starts = append(starts, r.URL.Query().Get("starttime"))
+		w.Write([]byte(`<wfs:FeatureCollection xmlns:wfs="http://www.opengis.net/wfs/2.0"></wfs:FeatureCollection>`))
+	}))
+	defer srv.Close()
+	c := NewClient(srv.URL, "", "")
+
+	if _, err := c.FetchObservations(context.Background(), time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+	since := time.Date(2026, 11, 14, 11, 17, 42, 0, time.FixedZone("EET", 2*60*60))
+	if _, err := c.FetchObservations(context.Background(), since); err != nil {
+		t.Fatal(err)
+	}
+
+	if starts[0] != "" {
+		t.Errorf("starttime = %q without a window start, want it left to FMI", starts[0])
+	}
+	if starts[1] != "2026-11-14T09:10:00Z" {
+		t.Errorf("starttime = %q, want the start in UTC on the 10-minute grid", starts[1])
 	}
 }
