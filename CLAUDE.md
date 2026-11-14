@@ -55,6 +55,8 @@ and radar GeoTIFFs into JSON values, binary float32 rasters
 3. **Service** (`internal/weather/service.go`) orchestrates the response:
    - Finds nearest station via PostGIS spatial query (`<->` operator)
    - Returns latest observation from that station; values older than 3 h are withheld (only `observed_at` remains)
+   - Values the station lacks are filled from other fresh stations within 30 km; `current.borrowed` names the source station of each such field
+   - `current.feels_like` is computed from the observation; with a temperature but no wind it is the forecast feels-like of the current hour
    - Snaps coordinates to 0.01° grid (~1km) for forecast cache keys
    - Checks 3-tier cache: in-process (10min TTL) → Postgres (3h TTL) → FMI API; concurrent requests for one cell share a single upstream fetch
    - When FMI fails, persisted forecast rows of any age are served and retried after a minute; `forecast_fetched_at` in the response shows their age

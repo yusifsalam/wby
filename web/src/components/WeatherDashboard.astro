@@ -4,11 +4,13 @@ import { groupHoursByLocalDate } from "../lib/dayDetail";
 import { dayLabel, formatObservedTime, hourLabel, type MeasureKind } from "../lib/formatters";
 import { HOURLY_METRICS, type HourlyMetricKey } from "../lib/hourlyMetrics";
 import { prefersLightForeground, skyStateFromWeather } from "../lib/sky/state";
-import type {
-  DailyClimateNormalsResponse,
-  DailyForecast,
-  HourlyForecast,
-  WeatherResponse,
+import {
+  borrowedStationNames,
+  type CurrentConditions,
+  type DailyClimateNormalsResponse,
+  type DailyForecast,
+  type HourlyForecast,
+  type WeatherResponse,
 } from "../lib/weatherApi";
 import type { CacheResult } from "../lib/weatherCache";
 import { symbolAssetFile, symbolDescription } from "../lib/weatherSymbols";
@@ -50,16 +52,18 @@ const highs = daily.map((day) => day.high).filter((value): value is number => va
 const overallLow = lows.length > 0 ? Math.min(...lows) : 0;
 const overallHigh = highs.length > 0 ? Math.max(...highs) : 1;
 
-const details: [string, MeasureKind, number | null | undefined][] = [
-  ["Wind", "speed", current.wind_speed],
-  ["Gust", "speed", current.wind_gust],
-  ["Humidity", "percent", current.humidity],
-  ["Dew point", "temperature", current.dew_point],
-  ["Pressure", "pressure", current.pressure],
-  ["Precip 1h", "precipitation", current.precipitation_1h],
-  ["Visibility", "visibility", current.visibility],
-  ["Cloud cover", "percent", current.cloud_cover],
+type DetailField = Exclude<keyof CurrentConditions, "observed_at" | "borrowed">;
+const details: [string, MeasureKind, DetailField][] = [
+  ["Wind", "speed", "wind_speed"],
+  ["Gust", "speed", "wind_gust"],
+  ["Humidity", "percent", "humidity"],
+  ["Dew point", "temperature", "dew_point"],
+  ["Pressure", "pressure", "pressure"],
+  ["Precip 1h", "precipitation", "precipitation_1h"],
+  ["Visibility", "visibility", "visibility"],
+  ["Cloud cover", "percent", "cloud_cover"],
 ];
+const borrowedFrom = borrowedStationNames(current);
 
 function tempRangeStyle(day: DailyForecast): string {
   const range = Math.max(overallHigh - overallLow, 1);
@@ -107,7 +111,7 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
       <p class="text-[clamp(3.5rem,11vw,8rem)] font-[250] leading-[0.95]"><Measure kind="temperature" value={current.temperature} /></p>
       {condition && <p class="mt-2.5 text-[clamp(1.15rem,2.2vw,1.5rem)] font-medium">{condition}</p>}
       <p class="mt-1.5 text-muted">
-        Feels like <Measure kind="temperature" value={current.feels_like} /> · Observed {formatObservedTime(current.observed_at, timeZone)}
+        {current.feels_like != null && <>Feels like <Measure kind="temperature" value={current.feels_like} /> · </>}Observed {formatObservedTime(current.observed_at, timeZone)}
       </p>
     </div>
     <div class="grid place-items-center max-[820px]:hidden" aria-hidden="true">
@@ -193,10 +197,13 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
         <span class="text-muted">Latest</span>
       </div>
       <dl class="m-0 grid grid-cols-2 gap-2 px-4.5 pt-3.5 pb-4.5 max-[560px]:grid-cols-1">
-        {details.map(([label, kind, value]) => (
-          <div class="min-h-21 rounded-lg border border-line bg-surface-strong p-3">
+        {details.map(([label, kind, field]) => (
+          <div class="min-h-21 min-w-0 rounded-lg border border-line bg-surface-strong p-3">
             <dt class="mb-2 text-[0.78rem] font-extrabold text-muted">{label}</dt>
-            <dd class="m-0 text-[1.2rem] font-[750]"><Measure kind={kind} value={value} /></dd>
+            <dd class="m-0 text-[1.2rem] font-[750]"><Measure kind={kind} value={current[field]} /></dd>
+            {borrowedFrom.has(field) && (
+              <dd class="m-0 mt-1 truncate text-[0.72rem] text-muted" title={`Measured at ${borrowedFrom.get(field)}`}>{borrowedFrom.get(field)}</dd>
+            )}
           </div>
         ))}
       </dl>

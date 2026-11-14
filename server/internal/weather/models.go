@@ -121,10 +121,20 @@ type UVDataPoint struct {
 	UVCumulated float64
 }
 
+// BorrowedValues names the current-conditions fields that came from a station
+// other than the primary one.
+type BorrowedValues struct {
+	Station    Station
+	DistanceKM float64
+	Fields     []string
+}
+
 type CurrentWeather struct {
 	Station     Station
 	DistanceKM  float64
 	Observation Observation
+	FeelsLike   *float64
+	Borrowed    []BorrowedValues
 }
 
 type WeatherResponse struct {

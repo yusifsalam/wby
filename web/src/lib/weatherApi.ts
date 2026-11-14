@@ -12,6 +12,13 @@ export type StationInfo = {
   distance_km: number;
 };
 
+// Current-conditions fields that come from a station other than the one the
+// response names, e.g. wind when the primary station has no anemometer.
+export type BorrowedValues = {
+  station: StationInfo;
+  fields: string[];
+};
+
 export type CurrentConditions = {
   temperature?: number | null;
   feels_like?: number | null;
@@ -28,7 +35,21 @@ export type CurrentConditions = {
   cloud_cover?: number | null;
   weather_code?: number | null;
   observed_at: string;
+  borrowed?: BorrowedValues[] | null;
 };
+
+// The name of the station each borrowed field came from, keyed by field.
+export function borrowedStationNames(
+  current: CurrentConditions,
+): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const entry of current.borrowed ?? []) {
+    for (const field of entry.fields) {
+      names.set(field, entry.station.name);
+    }
+  }
+  return names;
+}
 
 export type HourlyForecast = {
   time: string;

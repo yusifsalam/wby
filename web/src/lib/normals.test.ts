@@ -228,6 +228,9 @@ describe("formatting", () => {
     expect(formatStat("temperature", 17.66, "metric")).toBe("18°");
     expect(formatStat("temperature", 17.66, "metric", 1)).toBe("17.7°");
     expect(formatStat("temperature", 0, "imperial", 1)).toBe("32.0°");
+    expect(formatStat("temperature", -0.3, "metric")).toBe("0°");
+    expect(formatStat("temperature", -0.04, "metric", 1)).toBe("0.0°");
+    expect(formatStat("temperature", -0.6, "metric")).toBe("-1°");
     expect(formatStat("speed", 4.4, "metric")).toBe("4 m/s");
     expect(formatStat("speed", 4.4, "imperial", 1)).toBe("9.8 mph");
     expect(formatStat("percent", 76.4, "imperial")).toBe("76%");

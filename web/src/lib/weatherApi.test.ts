@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cities } from "./cities";
 import {
+  borrowedStationNames,
   cacheControlHeader,
   fetchDailyClimateNormals,
   fetchHourlyForecastForCity,
@@ -199,5 +200,40 @@ describe("fetchHourlyForecastForCity", () => {
     ]);
     expect(result.hourly_forecast).toHaveLength(1);
     expect(result.timezone).toBe("Europe/Helsinki");
+  });
+});
+
+describe("borrowedStationNames", () => {
+  it("maps each borrowed field to its source station", () => {
+    const names = borrowedStationNames({
+      observed_at: "2026-11-14T14:00:00Z",
+      borrowed: [
+        {
+          station: { name: "Helsinki Kumpula", distance_km: 3.2 },
+          fields: ["wind_speed", "wind_gust"],
+        },
+        {
+          station: { name: "Helsinki Harmaja", distance_km: 7.4 },
+          fields: ["visibility"],
+        },
+      ],
+    });
+
+    expect(names.get("wind_speed")).toBe("Helsinki Kumpula");
+    expect(names.get("wind_gust")).toBe("Helsinki Kumpula");
+    expect(names.get("visibility")).toBe("Helsinki Harmaja");
+    expect(names.has("humidity")).toBe(false);
+  });
+
+  it("is empty when nothing is borrowed", () => {
+    expect(
+      borrowedStationNames({ observed_at: "2026-11-14T14:00:00Z" }).size,
+    ).toBe(0);
+    expect(
+      borrowedStationNames({
+        observed_at: "2026-11-14T14:00:00Z",
+        borrowed: null,
+      }).size,
+    ).toBe(0);
   });
 });

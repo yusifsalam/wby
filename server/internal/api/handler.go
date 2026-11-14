@@ -102,6 +102,28 @@ type currentJSON struct {
 	WeatherCode     *float64           `json:"weather_code"`
 	Extra           map[string]float64 `json:"extra,omitempty"`
 	ObservedAt      time.Time          `json:"observed_at"`
+	Borrowed        []borrowedJSON     `json:"borrowed,omitempty"`
+}
+
+// borrowedJSON lists the current-conditions fields that come from a station
+// other than the one the response names.
+type borrowedJSON struct {
+	Station stationJSON `json:"station"`
+	Fields  []string    `json:"fields"`
+}
+
+func borrowedValuesJSON(borrowed []weather.BorrowedValues) []borrowedJSON {
+	if len(borrowed) == 0 {
+		return nil
+	}
+	out := make([]borrowedJSON, len(borrowed))
+	for i, b := range borrowed {
+		out[i] = borrowedJSON{
+			Station: stationJSON{Name: b.Station.Name, DistanceKM: b.DistanceKM},
+			Fields:  b.Fields,
+		}
+	}
+	return out
 }
 
 type dailyForecastJSON struct {
@@ -190,7 +212,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 		},
 		Current: currentJSON{
 			Temperature:     result.Current.Observation.Temperature,
-			FeelsLike:       result.Current.Observation.FeelsLike(),
+			FeelsLike:       result.Current.FeelsLike,
 			WindSpeed:       result.Current.Observation.WindSpeed,
 			WindGust:        result.Current.Observation.WindGust,
 			WindDir:         result.Current.Observation.WindDir,
@@ -205,6 +227,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			WeatherCode:     result.Current.Observation.WeatherCode,
 			Extra:           result.Current.Observation.ExtraNumericParams,
 			ObservedAt:      result.Current.Observation.ObservedAt,
+			Borrowed:        borrowedValuesJSON(result.Current.Borrowed),
 		},
 		Timezone:          result.Timezone,
 		ForecastFetchedAt: timeOrNil(result.ForecastFetchedAt),

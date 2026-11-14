@@ -244,7 +244,7 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 		return nil, ErrOutOfCoverage
 	}
 
-	station, distKM, obs, err := s.currentConditions(ctx, lat, lon)
+	current, err := s.currentConditions(ctx, lat, lon)
 	if err != nil {
 		return nil, err
 	}
@@ -279,15 +279,12 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 	}
 
 	forecast = widenWithObservedRange(forecast, time.Now(), loc, func(from, to time.Time) (*float64, *float64, error) {
-		return s.store.ObservedTemperatureRange(ctx, station.FMISID, from, to)
+		return s.store.ObservedTemperatureRange(ctx, current.Station.FMISID, from, to)
 	})
+	current.FeelsLike = currentFeelsLike(current.Observation, hourly, time.Now())
 
 	return &WeatherResponse{
-		Current: CurrentWeather{
-			Station:     station,
-			DistanceKM:  distKM,
-			Observation: obs,
-		},
+		Current:           current,
 		Hourly:            upcomingHours(hourly, time.Now(), weatherResponseHourlyHours),
 		Forecast:          forecast,
 		UV:                uvPoints,
@@ -320,6 +317,23 @@ func oldestFetchedAt(daily []DailyForecast, hourly []HourlyForecast) time.Time {
 const weatherResponseHourlyHours = 12
 
 // upcomingHours returns up to n entries from the current hour onwards.
+// currentFeelsLike is the observation's apparent temperature. An observation
+// with a temperature but no wind takes the forecast value for the current
+// hour instead.
+func currentFeelsLike(obs Observation, hourly []HourlyForecast, now time.Time) *float64 {
+	if obs.Temperature == nil {
+		return nil
+	}
+	if obs.WindSpeed != nil {
+		return obs.FeelsLike()
+	}
+	hours := upcomingHours(hourly, now, 1)
+	if len(hours) == 0 || !hours[0].Time.Equal(now.Truncate(time.Hour)) {
+		return nil
+	}
+	return hours[0].FeelsLike
+}
+
 func upcomingHours(hourly []HourlyForecast, now time.Time, n int) []HourlyForecast {
 	cutoff := now.Truncate(time.Hour)
 	start := 0
@@ -358,10 +372,10 @@ func (s *Service) GetHourlyForecast(ctx context.Context, lat, lon float64) (*Hou
 // currentConditions picks the station representing lat/lon (see
 // station_pick.go) and composes its observation. With no candidate inside the
 // search radius it falls back to the nearest station anywhere, unmerged.
-func (s *Service) currentConditions(ctx context.Context, lat, lon float64) (Station, float64, Observation, error) {
+func (s *Service) currentConditions(ctx context.Context, lat, lon float64) (CurrentWeather, error) {
 	candidates, err := s.store.NearestStations(ctx, lat, lon, stationSearchRadiusKm, stationCandidateLimit)
 	if err != nil {
-		return Station{}, 0, Observation{}, fmt.Errorf("nearest stations: %w", err)
+		return CurrentWeather{}, fmt.Errorf("nearest stations: %w", err)
 	}
 	if len(candidates) > 0 {
 		ids := make([]int, len(candidates))
@@ -370,22 +384,22 @@ func (s *Service) currentConditions(ctx context.Context, lat, lon float64) (Stat
 		}
 		obs, err := s.store.LatestObservations(ctx, ids)
 		if err != nil {
-			return Station{}, 0, Observation{}, fmt.Errorf("latest observations: %w", err)
+			return CurrentWeather{}, fmt.Errorf("latest observations: %w", err)
 		}
-		if picked, merged, ok := pickStation(candidates, obs, time.Now()); ok {
-			return picked.Station, picked.DistanceKM, merged, nil
+		if picked, merged, borrowed, ok := pickStation(candidates, obs, time.Now()); ok {
+			return CurrentWeather{Station: picked.Station, DistanceKM: picked.DistanceKM, Observation: merged, Borrowed: borrowed}, nil
 		}
 	}
 
 	station, distKM, err := s.store.NearestStation(ctx, lat, lon)
 	if err != nil {
-		return Station{}, 0, Observation{}, fmt.Errorf("nearest station: %w", err)
+		return CurrentWeather{}, fmt.Errorf("nearest station: %w", err)
 	}
 	obs, err := s.store.LatestObservation(ctx, station.FMISID)
 	if err != nil {
-		return Station{}, 0, Observation{}, fmt.Errorf("latest observation: %w", err)
+		return CurrentWeather{}, fmt.Errorf("latest observation: %w", err)
 	}
-	return station, distKM, withoutExpiredValues(obs, time.Now()), nil
+	return CurrentWeather{Station: station, DistanceKM: distKM, Observation: withoutExpiredValues(obs, time.Now())}, nil
 }
 
 func (s *Service) GetTemperatureSamples(ctx context.Context) (*TemperatureSamplesResponse, error) {

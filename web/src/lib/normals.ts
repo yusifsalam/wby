@@ -295,7 +295,8 @@ export function formatStat(
 ): string {
   const spec = unitSpec(kind, system);
   const shown = value * spec.scale + spec.offset;
-  return `${shown.toFixed(spec.decimals ?? decimals)}${spec.unit}`;
+  const text = shown.toFixed(spec.decimals ?? decimals);
+  return `${Number(text) === 0 ? text.replace("-", "") : text}${spec.unit}`;
 }
 
 // The difference in the given system, rounded to the step shown at that

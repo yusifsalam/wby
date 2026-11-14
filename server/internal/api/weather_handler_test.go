@@ -188,3 +188,67 @@ func (s weatherServiceStub) GetDailyClimateNormals(ctx context.Context, lat, lon
 func (s weatherServiceStub) GetLeaderboard(ctx context.Context, lat, lon float64, timeframe string) ([]weather.LeaderboardEntry, error) {
 	panic("not used in this test")
 }
+
+func TestGetWeather_NamesBorrowedValuesAndFeelsLike(t *testing.T) {
+	feels := -5.0
+	current := weather.CurrentWeather{
+		Station:     weather.Station{Name: "Helsinki Kaisaniemi"},
+		DistanceKM:  0.7,
+		Observation: weather.Observation{ObservedAt: time.Date(2026, 11, 14, 14, 0, 0, 0, time.UTC)},
+		FeelsLike:   &feels,
+		Borrowed: []weather.BorrowedValues{{
+			Station:    weather.Station{Name: "Helsinki Kumpula"},
+			DistanceKM: 3.2,
+			Fields:     []string{"wind_speed", "wind_gust"},
+		}},
+	}
+	type response struct {
+		Current struct {
+			FeelsLike *float64 `json:"feels_like"`
+			Borrowed  []struct {
+				Station struct {
+					Name       string  `json:"name"`
+					DistanceKM float64 `json:"distance_km"`
+				} `json:"station"`
+				Fields []string `json:"fields"`
+			} `json:"borrowed"`
+		} `json:"current"`
+	}
+	get := func(current weather.CurrentWeather) (response, map[string]json.RawMessage) {
+		t.Helper()
+		h := NewHandler(weatherServiceStub{weather: &weather.WeatherResponse{Current: current, Timezone: "Europe/Helsinki"}})
+		rr := httptest.NewRecorder()
+		h.getWeather(rr, httptest.NewRequest(http.MethodGet, "/v1/weather?lat=60.1&lon=24.9", nil))
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", rr.Code)
+		}
+		var resp response
+		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		var raw struct {
+			Current map[string]json.RawMessage `json:"current"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &raw); err != nil {
+			t.Fatalf("decode raw response: %v", err)
+		}
+		return resp, raw.Current
+	}
+
+	resp, _ := get(current)
+	if resp.Current.FeelsLike == nil || *resp.Current.FeelsLike != feels {
+		t.Errorf("feels_like = %v, want %v", resp.Current.FeelsLike, feels)
+	}
+	if len(resp.Current.Borrowed) != 1 {
+		t.Fatalf("borrowed = %+v, want one entry", resp.Current.Borrowed)
+	}
+	b := resp.Current.Borrowed[0]
+	if b.Station.Name != "Helsinki Kumpula" || b.Station.DistanceKM != 3.2 || len(b.Fields) != 2 || b.Fields[0] != "wind_speed" || b.Fields[1] != "wind_gust" {
+		t.Errorf("borrowed entry = %+v", b)
+	}
+
+	current.Borrowed = nil
+	if _, raw := get(current); raw["borrowed"] != nil {
+		t.Errorf("borrowed = %s, want the key omitted when nothing is borrowed", raw["borrowed"])
+	}
+}
