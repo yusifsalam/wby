@@ -9,7 +9,7 @@ import {
   PAGE_CACHE_POLICY,
   pageCacheControl,
 } from "../lib/weatherApi";
-import { getLeaderboard } from "../lib/weatherPageData";
+import { getLeaderboard, logPageError, UNAVAILABLE_MESSAGE } from "../lib/weatherPageData";
 
 function parseTimeframe(value: string | null): LeaderboardTimeframe {
   return LEADERBOARD_TIMEFRAMES.includes(value as LeaderboardTimeframe)
@@ -27,7 +27,9 @@ try {
   Astro.response.headers.set("Cache-Control", pageCacheControl(PAGE_CACHE_POLICY));
 } catch (error) {
   Astro.response.headers.set("Cache-Control", "no-store");
-  errorMessage = error instanceof Error ? error.message : "Leaderboard data is unavailable.";
+  Astro.response.status = 503;
+  logPageError(`stats page (${timeframe})`, error);
+  errorMessage = UNAVAILABLE_MESSAGE;
 }
 ---
 

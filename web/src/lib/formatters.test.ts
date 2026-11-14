@@ -9,10 +9,12 @@ import {
   formatRelativeTime,
   formatSpeed,
   formatTemperature,
+  formatTimeWithDate,
   formatVisibility,
   formatWindDirection,
   hourLabel,
   publishedDate,
+  staleForecastNote,
 } from "./formatters";
 
 describe("weather value formatters", () => {
@@ -89,5 +91,31 @@ describe("weather value formatters", () => {
 
   it("formats post publication dates", () => {
     expect(publishedDate("2026-10-05")).toBe("October 5, 2026");
+  });
+});
+
+describe("age of what the page shows", () => {
+  const tz = "Europe/Helsinki";
+  const now = new Date("2026-11-14T14:10:00Z");
+
+  it("adds the date to a time that is not today's", () => {
+    expect(formatTimeWithDate("2026-11-14T13:50:00Z", tz, now)).toBe("15:50");
+    expect(formatTimeWithDate("2026-11-13T19:40:00Z", tz, now)).toBe(
+      "Nov 13, 21:40",
+    );
+    expect(formatTimeWithDate("2026-11-13T22:30:00Z", tz, now)).toBe("00:30");
+  });
+
+  it("mentions the forecast's age only once it is clearly stale", () => {
+    expect(staleForecastNote("2026-11-14T10:00:00Z", tz, now)).toBeNull();
+    expect(staleForecastNote("2026-11-14T07:10:00Z", tz, now)).toBe(
+      "Forecast from 09:10",
+    );
+    expect(staleForecastNote("2026-11-12T07:10:00Z", tz, now)).toBe(
+      "Forecast from Nov 12, 09:10",
+    );
+    expect(staleForecastNote(null, tz, now)).toBeNull();
+    expect(staleForecastNote(undefined, tz, now)).toBeNull();
+    expect(staleForecastNote("not a date", tz, now)).toBeNull();
   });
 });

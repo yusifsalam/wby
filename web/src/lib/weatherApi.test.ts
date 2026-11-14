@@ -102,6 +102,45 @@ describe("fetchWeatherForCity", () => {
     expect(hourly.hourly_forecast).toEqual([]);
   });
 
+  it("gives the request a deadline and retries only connection failures", async () => {
+    const config = {
+      apiBaseUrl: "http://server:8080",
+      clientId: "web",
+      clientSecret: "test-secret",
+    };
+    const signals: (AbortSignal | null | undefined)[] = [];
+    let attempts = 0;
+    const flaky = async (_url: string | URL | Request, init?: RequestInit) => {
+      signals.push(init?.signal);
+      attempts += 1;
+      if (attempts === 1) throw new TypeError("other side closed");
+      return new Response(JSON.stringify(sampleWeather), { status: 200 });
+    };
+    const weather = await fetchWeatherForCity({
+      city: cities[0],
+      config,
+      fetchImpl: flaky,
+      timeoutMs: 5_000,
+    });
+    expect(weather.current.temperature).toBe(4.4);
+    expect(attempts).toBe(2);
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+    expect(signals[1]).toBe(signals[0]);
+
+    let timedOut = 0;
+    await expect(
+      fetchWeatherForCity({
+        city: cities[0],
+        config,
+        fetchImpl: async () => {
+          timedOut += 1;
+          throw new DOMException("timed out", "TimeoutError");
+        },
+      }),
+    ).rejects.toThrow("timed out");
+    expect(timedOut).toBe(1);
+  });
+
   it("throws a useful error when the upstream API fails", async () => {
     await expect(
       fetchWeatherForCity({

@@ -13,7 +13,7 @@ import {
   WeatherApiError,
   type WeatherResponse,
 } from "./weatherApi";
-import { type CacheResult, WeatherCache } from "./weatherCache";
+import { type CacheResult, Cooldown, WeatherCache } from "./weatherCache";
 
 const caches = new Map<string, WeatherCache<WeatherResponse>>();
 const hourlyCaches = new Map<string, WeatherCache<HourlyForecast[]>>();
@@ -23,8 +23,24 @@ const normalsCaches = new Map<
 >();
 const leaderboardCaches = new Map<string, WeatherCache<LeaderboardResponse>>();
 
+// The hourly window and the normals are extras: each gets a short time limit,
+// and after a failure is skipped for a minute so a slow endpoint does not
+// hold up every page view.
+const OPTIONAL_TIMEOUT_MS = 5_000;
+const optionalCooldown = new Cooldown(60_000);
+
+export const UNAVAILABLE_MESSAGE =
+  "The weather service is not answering right now. Please try again in a few minutes.";
+
+// Logs why a page could not be built; the page itself shows
+// UNAVAILABLE_MESSAGE.
+export function logPageError(page: string, error: unknown): void {
+  console.error(
+    `${page} unavailable: ${error instanceof Error ? error.message : String(error)}`,
+  );
+}
+
 export type CityWeatherResult = {
-  config: WebRuntimeConfig;
   weather: CacheResult<WeatherResponse>;
   hourlyWindow: HourlyForecast[];
   normals: DailyClimateNormalsResponse | null;
@@ -47,7 +63,7 @@ export async function getCityWeather(
     getCityNormals(city, config),
   ]);
 
-  return { config, weather, hourlyWindow, normals };
+  return { weather, hourlyWindow, normals };
 }
 
 // The ten-day hourly window only feeds the per-day detail sheets, so a
@@ -57,13 +73,22 @@ async function getCityHourlyWindow(
   config: WebRuntimeConfig,
 ): Promise<HourlyForecast[]> {
   const cache = cacheFromMap(hourlyCaches, config);
+  const cooldownKey = `hourly:${city.slug}`;
+  if (optionalCooldown.active(cooldownKey)) {
+    return [];
+  }
   try {
     const result = await cache.get(city.slug, async () => {
-      const response = await fetchHourlyForecastForCity({ city, config });
+      const response = await fetchHourlyForecastForCity({
+        city,
+        config,
+        timeoutMs: OPTIONAL_TIMEOUT_MS,
+      });
       return response.hourly_forecast;
     });
     return result.data;
   } catch (error) {
+    optionalCooldown.start(cooldownKey);
     console.error(
       `hourly window unavailable for ${city.slug}: ${error instanceof Error ? error.message : String(error)}`,
     );
@@ -92,12 +117,20 @@ async function getCityNormals(
   config: WebRuntimeConfig,
 ): Promise<DailyClimateNormalsResponse | null> {
   const cache = normalsCacheFor(config);
+  const cooldownKey = `normals:${city.slug}`;
+  if (optionalCooldown.active(cooldownKey)) {
+    return null;
+  }
   try {
     const result = await cache.get(
       city.slug,
       async () => {
         try {
-          return await fetchDailyClimateNormals({ city, config });
+          return await fetchDailyClimateNormals({
+            city,
+            config,
+            timeoutMs: OPTIONAL_TIMEOUT_MS,
+          });
         } catch (error) {
           if (error instanceof WeatherApiError && error.status === 404) {
             return null;
@@ -109,6 +142,7 @@ async function getCityNormals(
     );
     return result.data;
   } catch (error) {
+    optionalCooldown.start(cooldownKey);
     console.error(
       `climate normals unavailable for ${city.slug}: ${error instanceof Error ? error.message : String(error)}`,
     );
@@ -117,7 +151,6 @@ async function getCityNormals(
 }
 
 export type LeaderboardResult = {
-  config: WebRuntimeConfig;
   timeframe: LeaderboardTimeframe;
   leaderboard: CacheResult<LeaderboardResponse>;
 };
@@ -142,7 +175,7 @@ export async function getLeaderboard(
     }),
   );
 
-  return { config, timeframe, leaderboard };
+  return { timeframe, leaderboard };
 }
 
 function cacheFor(config: WebRuntimeConfig): WeatherCache<WeatherResponse> {

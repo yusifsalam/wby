@@ -164,6 +164,37 @@ export function formatObservedTime(value: string, timeZone: string): string {
   return timeFormatter(timeZone).format(new Date(value));
 }
 
+// The local time of an instant, with its date when that is not today's:
+// "15:50", or "Nov 13, 21:40".
+export function formatTimeWithDate(
+  value: string,
+  timeZone: string,
+  now: Date = new Date(),
+): string {
+  const at = new Date(value);
+  const time = timeFormatter(timeZone).format(at);
+  const day = dateFormatter(timeZone);
+  return day.format(at) === day.format(now)
+    ? time
+    : `${day.format(at)}, ${time}`;
+}
+
+// The forecast is normally refetched every three hours. Past this age the API
+// is serving rows it could not refresh, and the page says so.
+const FORECAST_STALE_MS = 6 * 3_600_000;
+
+// "Forecast from 09:10" once the forecast is old enough to mention.
+export function staleForecastNote(
+  fetchedAt: string | null | undefined,
+  timeZone: string,
+  now: Date = new Date(),
+): string | null {
+  if (!fetchedAt) return null;
+  const age = now.getTime() - new Date(fetchedAt).getTime();
+  if (!(age > FORECAST_STALE_MS)) return null;
+  return `Forecast from ${formatTimeWithDate(fetchedAt, timeZone, now)}`;
+}
+
 export function formatRelativeTime(
   value: string,
   now: number = Date.now(),
@@ -229,6 +260,14 @@ export function publishedDate(value: string): string {
     month: "long",
     year: "numeric",
   }).format(new Date(`${value}T00:00:00Z`));
+}
+
+function dateFormatter(timeZone: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function timeFormatter(timeZone: string): Intl.DateTimeFormat {

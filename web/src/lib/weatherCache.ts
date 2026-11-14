@@ -2,6 +2,7 @@ type CacheOptions = {
   ttlMs: number;
   staleMs: number;
   now?: () => number;
+  onRefreshError?: (key: string, error: unknown) => void;
 };
 
 type CacheEntry<T> = {
@@ -19,14 +20,23 @@ export type CacheResult<T> = {
 
 export class WeatherCache<T> {
   private readonly entries = new Map<string, CacheEntry<T>>();
+  private readonly loading = new Map<string, Promise<CacheEntry<T>>>();
   private readonly ttlMs: number;
   private readonly staleMs: number;
   private readonly now: () => number;
+  private readonly onRefreshError: (key: string, error: unknown) => void;
 
-  constructor({ ttlMs, staleMs, now = Date.now }: CacheOptions) {
+  constructor({
+    ttlMs,
+    staleMs,
+    now = Date.now,
+    onRefreshError = (key, error) =>
+      console.error(`cache refresh failed for ${key}:`, error),
+  }: CacheOptions) {
     this.ttlMs = ttlMs;
     this.staleMs = staleMs;
     this.now = now;
+    this.onRefreshError = onRefreshError;
   }
 
   // An entry that `usable` rejects is loaded again as if it were absent.
@@ -37,21 +47,9 @@ export class WeatherCache<T> {
   ): Promise<CacheResult<T>> {
     const stored = this.entries.get(key);
     const entry = stored && usable(stored.data) ? stored : undefined;
-    const currentTime = this.now();
+    const age = entry ? this.now() - entry.updatedAt : Number.POSITIVE_INFINITY;
 
-    if (!entry) {
-      const data = await loader();
-      const loadedEntry = { data, updatedAt: this.now() };
-      this.entries.set(key, loadedEntry);
-      return {
-        state: "fresh",
-        data: loadedEntry.data,
-        updatedAt: loadedEntry.updatedAt,
-      };
-    }
-
-    const age = currentTime - entry.updatedAt;
-    if (age <= this.ttlMs) {
+    if (entry && age <= this.ttlMs) {
       return {
         state: "fresh",
         data: entry.data,
@@ -59,7 +57,7 @@ export class WeatherCache<T> {
       };
     }
 
-    if (age <= this.ttlMs + this.staleMs) {
+    if (entry && age <= this.ttlMs + this.staleMs) {
       const refresh = this.refresh(key, entry, loader);
       return {
         state: "stale",
@@ -69,14 +67,27 @@ export class WeatherCache<T> {
       };
     }
 
-    const data = await loader();
-    const loadedEntry = { data, updatedAt: this.now() };
-    this.entries.set(key, loadedEntry);
-    return {
-      state: "fresh",
-      data: loadedEntry.data,
-      updatedAt: loadedEntry.updatedAt,
-    };
+    const loaded = await this.load(key, loader);
+    return { state: "fresh", data: loaded.data, updatedAt: loaded.updatedAt };
+  }
+
+  // Concurrent requests for a key with nothing to serve share one load.
+  private load(key: string, loader: () => Promise<T>): Promise<CacheEntry<T>> {
+    const pending = this.loading.get(key);
+    if (pending) {
+      return pending;
+    }
+    const load = loader()
+      .then((data) => {
+        const entry = { data, updatedAt: this.now() };
+        this.entries.set(key, entry);
+        return entry;
+      })
+      .finally(() => {
+        this.loading.delete(key);
+      });
+    this.loading.set(key, load);
+    return load;
   }
 
   private refresh(
@@ -92,7 +103,8 @@ export class WeatherCache<T> {
       .then((data) => {
         this.entries.set(key, { data, updatedAt: this.now() });
       })
-      .catch(() => {
+      .catch((error) => {
+        this.onRefreshError(key, error);
         this.entries.set(key, {
           data: entry.data,
           updatedAt: entry.updatedAt,
@@ -100,5 +112,31 @@ export class WeatherCache<T> {
       });
 
     return entry.refresh;
+  }
+}
+
+// Remembers that a key failed, so callers can skip it until `ms` has passed.
+export class Cooldown {
+  private readonly until = new Map<string, number>();
+
+  constructor(
+    private readonly ms: number,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  active(key: string): boolean {
+    const until = this.until.get(key);
+    if (until === undefined) {
+      return false;
+    }
+    if (this.now() < until) {
+      return true;
+    }
+    this.until.delete(key);
+    return false;
+  }
+
+  start(key: string): void {
+    this.until.set(key, this.now() + this.ms);
   }
 }

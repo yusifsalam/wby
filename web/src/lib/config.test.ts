@@ -37,4 +37,30 @@ describe("readWebConfig", () => {
       staleSeconds: 3600,
     });
   });
+
+  it("rejects values it would otherwise have to guess at", () => {
+    const base = { WBY_API_CLIENT_ID: "web", WBY_API_CLIENT_SECRET: "secret" };
+    for (const bad of ["15m", "1e3", "0", "-5", "12.5"]) {
+      expect(() =>
+        readWebConfig({ ...base, WBY_CACHE_TTL_SECONDS: bad }),
+      ).toThrow("WBY_CACHE_TTL_SECONDS must be a whole number of seconds");
+    }
+    expect(() =>
+      readWebConfig({ ...base, WBY_API_BASE_URL: "server:8080" }),
+    ).toThrow("WBY_API_BASE_URL must be an http or https URL");
+    expect(
+      readWebConfig({ ...base, WBY_CACHE_TTL_SECONDS: " 60 " }).ttlSeconds,
+    ).toBe(60);
+  });
+
+  it("lists every problem at once", () => {
+    expect(() =>
+      readWebConfig({
+        WBY_API_CLIENT_ID: "web",
+        WBY_CACHE_STALE_SECONDS: "soon",
+      }),
+    ).toThrow(
+      "WBY_API_CLIENT_SECRET is required; WBY_CACHE_STALE_SECONDS must be a whole number of seconds above zero",
+    );
+  });
 });

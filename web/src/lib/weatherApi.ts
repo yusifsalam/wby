@@ -92,6 +92,8 @@ export type UVPoint = {
   uv: number;
 };
 
+// `forecast_fetched_at` is when the oldest forecast data in the response was
+// fetched from FMI; it grows old when the API is serving persisted rows.
 export type WeatherResponse = {
   station: StationInfo;
   current: CurrentConditions;
@@ -99,6 +101,7 @@ export type WeatherResponse = {
   daily_forecast: DailyForecast[];
   uv_forecast?: UVPoint[];
   timezone: string;
+  forecast_fetched_at?: string | null;
 };
 
 // The full hourly window (up to ten days) from /v1/weather/hourly; the
@@ -106,6 +109,7 @@ export type WeatherResponse = {
 export type HourlyForecastResponse = {
   hourly_forecast: HourlyForecast[];
   timezone: string;
+  forecast_fetched_at?: string | null;
 };
 
 // One calendar day's 1991–2020 normals from /v1/climate-normals/daily.
@@ -180,12 +184,17 @@ export type LeaderboardResponse = {
   leaderboard: LeaderboardEntry[];
 };
 
+// The API gives up on a request after 12 seconds and answers 504; waiting a
+// little longer lets that answer arrive instead of cutting it off.
+export const UPSTREAM_TIMEOUT_MS = 13_000;
+
 type SignedFetchInput = {
   config: WebConfig;
   path: string;
   params: Record<string, string>;
   timestamp: string;
   fetchImpl: typeof fetch;
+  timeoutMs?: number;
 };
 
 // Performs an HMAC-signed GET against the Go API and returns the raw Response.
@@ -197,6 +206,7 @@ export async function signedFetch({
   params,
   timestamp,
   fetchImpl,
+  timeoutMs = UPSTREAM_TIMEOUT_MS,
 }: SignedFetchInput): Promise<Response> {
   const url = new URL(path, config.apiBaseUrl);
   for (const [key, value] of Object.entries(params)) {
@@ -215,19 +225,32 @@ export async function signedFetch({
   // Retry once on a connection-level failure. Node's fetch pools keep-alive
   // sockets, so an occasional reused-but-closed socket throws ("other side
   // closed"); these GETs are idempotent, so a fresh-connection retry is safe.
-  // Don't retry deliberate aborts, and rethrow the *original* error if the retry
-  // also fails — it's the more diagnostic one.
+  // Both attempts share one deadline, running out of time is not retried, and
+  // the *original* error is rethrown if the retry also fails — it's the more
+  // diagnostic one.
+  const init = {
+    method: "GET",
+    headers,
+    signal: AbortSignal.timeout(timeoutMs),
+  };
   try {
-    return await fetchImpl(url, { method: "GET", headers });
+    return await fetchImpl(url, init);
   } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") throw err;
+    if (isTimeout(err)) throw err;
     await new Promise((resolve) => setTimeout(resolve, 50));
     try {
-      return await fetchImpl(url, { method: "GET", headers });
+      return await fetchImpl(url, init);
     } catch {
       throw err;
     }
   }
+}
+
+export function isTimeout(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "TimeoutError" || error.name === "AbortError")
+  );
 }
 
 // Builds a JSON error Response for the map proxy routes. Shared so every failure
@@ -267,6 +290,7 @@ type FetchWeatherInput = {
   config: WebConfig;
   timestamp?: string;
   fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 };
 
 export async function fetchWeatherForCity({
@@ -274,6 +298,7 @@ export async function fetchWeatherForCity({
   config,
   timestamp = String(Math.floor(Date.now() / 1000)),
   fetchImpl = fetch,
+  timeoutMs,
 }: FetchWeatherInput): Promise<WeatherResponse> {
   const response = await signedGet<WeatherResponse>({
     config,
@@ -284,6 +309,7 @@ export async function fetchWeatherForCity({
     },
     timestamp,
     fetchImpl,
+    timeoutMs,
   });
   return {
     ...response,
@@ -297,6 +323,7 @@ export async function fetchHourlyForecastForCity({
   config,
   timestamp = String(Math.floor(Date.now() / 1000)),
   fetchImpl = fetch,
+  timeoutMs,
 }: FetchWeatherInput): Promise<HourlyForecastResponse> {
   const response = await signedGet<HourlyForecastResponse>({
     config,
@@ -307,6 +334,7 @@ export async function fetchHourlyForecastForCity({
     },
     timestamp,
     fetchImpl,
+    timeoutMs,
   });
   return { ...response, hourly_forecast: response.hourly_forecast ?? [] };
 }
@@ -316,6 +344,7 @@ export async function fetchDailyClimateNormals({
   config,
   timestamp = String(Math.floor(Date.now() / 1000)),
   fetchImpl = fetch,
+  timeoutMs,
 }: FetchWeatherInput): Promise<DailyClimateNormalsResponse> {
   return signedGet<DailyClimateNormalsResponse>({
     config,
@@ -326,6 +355,7 @@ export async function fetchDailyClimateNormals({
     },
     timestamp,
     fetchImpl,
+    timeoutMs,
   });
 }
 
@@ -359,7 +389,7 @@ export async function fetchLeaderboard({
   });
 }
 
-type CachePolicy = {
+export type CachePolicy = {
   ttlSeconds: number;
   staleSeconds?: number;
 };

@@ -1,7 +1,7 @@
 ---
 import type { City } from "../lib/cities";
 import { groupHoursByLocalDate } from "../lib/dayDetail";
-import { dayLabel, formatObservedTime, hourLabel, type MeasureKind } from "../lib/formatters";
+import { dayLabel, formatTimeWithDate, hourLabel, type MeasureKind, staleForecastNote } from "../lib/formatters";
 import { HOURLY_METRICS, type HourlyMetricKey, upcomingHours } from "../lib/hourlyMetrics";
 import { prefersLightForeground, skyStateFromWeather } from "../lib/sky/state";
 import {
@@ -38,7 +38,9 @@ const { city, cities, weather, hourlyWindow = [], normals = null } = Astro.props
 const data = weather.data;
 const current = data.current;
 const timeZone = data.timezone || "Europe/Helsinki";
-const hourly = upcomingHours(data.hourly_forecast, new Date(), 12, hourlyWindow);
+const now = new Date();
+const hourly = upcomingHours(data.hourly_forecast, now, 12, hourlyWindow);
+const forecastNote = staleForecastNote(data.forecast_fetched_at, timeZone, now);
 const daily = data.daily_forecast.slice(0, 7);
 const hoursByDate = groupHoursByLocalDate(hourlyWindow, timeZone);
 const hasDayDetail = (day: DailyForecast) => (hoursByDate.get(day.date)?.length ?? 0) > 0;
@@ -111,7 +113,7 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
       <p class="text-[clamp(3.5rem,11vw,8rem)] font-[250] leading-[0.95]"><Measure kind="temperature" value={current.temperature} /></p>
       {condition && <p class="mt-2.5 text-[clamp(1.15rem,2.2vw,1.5rem)] font-medium">{condition}</p>}
       <p class="mt-1.5 text-muted">
-        {current.feels_like != null && <>Feels like <Measure kind="temperature" value={current.feels_like} /> · </>}Observed {formatObservedTime(current.observed_at, timeZone)}
+        {current.feels_like != null && <>Feels like <Measure kind="temperature" value={current.feels_like} /> · </>}Observed {formatTimeWithDate(current.observed_at, timeZone, now)}
       </p>
     </div>
     <div class="grid place-items-center max-[820px]:hidden" aria-hidden="true">
@@ -129,7 +131,7 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
       <div class="flex items-center justify-between gap-4 px-4.5 pt-4">
         <h2 class="text-base font-bold">Hourly</h2>
         <div class="flex items-center gap-2">
-          <span class="text-muted">{timeZone}</span>
+          <span class="text-muted">{forecastNote ?? timeZone}</span>
           <HourlySettings />
         </div>
       </div>
@@ -163,7 +165,7 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
       <section class="sky-panel rounded-lg border border-line bg-surface/92 shadow-panel">
         <div class="flex items-center justify-between gap-4 px-4.5 pt-4">
           <h2 class="text-base font-bold">Forecast</h2>
-          <span class="text-muted">{daily.length} days</span>
+          <span class="text-muted">{forecastNote ?? `${daily.length} days`}</span>
         </div>
         <div class="px-4.5 pt-2.5 pb-4.5">
           {daily.map((day) => {

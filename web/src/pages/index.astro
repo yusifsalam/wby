@@ -4,7 +4,7 @@ import WeatherUnavailable from "../components/WeatherUnavailable.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { cities } from "../lib/cities";
 import { PAGE_CACHE_POLICY, pageCacheControl } from "../lib/weatherApi";
-import { getCityWeather } from "../lib/weatherPageData";
+import { getCityWeather, logPageError, UNAVAILABLE_MESSAGE } from "../lib/weatherPageData";
 
 const city = cities[0];
 let result: Awaited<ReturnType<typeof getCityWeather>> | undefined;
@@ -15,7 +15,9 @@ try {
   Astro.response.headers.set("Cache-Control", pageCacheControl(PAGE_CACHE_POLICY));
 } catch (error) {
   Astro.response.headers.set("Cache-Control", "no-store");
-  errorMessage = error instanceof Error ? error.message : "Weather data is unavailable.";
+  Astro.response.status = 503;
+  logPageError(`weather page for ${city.slug}`, error);
+  errorMessage = UNAVAILABLE_MESSAGE;
 }
 ---
 

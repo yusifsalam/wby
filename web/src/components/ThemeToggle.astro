@@ -38,17 +38,32 @@
     root.classList.toggle("dark", resolveDark(setting));
   }
 
+  // Storage can be blocked; the toggle then still works for this page view.
+  function stored() {
+    try {
+      return localStorage.getItem(KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  function store(setting: string) {
+    try {
+      if (setting === "auto") localStorage.removeItem(KEY);
+      else localStorage.setItem(KEY, setting);
+    } catch {}
+  }
+
   document.getElementById("theme-toggle")?.addEventListener("click", () => {
     const order = ["auto", "light", "dark"];
-    const current = localStorage.getItem(KEY) ?? "auto";
+    const current = root.dataset.themeSetting ?? stored() ?? "auto";
     const next = order[(order.indexOf(current) + 1) % order.length];
-    if (next === "auto") localStorage.removeItem(KEY);
-    else localStorage.setItem(KEY, next);
+    store(next);
     apply(next);
   });
 
   // Track the OS setting while in auto mode.
   mq.addEventListener("change", () => {
-    if ((localStorage.getItem(KEY) ?? "auto") === "auto") apply("auto");
+    if ((root.dataset.themeSetting ?? stored() ?? "auto") === "auto") apply("auto");
   });
 </script>

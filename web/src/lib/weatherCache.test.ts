@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WeatherCache } from "./weatherCache";
+import { Cooldown, WeatherCache } from "./weatherCache";
 
 describe("WeatherCache", () => {
   it("returns fresh cached data without calling the loader again", async () => {
@@ -127,5 +127,85 @@ describe("WeatherCache", () => {
     expect(reloaded).toMatchObject({ state: "fresh", data: "load 2" });
     expect(after.data).toBe("load 2");
     expect(calls).toBe(2);
+  });
+
+  it("shares one load between concurrent requests for a cold key", async () => {
+    let calls = 0;
+    let release: (value: string) => void = () => {};
+    const cache = new WeatherCache<string>({
+      ttlMs: 900_000,
+      staleMs: 3_600_000,
+      now: () => 1_000,
+    });
+    const load = () => {
+      calls += 1;
+      return new Promise<string>((resolve) => {
+        release = resolve;
+      });
+    };
+
+    const first = cache.get("helsinki", load);
+    const second = cache.get("helsinki", load);
+    const other = cache.get("espoo", async () => "espoo");
+    release("shared");
+
+    expect((await first).data).toBe("shared");
+    expect((await second).data).toBe("shared");
+    expect((await other).data).toBe("espoo");
+    expect(calls).toBe(1);
+  });
+
+  it("does not cache a failed load and lets the next request retry", async () => {
+    const cache = new WeatherCache<string>({
+      ttlMs: 900_000,
+      staleMs: 3_600_000,
+      now: () => 1_000,
+    });
+    const failing = async () => {
+      throw new Error("upstream down");
+    };
+
+    await expect(cache.get("helsinki", failing)).rejects.toThrow(
+      "upstream down",
+    );
+    const retried = await cache.get("helsinki", async () => "recovered");
+    expect(retried.data).toBe("recovered");
+  });
+
+  it("reports a failed background refresh and keeps serving the old data", async () => {
+    let now = 1_000;
+    const failures: string[] = [];
+    const cache = new WeatherCache<string>({
+      ttlMs: 900_000,
+      staleMs: 3_600_000,
+      now: () => now,
+      onRefreshError: (key, error) =>
+        failures.push(`${key}: ${(error as Error).message}`),
+    });
+
+    await cache.get("helsinki", async () => "initial");
+    now += 1_000_000;
+    const stale = await cache.get("helsinki", async () => {
+      throw new Error("upstream down");
+    });
+    await stale.refresh;
+
+    expect(stale).toMatchObject({ state: "stale", data: "initial" });
+    expect(failures).toEqual(["helsinki: upstream down"]);
+  });
+});
+
+describe("Cooldown", () => {
+  it("is active for the given time after a failure", () => {
+    let now = 0;
+    const cooldown = new Cooldown(60_000, () => now);
+
+    expect(cooldown.active("hourly:helsinki")).toBe(false);
+    cooldown.start("hourly:helsinki");
+    now = 59_999;
+    expect(cooldown.active("hourly:helsinki")).toBe(true);
+    expect(cooldown.active("hourly:espoo")).toBe(false);
+    now = 60_000;
+    expect(cooldown.active("hourly:helsinki")).toBe(false);
   });
 });
