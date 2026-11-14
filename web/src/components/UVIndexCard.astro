@@ -10,6 +10,7 @@ import {
   uvDayBars,
   uvDayPoints,
   uvLevel,
+  uvOutlook,
   uvPeak,
 } from "../lib/uvIndex";
 import type { UVPoint } from "../lib/weatherApi";
@@ -33,15 +34,21 @@ const current = currentBar?.uv ?? 0;
 const remaining = today.filter((point) => new Date(point.time) >= new Date(now.getTime() - 3_600_000));
 const remainingPeak = uvPeak(remaining);
 
+const ahead = uvOutlook(current, peak, remainingPeak);
 let outlook: string;
-if (remainingPeak && remainingPeak.value > current) {
-  outlook = `Rising to ${Math.round(remainingPeak.value)} · ${uvLevel(remainingPeak.value)} at ${formatObservedTime(remainingPeak.time, timeZone)}`;
-} else if (peak == null || peak.value === 0) {
-  outlook = "Low levels all day";
-} else if (current === 0) {
-  outlook = "Low levels for the rest of the day";
-} else {
-  outlook = "Highest for the rest of the day";
+switch (ahead.kind) {
+  case "rising":
+    outlook = `Rising to ${Math.round(ahead.peak.value)} · ${uvLevel(ahead.peak.value)} at ${formatObservedTime(ahead.peak.time, timeZone)}`;
+    break;
+  case "lowAllDay":
+    outlook = "Low levels all day";
+    break;
+  case "lowRestOfDay":
+    outlook = "Low levels for the rest of the day";
+    break;
+  case "highestRestOfDay":
+    outlook = "Highest for the rest of the day";
+    break;
 }
 
 function barStyle(uv: number | null): string | undefined {

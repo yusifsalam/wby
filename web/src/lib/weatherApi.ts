@@ -275,7 +275,7 @@ export async function fetchWeatherForCity({
   timestamp = String(Math.floor(Date.now() / 1000)),
   fetchImpl = fetch,
 }: FetchWeatherInput): Promise<WeatherResponse> {
-  return signedGet<WeatherResponse>({
+  const response = await signedGet<WeatherResponse>({
     config,
     path: "/v1/weather",
     params: {
@@ -285,6 +285,11 @@ export async function fetchWeatherForCity({
     timestamp,
     fetchImpl,
   });
+  return {
+    ...response,
+    hourly_forecast: response.hourly_forecast ?? [],
+    daily_forecast: response.daily_forecast ?? [],
+  };
 }
 
 export async function fetchHourlyForecastForCity({
@@ -293,7 +298,7 @@ export async function fetchHourlyForecastForCity({
   timestamp = String(Math.floor(Date.now() / 1000)),
   fetchImpl = fetch,
 }: FetchWeatherInput): Promise<HourlyForecastResponse> {
-  return signedGet<HourlyForecastResponse>({
+  const response = await signedGet<HourlyForecastResponse>({
     config,
     path: "/v1/weather/hourly",
     params: {
@@ -303,6 +308,7 @@ export async function fetchHourlyForecastForCity({
     timestamp,
     fetchImpl,
   });
+  return { ...response, hourly_forecast: response.hourly_forecast ?? [] };
 }
 
 export async function fetchDailyClimateNormals({

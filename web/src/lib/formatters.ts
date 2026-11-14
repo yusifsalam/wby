@@ -9,6 +9,14 @@ import {
   type UnitSystem,
 } from "./units";
 
+// toFixed without a negative zero: -0.04 at one decimal is "0.0". Every
+// temperature on the page goes through it, so halves round the same way
+// everywhere (away from zero: -2.5 is "-3").
+export function toFixedUnsigned(value: number, decimals: number): string {
+  const text = value.toFixed(decimals);
+  return Number(text) === 0 ? text.replace("-", "") : text;
+}
+
 export function formatTemperature(
   value: number | null | undefined,
   system: UnitSystem = "metric",
@@ -17,7 +25,7 @@ export function formatTemperature(
     return "--";
   }
   const shown = system === "imperial" ? celsiusToFahrenheit(value) : value;
-  return `${Math.round(shown)}°`;
+  return `${toFixedUnsigned(shown, 0)}°`;
 }
 
 export function formatSpeed(

@@ -97,4 +97,35 @@ describe("WeatherCache", () => {
       }),
     ).rejects.toThrow("upstream unavailable");
   });
+
+  it("reloads an entry the caller no longer finds usable", async () => {
+    let calls = 0;
+    const cache = new WeatherCache<string>({
+      ttlMs: 900_000,
+      staleMs: 3_600_000,
+      now: () => 1_000,
+    });
+    const load = async () => {
+      calls += 1;
+      return `load ${calls}`;
+    };
+
+    await cache.get("helsinki", load);
+    const kept = await cache.get("helsinki", load, () => true);
+    const reloaded = await cache.get(
+      "helsinki",
+      load,
+      (data) => data !== "load 1",
+    );
+    const after = await cache.get(
+      "helsinki",
+      load,
+      (data) => data !== "load 1",
+    );
+
+    expect(kept.data).toBe("load 1");
+    expect(reloaded).toMatchObject({ state: "fresh", data: "load 2" });
+    expect(after.data).toBe("load 2");
+    expect(calls).toBe(2);
+  });
 });

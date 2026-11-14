@@ -211,7 +211,7 @@ function windArrowStyle(hour: HourlyForecast): string | undefined {
     const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
     const today = `${part("year")}-${part("month")}-${part("day")}`;
     const isToday = panel.dataset.dayPanel === today;
-    const x = ((Number(part("hour")) + Number(part("minute")) / 60) / 24) * 100;
+    const x = Math.min(100, ((Number(part("hour")) + Number(part("minute")) / 60 + 0.5) / 24) * 100);
     for (const marker of panel.querySelectorAll<HTMLElement>("[data-day-now]")) {
       marker.hidden = !isToday;
       marker.style.setProperty("--x", `${x}%`);

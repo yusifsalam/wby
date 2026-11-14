@@ -252,3 +252,29 @@ func TestGetWeather_NamesBorrowedValuesAndFeelsLike(t *testing.T) {
 		t.Errorf("borrowed = %s, want the key omitted when nothing is borrowed", raw["borrowed"])
 	}
 }
+
+func TestGetWeather_SendsEmptyForecastListsAsArrays(t *testing.T) {
+	h := NewHandler(weatherServiceStub{
+		weather: &weather.WeatherResponse{
+			Current: weather.CurrentWeather{
+				Observation: weather.Observation{ObservedAt: time.Date(2026, 11, 14, 14, 0, 0, 0, time.UTC)},
+			},
+			Timezone: "Europe/Helsinki",
+		},
+	})
+	rr := httptest.NewRecorder()
+	h.getWeather(rr, httptest.NewRequest(http.MethodGet, "/v1/weather?lat=60.1&lon=24.9", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	for _, key := range []string{"daily_forecast", "hourly_forecast", "uv_forecast"} {
+		if got := string(resp[key]); got != "[]" {
+			t.Errorf("%s = %s, want []", key, got)
+		}
+	}
+}

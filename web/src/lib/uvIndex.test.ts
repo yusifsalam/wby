@@ -5,6 +5,7 @@ import {
   uvDayBars,
   uvDayPoints,
   uvLevel,
+  uvOutlook,
   uvPeak,
 } from "./uvIndex";
 
@@ -20,12 +21,16 @@ const points = Array.from({ length: 48 }, (_, i) => {
 });
 
 describe("uv index", () => {
-  it("maps values to WHO bands", () => {
+  it("maps the displayed whole number to WHO bands", () => {
     expect(uvLevel(0)).toBe("Low");
-    expect(uvLevel(2.9)).toBe("Low");
+    expect(uvLevel(2.4)).toBe("Low");
+    expect(uvLevel(2.6)).toBe("Moderate");
     expect(uvLevel(3)).toBe("Moderate");
-    expect(uvLevel(5.9)).toBe("Moderate");
+    expect(uvLevel(5.4)).toBe("Moderate");
+    expect(uvLevel(5.6)).toBe("High");
     expect(uvLevel(6)).toBe("High");
+    expect(uvLevel(7.5)).toBe("Very high");
+    expect(uvLevel(10.6)).toBe("Extreme");
     expect(uvLevel(8)).toBe("Very high");
     expect(uvLevel(11)).toBe("Extreme");
     expect(uvLevel(14)).toBe("Extreme");
@@ -54,6 +59,31 @@ describe("uv index", () => {
     const tomorrow = uvDayPoints(points, tz, now, 1);
     expect(tomorrow).toHaveLength(24);
     expect(tomorrow[0].time).toBe("2026-09-09T21:00:00.000Z");
+  });
+
+  it("finds tomorrow by calendar date on a 25-hour day", () => {
+    const dstPoints = Array.from({ length: 60 }, (_, i) => ({
+      time: new Date(Date.UTC(2027, 9, 30, 21 + i)).toISOString(),
+      uv: 1,
+    }));
+    const justAfterMidnight = new Date("2027-10-30T21:30:00Z");
+    const tomorrow = uvDayPoints(dstPoints, tz, justAfterMidnight, 1);
+    expect(tomorrow[0].time).toBe("2027-10-31T22:00:00.000Z");
+    expect(uvDayPoints(dstPoints, tz, justAfterMidnight)).toHaveLength(25);
+  });
+
+  it("describes the rest of the day on whole numbers", () => {
+    const at = (value: number) => ({ value, time: "2026-06-09T10:00:00Z" });
+    expect(uvOutlook(1.2, at(5.3), at(5.3))).toEqual({
+      kind: "rising",
+      peak: at(5.3),
+    });
+    expect(uvOutlook(0.1, at(0.3), at(0.3))).toEqual({ kind: "lowAllDay" });
+    expect(uvOutlook(0.2, at(4), at(0.4))).toEqual({ kind: "lowRestOfDay" });
+    expect(uvOutlook(4.2, at(4.4), at(4.4))).toEqual({
+      kind: "highestRestOfDay",
+    });
+    expect(uvOutlook(0, null, null)).toEqual({ kind: "lowAllDay" });
   });
 
   it("builds 24 hourly bars marking past and current hours", () => {

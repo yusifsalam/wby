@@ -233,6 +233,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 		ForecastFetchedAt: timeOrNil(result.ForecastFetchedAt),
 	}
 
+	resp.Forecast = make([]dailyForecastJSON, 0, len(result.Forecast))
 	for _, f := range result.Forecast {
 		resp.Forecast = append(resp.Forecast, dailyForecastJSON{
 			Date:                       f.Date.Format("2006-01-02"),

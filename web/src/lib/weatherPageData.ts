@@ -1,5 +1,6 @@
 import { type City, cities } from "./cities";
 import { readWebConfig, type WebRuntimeConfig } from "./config";
+import { localDate } from "./normals";
 import {
   type DailyClimateNormalsResponse,
   fetchDailyClimateNormals,
@@ -70,6 +71,19 @@ async function getCityHourlyWindow(
   }
 }
 
+const NORMALS_TIME_ZONE = "Europe/Helsinki";
+
+// A normals response describes one calendar day: its `today` row and
+// observed precipitation go out of date at local midnight.
+export function isNormalsForToday(
+  normals: DailyClimateNormalsResponse | null,
+  now: Date,
+): boolean {
+  if (normals == null) return true;
+  const local = localDate(now, NORMALS_TIME_ZONE);
+  return normals.today.month === local.month && normals.today.day === local.day;
+}
+
 // Climate normals are optional: a city without a station within range (404)
 // is cached as "none", and any other failure just hides the card for this
 // render without poisoning the cache.
@@ -79,16 +93,20 @@ async function getCityNormals(
 ): Promise<DailyClimateNormalsResponse | null> {
   const cache = normalsCacheFor(config);
   try {
-    const result = await cache.get(city.slug, async () => {
-      try {
-        return await fetchDailyClimateNormals({ city, config });
-      } catch (error) {
-        if (error instanceof WeatherApiError && error.status === 404) {
-          return null;
+    const result = await cache.get(
+      city.slug,
+      async () => {
+        try {
+          return await fetchDailyClimateNormals({ city, config });
+        } catch (error) {
+          if (error instanceof WeatherApiError && error.status === 404) {
+            return null;
+          }
+          throw error;
         }
-        throw error;
-      }
-    });
+      },
+      (normals) => isNormalsForToday(normals, new Date()),
+    );
     return result.data;
   } catch (error) {
     console.error(

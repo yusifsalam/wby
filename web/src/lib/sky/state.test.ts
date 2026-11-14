@@ -29,13 +29,18 @@ describe("sky scene", () => {
     expect(sceneFromSymbol("106")).toBe("partlyCloudyNight");
     expect(sceneFromSymbol("5")).toBe("overcast");
     expect(sceneFromSymbol("9")).toBe("overcast");
-    expect(sceneFromSymbol("17")).toBe("overcast");
-    expect(sceneFromSymbol("148")).toBe("overcast");
     expect(sceneFromSymbol("11")).toBe("rain");
     expect(sceneFromSymbol("138")).toBe("rain");
     expect(sceneFromSymbol("59")).toBe("snow");
     expect(sceneFromSymbol("67")).toBe("snow");
     expect(sceneFromSymbol("177")).toBe("storm");
+  });
+
+  it("draws sleet and freezing rain as rain, not a dry sky", () => {
+    expect(sceneFromSymbol("14")).toBe("rain");
+    expect(sceneFromSymbol("17")).toBe("rain");
+    expect(sceneFromSymbol("41")).toBe("rain");
+    expect(sceneFromSymbol("148")).toBe("rain");
   });
 
   it("falls back to clear sky for unknown or missing codes", () => {
@@ -95,29 +100,48 @@ describe("sky state", () => {
   });
 
   it("builds the state from the weather response", () => {
+    const hour = {
+      time: "",
+      symbol: "137",
+      precipitation_1h: 0.4,
+      wind_speed: 5,
+      wind_direction: 90,
+    };
     const data = {
       current: {
         observed_at: "",
-        cloud_cover: 6,
+        cloud_cover: 75,
         wind_speed: null,
         wind_direction: 200,
       },
-      hourly_forecast: [
-        {
-          time: "",
-          symbol: "137",
-          precipitation_1h: 0.4,
-          wind_speed: 5,
-          wind_direction: 90,
-        },
-      ],
+      hourly_forecast: [hour],
       daily_forecast: [{ date: "", symbol: "1" }],
     } as unknown as WeatherResponse;
-    expect(skyStateFromWeather(data)).toEqual({
+    expect(skyStateFromWeather(data, hour)).toEqual({
       scene: "rain",
       precipitation1h: 0.4,
       cloudCover: 6,
       windSpeed: 5,
+      windDirection: 90,
+    });
+  });
+
+  it("reads low observed cloud cover as percent and prefers observed wind", () => {
+    const data = {
+      current: {
+        observed_at: "",
+        cloud_cover: 5,
+        wind_speed: 2,
+        wind_direction: 200,
+      },
+      hourly_forecast: [],
+      daily_forecast: [{ date: "", symbol: "1" }],
+    } as unknown as WeatherResponse;
+    const state = skyStateFromWeather(data, undefined);
+    expect(coverage(state)).toBeCloseTo(0.05);
+    expect(state).toMatchObject({
+      scene: "clearDay",
+      windSpeed: 2,
       windDirection: 200,
     });
   });

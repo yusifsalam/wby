@@ -1,3 +1,4 @@
+import { toFixedUnsigned } from "./formatters";
 import { metersPerSecondToMph, type UnitSystem } from "./units";
 import type {
   CurrentConditions,
@@ -91,8 +92,16 @@ export function normalsDailySeries(
   now: Date,
 ): NormalsSeries | null {
   const local = localDate(now, timeZone);
+  const monthLength = new Date(
+    Date.UTC(Number(local.date.slice(0, 4)), local.month, 0),
+  ).getUTCDate();
   const days = normals.daily
-    .filter((day) => day.month === local.month && day.temp_avg != null)
+    .filter(
+      (day) =>
+        day.month === local.month &&
+        day.day <= monthLength &&
+        day.temp_avg != null,
+    )
     .sort((a, b) => a.day - b.day);
   if (days.length === 0) return null;
   const hasRange = days.every(
@@ -132,6 +141,8 @@ export type NormalsChart = {
   mode: NormalsSeries["mode"];
   min: number;
   max: number;
+  normalMin: number;
+  normalMax: number;
   ticks: { value: number; y: number }[];
   bandPath: string;
   linePath: string;
@@ -160,6 +171,8 @@ export function buildNormalsChart(
   forecast: ForecastMarkers = {},
 ): NormalsChart {
   const values = [...series.avgs, ...series.highs, ...series.lows];
+  const normalMin = Math.min(...values);
+  const normalMax = Math.max(...values);
   for (const extra of [currentTemp, forecast.high, forecast.low]) {
     if (extra != null) values.push(extra);
   }
@@ -203,6 +216,8 @@ export function buildNormalsChart(
     mode: series.mode,
     min,
     max,
+    normalMin,
+    normalMax,
     ticks,
     bandPath,
     linePath,
@@ -295,8 +310,54 @@ export function formatStat(
 ): string {
   const spec = unitSpec(kind, system);
   const shown = value * spec.scale + spec.offset;
-  const text = shown.toFixed(spec.decimals ?? decimals);
-  return `${Number(text) === 0 ? text.replace("-", "") : text}${spec.unit}`;
+  return `${toFixedUnsigned(shown, spec.decimals ?? decimals)}${spec.unit}`;
+}
+
+// The difference between two values as formatStat prints them, so a delta
+// always agrees with the numbers shown beside it.
+export function shownDelta(
+  kind: StatKind,
+  value: number,
+  normal: number,
+  system: UnitSystem,
+  decimals = 0,
+): number {
+  const spec = unitSpec(kind, system);
+  const precision = spec.decimals ?? decimals;
+  const shown = (raw: number) =>
+    Number((raw * spec.scale + spec.offset).toFixed(precision));
+  return Number((shown(value) - shown(normal)).toFixed(precision));
+}
+
+export function shownTone(
+  kind: StatKind,
+  value: number,
+  normal: number,
+  decimals = 0,
+): DeltaTone {
+  const delta = shownDelta(kind, value, normal, "metric", decimals);
+  if (delta > 0) return "warm";
+  if (delta < 0) return "cold";
+  return "even";
+}
+
+export function formatShownDelta(
+  kind: StatKind,
+  value: number,
+  normal: number,
+  system: UnitSystem,
+  decimals = 0,
+): string {
+  return signedText(
+    shownDelta(kind, value, normal, system, decimals),
+    unitSpec(kind, system).unit,
+  );
+}
+
+function signedText(value: number, unit: string): string {
+  if (value > 0) return `+${formatNumber(value)}${unit}`;
+  if (value < 0) return `−${formatNumber(-value)}${unit}`;
+  return `±0${unit}`;
 }
 
 // The difference in the given system, rounded to the step shown at that
@@ -333,17 +394,40 @@ export function formatDelta(
   system: UnitSystem,
   decimals = 0,
 ): string {
-  const value = deltaValue(kind, diff, system, decimals);
-  const unit = unitSpec(kind, system).unit;
-  if (value > 0) return `+${formatNumber(value)}${unit}`;
-  if (value < 0) return `−${formatNumber(-value)}${unit}`;
-  return `±0${unit}`;
+  return signedText(
+    deltaValue(kind, diff, system, decimals),
+    unitSpec(kind, system).unit,
+  );
+}
+
+// A 24-value UTC hourly normal curve interpolated at an instant, like the
+// server's HourlyNormalAt. The last hour wraps onto the curve's first.
+export function hourlyNormalAt(
+  curve: readonly number[] | null | undefined,
+  at: Date,
+): number | null {
+  if (curve?.length !== 24 || Number.isNaN(at.getTime())) return null;
+  const hour = at.getUTCHours();
+  const fraction = at.getUTCMinutes() / 60 + at.getUTCSeconds() / 3600;
+  const from = curve[hour];
+  return from + (curve[(hour + 1) % 24] - from) * fraction;
+}
+
+// The normal temperature for the moment the current one was observed.
+export function tempNormalAtObservation(
+  normals: DailyClimateNormalsResponse,
+  current: CurrentConditions,
+): number | null {
+  return (
+    hourlyNormalAt(normals.today.temp_hourly, new Date(current.observed_at)) ??
+    normals.today.temp_now_normal ??
+    null
+  );
 }
 
 export type NormalsHeadline = {
   current: number;
   normal: number;
-  diff: number;
   tone: DeltaTone;
 };
 
@@ -353,21 +437,25 @@ export function normalsHeadline(
   decimals = 0,
 ): NormalsHeadline | null {
   if (currentTemp == null || tempNowNormal == null) return null;
-  const diff = currentTemp - tempNowNormal;
   return {
     current: currentTemp,
     normal: tempNowNormal,
-    diff,
-    tone: deltaTone("temperature", diff, decimals),
+    tone: shownTone("temperature", currentTemp, tempNowNormal, decimals),
   };
 }
 
 export function headlineText(
-  diff: number,
+  headline: Pick<NormalsHeadline, "current" | "normal">,
   system: UnitSystem,
   decimals = 0,
 ): string {
-  const value = deltaValue("temperature", diff, system, decimals);
+  const value = shownDelta(
+    "temperature",
+    headline.current,
+    headline.normal,
+    system,
+    decimals,
+  );
   if (value > 0)
     return `${formatNumber(value)}° warmer than usual for this hour`;
   if (value < 0)
@@ -382,12 +470,16 @@ export type StatExtra = {
   suffix?: string;
 };
 
+// `delta` is null when there is nothing to compare: either the current value
+// is missing and `value` is the normal itself, or `basis` says the normal is
+// a daily mean that an instantaneous value should not be measured against.
 export type NormalStat = {
   label: string;
   kind: StatKind;
   value: number;
   normal: number;
   delta: number | null;
+  basis?: "dailyMean";
   extra?: StatExtra;
 };
 
@@ -399,20 +491,24 @@ export function normalsSummaryStats(
   todayForecast: DailyForecast | undefined,
 ): NormalStat[] {
   const today = normals.today;
+  const at = new Date(current.observed_at);
   return compact([
     stat("High", "temperature", todayForecast?.high, today.temp_high),
     stat("Low", "temperature", todayForecast?.low, today.temp_low),
-    stat(
+    nowStat(
       "Feels like",
       "temperature",
       current.feels_like,
-      today.feels_like_now_normal ?? today.feels_like_avg,
+      hourlyNormalAt(today.feels_like_hourly, at) ??
+        today.feels_like_now_normal,
+      today.feels_like_avg,
     ),
-    stat(
+    nowStat(
       "Wind",
       "speed",
       current.wind_speed,
-      today.wind_now_normal ?? today.wind_avg,
+      hourlyNormalAt(today.wind_hourly, at) ?? today.wind_now_normal,
+      today.wind_avg,
     ),
   ]);
 }
@@ -427,6 +523,7 @@ export function normalsDetailStats(
 ): NormalStat[] {
   const today = normals.today;
   const precip = normals.precipitation;
+  const at = new Date(current.observed_at);
   const stats: (NormalStat | null)[] = [
     stat("Mean", "temperature", forecast?.temperature_avg, today.temp_avg),
     stat(
@@ -449,18 +546,20 @@ export function normalsDetailStats(
       forecast?.feels_like_low,
       today.feels_like_low,
     ),
-    stat(
+    nowStat(
       "Wind",
       "speed",
       current.wind_speed,
-      today.wind_now_normal ?? today.wind_avg,
+      hourlyNormalAt(today.wind_hourly, at) ?? today.wind_now_normal,
+      today.wind_avg,
     ),
     stat("Gusts", "speed", forecast?.hourly_maximum_gust_max, today.wind_gust),
-    stat(
+    nowStat(
       "Humidity",
       "percent",
       current.humidity,
-      today.humidity_now_normal ?? today.humidity_avg,
+      hourlyNormalAt(today.humidity_hourly, at) ?? today.humidity_now_normal,
+      today.humidity_avg,
     ),
   ];
 
@@ -534,6 +633,28 @@ function stat(
   if (current == null)
     return { label, kind, value: normal, normal, delta: null };
   return { label, kind, value: current, normal, delta: current - normal };
+}
+
+// A stat for a value observed at one instant. Without a normal for that
+// instant the daily mean is shown beside it, uncompared.
+function nowStat(
+  label: string,
+  kind: StatKind,
+  current: number | null | undefined,
+  nowNormal: number | null | undefined,
+  dailyMean: number | null | undefined,
+): NormalStat | null {
+  if (nowNormal != null || current == null || dailyMean == null) {
+    return stat(label, kind, current, nowNormal ?? dailyMean);
+  }
+  return {
+    label,
+    kind,
+    value: current,
+    normal: dailyMean,
+    delta: null,
+    basis: "dailyMean",
+  };
 }
 
 function compact(stats: (NormalStat | null)[]): NormalStat[] {

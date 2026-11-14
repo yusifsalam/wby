@@ -2,7 +2,7 @@
  * Weather background state, ported from the iOS app
  * (ios/wby/wby/Background/WeatherScene.swift and WeatherBackgroundState.swift).
  */
-import type { WeatherResponse } from "../weatherApi";
+import type { HourlyForecast, WeatherResponse } from "../weatherApi";
 
 export const SKY_SCENES = [
   "clearDay",
@@ -67,19 +67,10 @@ export function sceneFromSymbol(raw: string | null | undefined): SkyScene {
     case 5:
     case 7:
     case 9:
-    case 14:
-    case 17:
-    case 41:
-    case 42:
-    case 43:
-    case 44:
-    case 45:
-    case 46:
-    case 47:
-    case 48:
-    case 49:
       return "overcast";
     case 11:
+    case 14:
+    case 17:
     case 21:
     case 24:
     case 27:
@@ -92,6 +83,15 @@ export function sceneFromSymbol(raw: string | null | undefined): SkyScene {
     case 37:
     case 38:
     case 39:
+    case 41:
+    case 42:
+    case 43:
+    case 44:
+    case 45:
+    case 46:
+    case 47:
+    case 48:
+    case 49:
       return "rain";
     case 51:
     case 52:
@@ -317,15 +317,23 @@ export function motionRates(state: SkyState): MotionRates {
   };
 }
 
-export function skyStateFromWeather(data: WeatherResponse): SkyState {
-  const nextHour = data.hourly_forecast[0];
+// `currentHour` is the forecast for the hour in progress. Observed cloud cover
+// arrives in percent and is stored in oktas; wind speed and direction come
+// from the same source, observed when the station reports a speed.
+export function skyStateFromWeather(
+  data: WeatherResponse,
+  currentHour: HourlyForecast | undefined,
+): SkyState {
+  const current = data.current;
+  const wind = current.wind_speed != null ? current : currentHour;
   return {
-    scene: sceneFromSymbol(nextHour?.symbol ?? data.daily_forecast[0]?.symbol),
-    precipitation1h: nextHour?.precipitation_1h ?? null,
-    cloudCover: data.current.cloud_cover ?? null,
-    windSpeed: data.current.wind_speed ?? nextHour?.wind_speed ?? null,
-    windDirection:
-      data.current.wind_direction ?? nextHour?.wind_direction ?? null,
+    scene: sceneFromSymbol(
+      currentHour?.symbol ?? data.daily_forecast[0]?.symbol,
+    ),
+    precipitation1h: currentHour?.precipitation_1h ?? null,
+    cloudCover: current.cloud_cover == null ? null : current.cloud_cover / 12.5,
+    windSpeed: wind?.wind_speed ?? null,
+    windDirection: wind?.wind_direction ?? null,
   };
 }
 

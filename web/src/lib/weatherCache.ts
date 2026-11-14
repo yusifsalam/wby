@@ -29,8 +29,14 @@ export class WeatherCache<T> {
     this.now = now;
   }
 
-  async get(key: string, loader: () => Promise<T>): Promise<CacheResult<T>> {
-    const entry = this.entries.get(key);
+  // An entry that `usable` rejects is loaded again as if it were absent.
+  async get(
+    key: string,
+    loader: () => Promise<T>,
+    usable: (data: T) => boolean = () => true,
+  ): Promise<CacheResult<T>> {
+    const stored = this.entries.get(key);
+    const entry = stored && usable(stored.data) ? stored : undefined;
     const currentTime = this.now();
 
     if (!entry) {

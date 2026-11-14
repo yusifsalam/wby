@@ -1,7 +1,7 @@
 ---
 // One stat tile: label, the current value with its signed delta against the
 // normal, and the normal (plus any extra detail) beneath.
-import { deltaTone, formatDelta, formatStat, type NormalStat } from "../lib/normals";
+import { formatShownDelta, formatStat, type NormalStat, shownTone } from "../lib/normals";
 import UnitText from "./UnitText.astro";
 
 type Props = {
@@ -25,16 +25,16 @@ const toneClass = {
       <UnitText metric={formatStat(stat.kind, stat.value, "metric", decimals)} imperial={formatStat(stat.kind, stat.value, "imperial", decimals)} />
     </span>
     {stat.delta != null && (
-      <span class={`text-[0.78rem] font-bold ${toneClass[deltaTone(stat.kind, stat.delta, decimals)]}`}>
-        <UnitText metric={formatDelta(stat.kind, stat.delta, "metric", decimals)} imperial={formatDelta(stat.kind, stat.delta, "imperial", decimals)} />
+      <span class={`text-[0.78rem] font-bold ${toneClass[shownTone(stat.kind, stat.value, stat.normal, decimals)]}`}>
+        <UnitText metric={formatShownDelta(stat.kind, stat.value, stat.normal, "metric", decimals)} imperial={formatShownDelta(stat.kind, stat.value, stat.normal, "imperial", decimals)} />
       </span>
     )}
   </dd>
   <dd class="m-0 text-[0.78rem] text-muted">
-    {stat.delta == null ? (
+    {stat.delta == null && stat.basis !== "dailyMean" ? (
       "normal"
     ) : (
-      <>normally <UnitText metric={formatStat(stat.kind, stat.normal, "metric", decimals)} imperial={formatStat(stat.kind, stat.normal, "imperial", decimals)} /></>
+      <>{stat.basis === "dailyMean" ? "daily mean" : "normally"} <UnitText metric={formatStat(stat.kind, stat.normal, "metric", decimals)} imperial={formatStat(stat.kind, stat.normal, "imperial", decimals)} /></>
     )}
     {stat.extra && (
       <>

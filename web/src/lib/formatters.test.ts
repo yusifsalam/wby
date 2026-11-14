@@ -19,6 +19,10 @@ describe("weather value formatters", () => {
   it("formats core metric weather values", () => {
     expect(formatTemperature(4.4)).toBe("4°");
     expect(formatTemperature(null)).toBe("--");
+    expect(formatTemperature(-0.4)).toBe("0°");
+    expect(formatTemperature(-2.5)).toBe("-3°");
+    expect(formatTemperature(2.5)).toBe("3°");
+    expect(formatTemperature(-10.5)).toBe("-11°");
     expect(formatSpeed(3.2)).toBe("3 m/s");
     expect(formatPercent(81.6)).toBe("82%");
     expect(formatPrecipitation(0.24)).toBe("0.2 mm");

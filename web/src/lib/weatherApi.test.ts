@@ -70,6 +70,38 @@ describe("fetchWeatherForCity", () => {
     );
   });
 
+  it("reads forecast lists the API sent as null as empty", async () => {
+    const config = {
+      apiBaseUrl: "http://server:8080",
+      clientId: "web",
+      clientSecret: "test-secret",
+    };
+    const respond = (body: unknown) => async () =>
+      new Response(JSON.stringify(body), { status: 200 });
+
+    const weather = await fetchWeatherForCity({
+      city: cities[0],
+      config,
+      fetchImpl: respond({
+        ...sampleWeather,
+        hourly_forecast: null,
+        daily_forecast: null,
+      }),
+    });
+    expect(weather.hourly_forecast).toEqual([]);
+    expect(weather.daily_forecast).toEqual([]);
+
+    const hourly = await fetchHourlyForecastForCity({
+      city: cities[0],
+      config,
+      fetchImpl: respond({
+        hourly_forecast: null,
+        timezone: "Europe/Helsinki",
+      }),
+    });
+    expect(hourly.hourly_forecast).toEqual([]);
+  });
+
   it("throws a useful error when the upstream API fails", async () => {
     await expect(
       fetchWeatherForCity({

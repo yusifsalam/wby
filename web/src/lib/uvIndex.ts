@@ -17,9 +17,12 @@ export const UV_BANDS: readonly UVBand[] = [
   { label: "Extreme", color: "#cc4de6", limit: Number.POSITIVE_INFINITY },
 ];
 
+// The band of the index as displayed: WHO bands apply to the whole number,
+// so 2.6 reads "3 Moderate".
 export function uvBand(value: number): UVBand {
+  const index = Math.round(value);
   return (
-    UV_BANDS.find((band) => value < band.limit) ?? UV_BANDS[UV_BANDS.length - 1]
+    UV_BANDS.find((band) => index < band.limit) ?? UV_BANDS[UV_BANDS.length - 1]
   );
 }
 
@@ -80,10 +83,12 @@ export function uvDayPoints(
   now: Date,
   offsetDays = 0,
 ): UVPoint[] {
-  const target = localTime(
-    new Date(now.getTime() + offsetDays * 86_400_000),
-    timeZone,
-  ).date;
+  const [year, month, day] = localTime(now, timeZone)
+    .date.split("-")
+    .map(Number);
+  const target = new Date(Date.UTC(year, month - 1, day + offsetDays))
+    .toISOString()
+    .slice(0, 10);
   return points.filter(
     (point) => localTime(new Date(point.time), timeZone).date === target,
   );
@@ -117,4 +122,28 @@ export function uvDayBars(
 // Bar height as a percentage of the scale.
 export function uvBarHeight(value: number): number {
   return (Math.min(Math.max(value, 0), UV_SCALE_MAX) / UV_SCALE_MAX) * 100;
+}
+
+export type UVOutlook =
+  | { kind: "rising"; peak: UVPeak }
+  | { kind: "lowAllDay" }
+  | { kind: "lowRestOfDay" }
+  | { kind: "highestRestOfDay" };
+
+// What the rest of the day holds, judged on the whole numbers the card shows.
+export function uvOutlook(
+  current: number,
+  dayPeak: UVPeak | null,
+  remainingPeak: UVPeak | null,
+): UVOutlook {
+  if (remainingPeak && Math.round(remainingPeak.value) > Math.round(current)) {
+    return { kind: "rising", peak: remainingPeak };
+  }
+  if (dayPeak == null || Math.round(dayPeak.value) === 0) {
+    return { kind: "lowAllDay" };
+  }
+  if (Math.round(current) === 0) {
+    return { kind: "lowRestOfDay" };
+  }
+  return { kind: "highestRestOfDay" };
 }

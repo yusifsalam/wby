@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { formatTemperature } from "./formatters";
 import {
   buildNormalsChart,
   deltaTone,
   formatDelta,
+  formatShownDelta,
   formatStat,
   headlineText,
+  hourlyNormalAt,
   localDate,
   localizeHourly,
   niceStep,
@@ -14,6 +17,8 @@ import {
   normalsHourlySeries,
   normalsSeries,
   normalsSummaryStats,
+  shownTone,
+  tempNormalAtObservation,
   todayForecast,
 } from "./normals";
 import type { DailyClimateNormalsResponse } from "./weatherApi";
@@ -150,6 +155,26 @@ describe("series", () => {
     ]);
   });
 
+  it("leaves February 29 out of a non-leap year", () => {
+    const february = Array.from({ length: 29 }, (_, i) => ({
+      month: 2,
+      day: i + 1,
+      temp_avg: -5,
+      temp_high: -2,
+      temp_low: -8,
+    }));
+    const feb = { ...normals, daily: february };
+    const common = normalsDailySeries(
+      feb,
+      tz,
+      new Date("2027-02-10T10:00:00Z"),
+    );
+    expect(common?.avgs).toHaveLength(28);
+    expect(common?.labels.at(-1)).toEqual({ index: 27, label: "28" });
+    const leap = normalsDailySeries(feb, tz, new Date("2028-02-10T10:00:00Z"));
+    expect(leap?.avgs).toHaveLength(29);
+  });
+
   it("falls back from hourly to daily, then to nothing", () => {
     const noHourly = {
       ...normals,
@@ -183,6 +208,9 @@ describe("buildNormalsChart", () => {
     const series = normalsDailySeries(normals, tz, now);
     if (!series) throw new Error("expected series");
     const chart = buildNormalsChart(series, null, { high: 25, low: 2 });
+    expect(chart.normalMax).toBe(18);
+    expect(chart.normalMin).toBeCloseTo(12 - 29 * 0.2);
+    expect(chart.max).toBeGreaterThan(25);
     expect(chart.min).toBe(0);
     expect(chart.max).toBe(27);
     expect(chart.now).toBeNull();
@@ -267,29 +295,92 @@ describe("formatting", () => {
   });
 });
 
+describe("differences between displayed values", () => {
+  it("rounds negative halves the same way as the forecast rows", () => {
+    for (const value of [-10.5, -2.5, -0.5, -0.4, 0.5, 2.5]) {
+      expect(formatStat("temperature", value, "metric")).toBe(
+        formatTemperature(value),
+      );
+    }
+    expect(formatStat("temperature", -2.5, "metric")).toBe("-3°");
+  });
+
+  it("never contradicts the two numbers beside it", () => {
+    expect(formatStat("temperature", 4.4, "metric")).toBe("4°");
+    expect(formatStat("temperature", 3.6, "metric")).toBe("4°");
+    expect(formatShownDelta("temperature", 4.4, 3.6, "metric")).toBe("±0°");
+    expect(shownTone("temperature", 4.4, 3.6)).toBe("even");
+
+    expect(formatShownDelta("temperature", 4.6, 3.4, "metric")).toBe("+2°");
+    expect(formatShownDelta("temperature", 4.4, 3.6, "metric", 1)).toBe(
+      "+0.8°",
+    );
+    expect(formatShownDelta("temperature", 4.4, 3.6, "imperial")).toBe("+2°");
+    expect(formatShownDelta("speed", 6, 4.4, "metric")).toBe("+2 m/s");
+    expect(formatShownDelta("precipitation", 0.2, 2.3, "imperial", 1)).toBe(
+      "−0.08 in",
+    );
+    expect(shownTone("temperature", 3.4, 4.6)).toBe("cold");
+  });
+});
+
+describe("normal for the observation time", () => {
+  it("interpolates the UTC hourly curve", () => {
+    expect(hourlyNormalAt(hourly, new Date("2026-09-09T08:00:00Z"))).toBe(18);
+    expect(hourlyNormalAt(hourly, new Date("2026-09-09T08:30:00Z"))).toBe(18.5);
+    expect(
+      hourlyNormalAt(hourly, new Date("2026-09-09T23:30:00Z")),
+    ).toBeCloseTo((33 + 10) / 2);
+    expect(hourlyNormalAt(hourly.slice(0, 12), now)).toBeNull();
+    expect(hourlyNormalAt(null, now)).toBeNull();
+    expect(hourlyNormalAt(hourly, new Date(""))).toBeNull();
+  });
+
+  it("uses the observation time, not the time the normals were fetched", () => {
+    expect(
+      tempNormalAtObservation(normals, {
+        observed_at: "2026-09-09T06:15:00Z",
+      }),
+    ).toBe(16.25);
+    expect(
+      tempNormalAtObservation(
+        { ...normals, today: { ...normals.today, temp_hourly: null } },
+        { observed_at: "2026-09-09T06:15:00Z" },
+      ),
+    ).toBe(13.9);
+  });
+});
+
 describe("headline", () => {
   it("compares the current temperature with this hour's normal", () => {
-    const headline = normalsHeadline(16, 13.9);
-    expect(headline).toMatchObject({ current: 16, normal: 13.9, tone: "warm" });
-    expect(headline?.diff).toBeCloseTo(2.1);
+    expect(normalsHeadline(16, 13.9)).toEqual({
+      current: 16,
+      normal: 13.9,
+      tone: "warm",
+    });
+    expect(normalsHeadline(4.4, 3.6)?.tone).toBe("even");
+    expect(normalsHeadline(4.4, 3.6, 1)?.tone).toBe("warm");
     expect(normalsHeadline(null, 13.9)).toBeNull();
     expect(normalsHeadline(16, undefined)).toBeNull();
   });
 
-  it("words the difference like the iOS card", () => {
-    expect(headlineText(2.1, "metric")).toBe(
+  it("words the difference between the two displayed temperatures", () => {
+    const head = { current: 16, normal: 13.9 };
+    expect(headlineText(head, "metric")).toBe(
       "2° warmer than usual for this hour",
     );
-    expect(headlineText(2.1, "metric", 1)).toBe(
+    expect(headlineText(head, "metric", 1)).toBe(
       "2.1° warmer than usual for this hour",
     );
-    expect(headlineText(2.1, "imperial")).toBe(
+    expect(headlineText(head, "imperial")).toBe(
       "4° warmer than usual for this hour",
     );
-    expect(headlineText(-1.3, "metric")).toBe(
-      "1.5° colder than usual for this hour",
+    expect(headlineText({ current: 12.6, normal: 13.9 }, "metric")).toBe(
+      "1° colder than usual for this hour",
     );
-    expect(headlineText(0.1, "metric")).toBe("About average for this hour");
+    expect(headlineText({ current: 4.4, normal: 3.6 }, "metric")).toBe(
+      "About average for this hour",
+    );
   });
 });
 
@@ -320,6 +411,54 @@ describe("summary stats", () => {
       },
       { label: "Wind", kind: "speed", value: 6, normal: 4.4, delta: 6 - 4.4 },
     ]);
+  });
+
+  it("prefers the hourly curve at the observation time over the fetch-time normal", () => {
+    const stats = normalsSummaryStats(
+      {
+        ...normals,
+        today: {
+          ...normals.today,
+          feels_like_hourly: hourly.map((v) => v - 1),
+          wind_hourly: hourly.map((v) => v / 10),
+        },
+      },
+      { ...observed, observed_at: "2026-09-09T06:00:00Z" },
+      forecast,
+    );
+    const byLabel = Object.fromEntries(stats.map((s) => [s.label, s]));
+    expect(byLabel["Feels like"].normal).toBe(15);
+    expect(byLabel.Wind.normal).toBeCloseTo(1.6);
+  });
+
+  it("shows a daily mean uncompared when there is no normal for the hour", () => {
+    const stats = normalsDetailStats(
+      {
+        ...normals,
+        today: {
+          ...normals.today,
+          humidity_now_normal: null,
+          wind_now_normal: null,
+        },
+      },
+      observed,
+      forecast,
+    );
+    const byLabel = Object.fromEntries(stats.map((s) => [s.label, s]));
+    expect(byLabel.Humidity).toEqual({
+      label: "Humidity",
+      kind: "percent",
+      value: 71,
+      normal: 78,
+      delta: null,
+      basis: "dailyMean",
+    });
+    expect(byLabel.Wind).toMatchObject({
+      value: 6,
+      normal: 4.1,
+      delta: null,
+      basis: "dailyMean",
+    });
   });
 
   it("shows the normal alone when the current value is missing", () => {

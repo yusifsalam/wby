@@ -16,6 +16,7 @@ import {
   normalsHeadline,
   normalsHourlySeries,
   normalsSummaryStats,
+  tempNormalAtObservation,
   todayForecast,
 } from "../lib/normals";
 import type { DailyClimateNormalsResponse, WeatherResponse } from "../lib/weatherApi";
@@ -45,8 +46,9 @@ const dailyChart = daily
   ? buildNormalsChart(daily, null, { high: forecast?.high, low: forecast?.low })
   : null;
 
-const headline = normals ? normalsHeadline(current.temperature, normals.today.temp_now_normal) : null;
-const detailHeadline = normals ? normalsHeadline(current.temperature, normals.today.temp_now_normal, 1) : null;
+const nowNormal = normals ? tempNormalAtObservation(normals, current) : null;
+const headline = normalsHeadline(current.temperature, nowNormal);
+const detailHeadline = normalsHeadline(current.temperature, nowNormal, 1);
 const stats = normals ? normalsSummaryStats(normals, current, forecast) : [];
 const detailStats = normals ? normalsDetailStats(normals, current, forecast) : [];
 
@@ -58,7 +60,7 @@ const toneClass = {
 
 function chartLabel(data: NormalsChartData, head: NormalsHeadline | null): string {
   const span = data.mode === "hourly" ? "by hour today" : "by day this month";
-  const range = `${formatTemperature(data.min)} to ${formatTemperature(data.max)}`;
+  const range = `${formatTemperature(data.normalMin)} to ${formatTemperature(data.normalMax)}`;
   const nowText = head ? `, now ${formatTemperature(head.current)} against a normal ${formatTemperature(head.normal)}` : "";
   return `Normal temperature ${span}, ${range}${nowText}`;
 }
@@ -99,7 +101,7 @@ if (normals) {
             <span class="ml-2 text-muted">now · normally <Measure kind="temperature" value={headline.normal} /></span>
           </p>
           <p class={`m-0 mt-1.5 font-semibold ${toneClass[headline.tone]}`}>
-            <UnitText metric={headlineText(headline.diff, "metric")} imperial={headlineText(headline.diff, "imperial")} />
+            <UnitText metric={headlineText(headline, "metric")} imperial={headlineText(headline, "imperial")} />
           </p>
         </div>
       )}
@@ -146,7 +148,7 @@ if (normals) {
               </span>
             </p>
             <p class={`m-0 mt-1.5 font-semibold ${toneClass[detailHeadline.tone]}`}>
-              <UnitText metric={headlineText(detailHeadline.diff, "metric", 1)} imperial={headlineText(detailHeadline.diff, "imperial", 1)} />
+              <UnitText metric={headlineText(detailHeadline, "metric", 1)} imperial={headlineText(detailHeadline, "imperial", 1)} />
             </p>
           </div>
         )}

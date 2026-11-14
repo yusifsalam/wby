@@ -114,3 +114,24 @@ export function serializeHourlyMetrics(
   const selected = new Set(keys);
   return HOURLY_METRIC_KEYS.filter((key) => selected.has(key)).join(" ");
 }
+
+// The next `count` hours starting with the one in progress. `extra` (the
+// ten-day window) fills in when `hours` came from a response old enough to
+// have run short.
+export function upcomingHours(
+  hours: readonly HourlyForecast[],
+  now: Date,
+  count: number,
+  extra: readonly HourlyForecast[] = [],
+): HourlyForecast[] {
+  const start = Math.floor(now.getTime() / 3_600_000) * 3_600_000;
+  const byTime = new Map<number, HourlyForecast>();
+  for (const hour of [...extra, ...hours]) {
+    const at = Date.parse(hour.time);
+    if (at >= start) byTime.set(at, hour);
+  }
+  return [...byTime.entries()]
+    .sort(([a], [b]) => a - b)
+    .slice(0, count)
+    .map(([, hour]) => hour);
+}
