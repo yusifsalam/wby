@@ -127,7 +127,7 @@ function metricIconStyle(key: HourlyMetricKey, hour: HourlyForecast): string | u
   </section>
 
   {hourly.length > 0 && (
-    <section class="sky-panel rounded-lg border border-line bg-surface/92 shadow-panel">
+    <section class="sky-panel relative rounded-lg border border-line bg-surface/92 shadow-panel has-[details[open]]:z-20">
       <div class="flex items-center justify-between gap-4 px-4.5 pt-4">
         <h2 class="text-base font-bold">Hourly</h2>
         <div class="flex items-center gap-2">
