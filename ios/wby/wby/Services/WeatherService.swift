@@ -13,13 +13,40 @@ actor WeatherService {
     }
 
     func fetchWeather(lat: Double, lon: Double) async throws -> WeatherResponse {
+        try await fetchWeather(lat: lat, lon: lon, cachePolicy: .useProtocolCachePolicy)
+    }
+
+    /// Weather for a page. `reload` skips the HTTP cache; when the network
+    /// fails, the last cached response is returned as a saved copy.
+    func loadWeather(lat: Double, lon: Double, reload: Bool) async throws -> WeatherLoad {
+        do {
+            let weather = try await fetchWeather(
+                lat: lat,
+                lon: lon,
+                cachePolicy: reload ? .reloadIgnoringLocalCacheData : .useProtocolCachePolicy
+            )
+            return WeatherLoad(weather: weather, isSavedCopy: false)
+        } catch let error as WeatherError {
+            guard case .network = error, !error.isCancellation,
+                  let saved = try? await fetchWeather(lat: lat, lon: lon, cachePolicy: .returnCacheDataDontLoad)
+            else { throw error }
+            return WeatherLoad(weather: saved, isSavedCopy: true)
+        }
+    }
+
+    private func fetchWeather(
+        lat: Double,
+        lon: Double,
+        cachePolicy: URLRequest.CachePolicy
+    ) async throws -> WeatherResponse {
         try await fetchJSON(
             path: "v1/weather",
             queryItems: [
                 URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
                 URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
             ],
-            dateDecodingStrategy: .iso8601
+            dateDecodingStrategy: .iso8601,
+            cachePolicy: cachePolicy
         )
     }
 
@@ -215,7 +242,8 @@ actor WeatherService {
     /// (missing base URL, signing, network, HTTP status) happens here.
     private func performRequest(
         path: String,
-        queryItems: [URLQueryItem]
+        queryItems: [URLQueryItem],
+        cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy
     ) async throws -> (Data, HTTPURLResponse) {
         guard let baseURL else {
             throw WeatherError.missingAPIBaseURL
@@ -230,7 +258,7 @@ actor WeatherService {
         }
         let query = components.percentEncodedQuery ?? ""
 
-        let request: URLRequest
+        var request: URLRequest
         do {
             request = try signedRequest(url: url, method: "GET", query: query)
         } catch let error as WeatherError {
@@ -238,6 +266,7 @@ actor WeatherService {
         } catch {
             throw WeatherError.serverError
         }
+        request.cachePolicy = cachePolicy
 
         let data: Data
         let response: URLResponse
@@ -261,9 +290,10 @@ actor WeatherService {
     private func fetchJSON<T: Decodable>(
         path: String,
         queryItems: [URLQueryItem],
-        dateDecodingStrategy: JSONDecoder.DateDecodingStrategy = .deferredToDate
+        dateDecodingStrategy: JSONDecoder.DateDecodingStrategy = .deferredToDate,
+        cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy
     ) async throws -> T {
-        let (data, _) = try await performRequest(path: path, queryItems: queryItems)
+        let (data, _) = try await performRequest(path: path, queryItems: queryItems, cachePolicy: cachePolicy)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = dateDecodingStrategy
         do {
@@ -372,6 +402,11 @@ actor WeatherService {
     }
 }
 
+nonisolated struct WeatherLoad {
+    let weather: WeatherResponse
+    let isSavedCopy: Bool
+}
+
 enum WeatherError: Error {
     case invalidURL
     case missingAPIBaseURL
@@ -381,7 +416,7 @@ enum WeatherError: Error {
     case decoding(Error)
     case serverError
 
-    var isCancellation: Bool {
+    nonisolated var isCancellation: Bool {
         guard case .network(let error) = self else { return false }
         return error is CancellationError || (error as? URLError)?.code == .cancelled
     }

@@ -19,11 +19,13 @@ struct WeatherPageView: View {
     @State private var loadedKey: LoadKey?
     @State private var inFlightKey: LoadKey?
     @State private var lastUpdated: Date?
+    @State private var showingSavedCopy = false
     @State private var errorMessage: String?
     @State private var selectedDay: DailyForecast?
     @State private var hourlyWindow: [HourlyForecast]?
 
     private static let staleAfter: TimeInterval = 10 * 60
+    private static let forecastStaleAfter: TimeInterval = 6 * 3600
 
     private struct LoadKey: Hashable {
         let lat: Int
@@ -123,11 +125,12 @@ struct WeatherPageView: View {
                             hourly: weather.hourlyForecast,
                             timeZone: weather.resolvedTimeZone,
                             coordinate: coordinate,
-                            elevationMeters: elevationMeters ?? 0
+                            elevationMeters: elevationMeters ?? 0,
+                            note: forecastNote(weather)
                         )
                     }
                     CurrentConditionsCard(current: weather.current)
-                    dailyForecastSection(weather.dailyForecast)
+                    dailyForecastSection(weather.dailyForecast, note: forecastNote(weather))
                     HStack(alignment: .top, spacing: 12) {
                         FeelsLikeCard(current: weather.current)
                         UVIndexCard(
@@ -186,11 +189,10 @@ struct WeatherPageView: View {
                             timeZone: weather.resolvedTimeZone
                         )
                     }
-                    if let lastUpdated {
-                        Text("Updated \(lastUpdated, style: .relative) ago")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(observedCaption(weather))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 } else if isLoading {
                     ProgressView("Loading weather...")
                         .tint(.primary)
@@ -218,7 +220,7 @@ struct WeatherPageView: View {
         }
         .scrollBounceBehavior(.always)
         .refreshable {
-            await refresh()
+            await Task { await refresh(reload: true) }.value
         }
         .sheet(item: $selectedDay) { day in
             if let weather, let coordinate {
@@ -240,7 +242,7 @@ struct WeatherPageView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, !disableAutoLoad, inFlightKey == nil, isStale else { return }
-            Task { await refresh() }
+            Task { await refresh(reload: false) }
         }
         .onChange(of: backgroundState(scene: scene), initial: true) { _, state in onBackgroundUpdate(state) }
         .task {
@@ -250,7 +252,7 @@ struct WeatherPageView: View {
         .task(id: loadKey) {
             guard !disableAutoLoad, let coordinate else { return }
             if loadedKey == loadKey, !isStale { return }
-            await fetchWeather(coord: coordinate)
+            await fetchWeather(coord: coordinate, reload: false)
         }
     }
 
@@ -274,9 +276,21 @@ struct WeatherPageView: View {
                 Text("\(Int(temp.rounded()))°")
                     .font(.system(size: 92, weight: .light))
                     .foregroundStyle(primary)
+            } else if let forecastTemp = currentHourForecast(weather)?.temperature {
+                Text("\(Int(forecastTemp.rounded()))°")
+                    .font(.system(size: 92, weight: .light))
+                    .foregroundStyle(primary)
+                Text("Forecast · no recent observation")
+                    .font(.subheadline)
+                    .foregroundStyle(secondary)
             }
             if let feelsLike = weather.current.resolvedFeelsLike {
                 Text("Feels like \(Int(feelsLike.rounded()))°")
+                    .font(.subheadline)
+                    .foregroundStyle(secondary)
+            }
+            if showingSavedCopy {
+                Text("Offline · showing saved data")
                     .font(.subheadline)
                     .foregroundStyle(secondary)
             }
@@ -284,14 +298,62 @@ struct WeatherPageView: View {
         .padding(.top, 20)
     }
 
+    private func currentHourForecast(_ weather: WeatherResponse) -> HourlyForecast? {
+        let now = Date()
+        return weather.hourlyForecast.last { $0.time <= now } ?? weather.hourlyForecast.first
+    }
+
+    private func observedCaption(_ weather: WeatherResponse) -> String {
+        let time = Self.timeWithDate(weather.current.observedAt, timeZone: weather.resolvedTimeZone)
+        let km = weather.station.distanceKm
+        let distance = km < 10 ? String(format: "%.1f km", km) : "\(Int(km.rounded())) km"
+        return "Observed \(time) · \(weather.station.name), \(distance)"
+    }
+
+    private func forecastNote(_ weather: WeatherResponse) -> String? {
+        guard let fetchedAt = weather.forecastFetchedAt,
+              Date().timeIntervalSince(fetchedAt) > Self.forecastStaleAfter
+        else { return nil }
+        return "Forecast from \(Self.timeWithDate(fetchedAt, timeZone: weather.resolvedTimeZone))"
+    }
+
+    private static func timeWithDate(_ date: Date, timeZone: TimeZone) -> String {
+        timeFormatter.timeZone = timeZone
+        let time = timeFormatter.string(from: date)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        if calendar.isDate(date, inSameDayAs: Date()) { return time }
+        dayFormatter.timeZone = timeZone
+        return "\(dayFormatter.string(from: date)), \(time)"
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "H.mm"
+        return f
+    }()
+
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f
+    }()
+
     // MARK: - Daily section
 
-    private func dailyForecastSection(_ forecasts: [DailyForecast]) -> some View {
+    private func dailyForecastSection(_ forecasts: [DailyForecast], note: String?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Label("\(max(0, forecasts.count - 1))-DAY FORECAST", systemImage: "calendar")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 8)
+            HStack {
+                Label("\(max(0, forecasts.count - 1))-DAY FORECAST", systemImage: "calendar")
+                Spacer()
+                if let note {
+                    Text(note)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.bottom, 8)
             ForEach(forecasts) { day in
                 Button {
                     selectedDay = day
@@ -320,17 +382,17 @@ struct WeatherPageView: View {
         return Date().timeIntervalSince(lastUpdated) > Self.staleAfter
     }
 
-    private func refresh() async {
+    private func refresh(reload: Bool) async {
         if case .gps = location {
             let fresh = await locationService.requestFreshLocation()
             guard let coord = fresh ?? locationService.coordinate else { return }
-            await fetchWeather(coord: coord)
+            await fetchWeather(coord: coord, reload: reload)
         } else if let coordinate {
-            await fetchWeather(coord: coordinate)
+            await fetchWeather(coord: coordinate, reload: reload)
         }
     }
 
-    private func fetchWeather(coord: CLLocationCoordinate2D) async {
+    private func fetchWeather(coord: CLLocationCoordinate2D, reload: Bool) async {
         let key = LoadKey(coord)
         guard inFlightKey != key else { return }
         inFlightKey = key
@@ -342,17 +404,19 @@ struct WeatherPageView: View {
             }
         }
         do {
-            let response = try await weatherService.fetchWeather(lat: coord.latitude, lon: coord.longitude)
+            let load = try await weatherService.loadWeather(lat: coord.latitude, lon: coord.longitude, reload: reload)
             guard inFlightKey == key else { return }
-            weather = response
+            weather = load.weather
             hourlyWindow = nil
-            lastUpdated = Date()
+            showingSavedCopy = load.isSavedCopy
+            lastUpdated = load.isSavedCopy ? nil : Date()
             errorMessage = nil
         } catch WeatherError.httpStatus(404, let message) {
             guard inFlightKey == key else { return }
             weather = nil
             lastUpdated = nil
             loadedKey = nil
+            showingSavedCopy = false
             dailyClimateNormals = nil
             climateNormals = nil
             errorMessage = message ?? "No weather data for this location."

@@ -7,6 +7,7 @@ nonisolated struct WeatherResponse: Codable {
     let dailyForecast: [DailyForecast]
     let uvForecast: [UVPoint]
     let timezone: String
+    let forecastFetchedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case station
@@ -15,6 +16,7 @@ nonisolated struct WeatherResponse: Codable {
         case dailyForecast = "daily_forecast"
         case uvForecast = "uv_forecast"
         case timezone
+        case forecastFetchedAt = "forecast_fetched_at"
     }
 
     init(
@@ -23,7 +25,8 @@ nonisolated struct WeatherResponse: Codable {
         hourlyForecast: [HourlyForecast],
         dailyForecast: [DailyForecast],
         uvForecast: [UVPoint] = [],
-        timezone: String
+        timezone: String,
+        forecastFetchedAt: Date? = nil
     ) {
         self.station = station
         self.current = current
@@ -31,6 +34,7 @@ nonisolated struct WeatherResponse: Codable {
         self.dailyForecast = dailyForecast
         self.uvForecast = uvForecast
         self.timezone = timezone
+        self.forecastFetchedAt = forecastFetchedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -41,6 +45,7 @@ nonisolated struct WeatherResponse: Codable {
         dailyForecast = try c.decode([DailyForecast].self, forKey: .dailyForecast)
         uvForecast = try c.decodeIfPresent([UVPoint].self, forKey: .uvForecast) ?? []
         timezone = try c.decode(String.self, forKey: .timezone)
+        forecastFetchedAt = try c.decodeIfPresent(Date.self, forKey: .forecastFetchedAt)
     }
 
     var resolvedTimeZone: TimeZone {
@@ -78,6 +83,13 @@ struct StationInfo: Codable {
     }
 }
 
+/// Current-conditions fields that come from a station other than the one the
+/// response names, e.g. wind when the primary station has no anemometer.
+struct BorrowedValues: Codable {
+    let station: StationInfo
+    let fields: [String]
+}
+
 struct CurrentConditions: Codable {
     let temperature: Double?
     let feelsLike: Double?
@@ -95,6 +107,7 @@ struct CurrentConditions: Codable {
     let weatherCode: Double?
     let extra: [String: Double]?
     let observedAt: Date
+    let borrowed: [BorrowedValues]?
 
     init(
         temperature: Double?,
@@ -112,7 +125,8 @@ struct CurrentConditions: Codable {
         cloudCover: Double? = nil,
         weatherCode: Double? = nil,
         extra: [String: Double]? = nil,
-        observedAt: Date
+        observedAt: Date,
+        borrowed: [BorrowedValues]? = nil
     ) {
         self.temperature = temperature
         self.feelsLike = feelsLike
@@ -130,6 +144,7 @@ struct CurrentConditions: Codable {
         self.weatherCode = weatherCode
         self.extra = extra
         self.observedAt = observedAt
+        self.borrowed = borrowed
     }
 
     enum CodingKeys: String, CodingKey {
@@ -149,6 +164,11 @@ struct CurrentConditions: Codable {
         case weatherCode = "weather_code"
         case extra
         case observedAt = "observed_at"
+        case borrowed
+    }
+
+    func borrowedStationName(for field: String) -> String? {
+        borrowed?.first { $0.fields.contains(field) }?.station.name
     }
 
     // FMI sometimes ships values only in `extra`. These accessors keep UI bound

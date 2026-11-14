@@ -6,12 +6,19 @@ struct HourlyForecastCard: View {
     let timeZone: TimeZone
     var coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
     var elevationMeters: Double = 0
+    var note: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("HOURLY FORECAST", systemImage: "clock")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack {
+                Label("HOURLY FORECAST", systemImage: "clock")
+                Spacer()
+                if let note {
+                    Text(note)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
 
             ScrollView(.horizontal) {
                 HStack(spacing: 18) {

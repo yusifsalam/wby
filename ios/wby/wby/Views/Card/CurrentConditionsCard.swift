@@ -2,19 +2,24 @@ import SwiftUI
 
 struct CurrentConditionsCard: View {
     let current: CurrentConditions
-    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+    private let columns = [GridItem(.flexible(), alignment: .top), GridItem(.flexible(), alignment: .top)]
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 12) {
             ForEach(conditionItems, id: \.title) { item in
-                conditionItem(title: item.title, value: item.value, icon: item.icon)
+                conditionItem(
+                    title: item.title,
+                    value: item.value,
+                    icon: item.icon,
+                    source: item.field.flatMap { current.borrowedStationName(for: $0) }
+                )
             }
         }
         .weatherCard()
     }
 
     @ViewBuilder
-    private func conditionItem(title: String, value: String, icon: String) -> some View {
+    private func conditionItem(title: String, value: String, icon: String, source: String?) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Label(title, systemImage: icon)
                 .font(.caption)
@@ -22,24 +27,31 @@ struct CurrentConditionsCard: View {
             Text(value)
                 .font(.title3)
                 .foregroundStyle(.primary)
+            if let source {
+                Text(source)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var conditionItems: [(title: String, value: String, icon: String)] {
+    private var conditionItems: [(title: String, value: String, icon: String, field: String?)] {
         [
-            ("WIND", formatSpeed(current.resolvedWindSpeed), "wind"),
-            ("GUST", formatSpeed(current.resolvedWindGust), "wind"),
-            ("HUMIDITY", formatPercent(current.resolvedHumidity), "humidity"),
-            ("DEW POINT", formatTemperature(current.resolvedDewPoint), "thermometer.medium"),
-            ("PRESSURE", formatPressure(current.resolvedPressure), "gauge.medium"),
-            ("PRECIP 1H", formatMillimeters(current.resolvedPrecipitation1h), "drop"),
-            ("PRECIP RATE", formatPrecipIntensity(current.resolvedPrecipitationIntensity), "drop.fill"),
-            ("SNOW DEPTH", formatSnowDepth(current.resolvedSnowDepth), "snowflake"),
-            ("VISIBILITY", formatVisibility(current.resolvedVisibility), "eye"),
-            ("CLOUD COVER", formatCloudCover(current.resolvedCloudCover), "cloud"),
-            ("WIND DIR", formatWindDir(current.resolvedWindDirection), "location.north.line"),
-            ("WEATHER CODE", formatWeatherCode(current.resolvedWeatherCode), "info.circle")
+            ("WIND", formatSpeed(current.resolvedWindSpeed), "wind", "wind_speed"),
+            ("GUST", formatSpeed(current.resolvedWindGust), "wind", "wind_gust"),
+            ("HUMIDITY", formatPercent(current.resolvedHumidity), "humidity", "humidity"),
+            ("DEW POINT", formatTemperature(current.resolvedDewPoint), "thermometer.medium", "dew_point"),
+            ("PRESSURE", formatPressure(current.resolvedPressure), "gauge.medium", "pressure"),
+            ("PRECIP 1H", formatMillimeters(current.resolvedPrecipitation1h), "drop", "precipitation_1h"),
+            ("PRECIP RATE", formatPrecipIntensity(current.resolvedPrecipitationIntensity), "drop.fill", "precipitation_intensity"),
+            ("SNOW DEPTH", formatSnowDepth(current.resolvedSnowDepth), "snowflake", "snow_depth"),
+            ("VISIBILITY", formatVisibility(current.resolvedVisibility), "eye", "visibility"),
+            ("CLOUD COVER", formatCloudCover(current.resolvedCloudCover), "cloud", "cloud_cover"),
+            ("WIND DIR", formatWindDir(current.resolvedWindDirection), "location.north.line", "wind_direction"),
+            ("WEATHER CODE", formatWeatherCode(current.resolvedWeatherCode), "info.circle", "weather_code")
         ]
     }
 
@@ -122,7 +134,13 @@ struct CurrentConditionsCard: View {
             windDirection: 220,
             humidity: 89,
             pressure: 1013,
-            observedAt: .now
+            observedAt: .now,
+            borrowed: [
+                BorrowedValues(
+                    station: StationInfo(name: "Helsinki Kumpula", distanceKm: 3.2),
+                    fields: ["wind_speed", "wind_gust"]
+                ),
+            ]
         )
     )
     .padding()
