@@ -44,6 +44,11 @@ func (s *Store) Close() {
 	s.pool.Close()
 }
 
+// Ping checks that the database answers.
+func (s *Store) Ping(ctx context.Context) error {
+	return s.pool.Ping(ctx)
+}
+
 func (s *Store) UpsertStations(ctx context.Context, stations []weather.Station) error {
 	batch := &pgx.Batch{}
 	for _, st := range stations {

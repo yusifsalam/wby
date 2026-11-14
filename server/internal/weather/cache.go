@@ -21,8 +21,18 @@ func (e cacheEntry[V]) expired(now time.Time) bool {
 type Cache[V any] struct {
 	mu      sync.RWMutex
 	ttl     time.Duration
+	max     int
 	m       map[string]cacheEntry[V]
 	sweptAt time.Time
+}
+
+// Limit caps the cache at max entries and returns it. Adding a key to a full
+// cache evicts the expired entries, or failing that the one expiring soonest.
+func (c *Cache[V]) Limit(max int) *Cache[V] {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.max = max
+	return c
 }
 
 func NewCache[V any](ttl time.Duration) *Cache[V] {
@@ -61,7 +71,30 @@ func (c *Cache[V]) SetTTL(key string, value V, ttl time.Duration) {
 	if c.ttl > 0 {
 		c.sweepLocked(now)
 	}
+	if _, exists := c.m[key]; !exists && c.max > 0 && len(c.m) >= c.max {
+		c.evictLocked(now)
+	}
 	c.m[key] = entry
+}
+
+// evictLocked makes room for one entry in a full cache. The caller holds the
+// write lock.
+func (c *Cache[V]) evictLocked(now time.Time) {
+	var soonest string
+	var soonestAt time.Time
+	found := false
+	for key, entry := range c.m {
+		if entry.expired(now) {
+			delete(c.m, key)
+			continue
+		}
+		if !found || (!entry.expiresAt.IsZero() && (soonestAt.IsZero() || entry.expiresAt.Before(soonestAt))) {
+			soonest, soonestAt, found = key, entry.expiresAt, true
+		}
+	}
+	if found && len(c.m) >= c.max {
+		delete(c.m, soonest)
+	}
 }
 
 // sweepLocked drops every expired entry, at most once per ttl. The caller holds

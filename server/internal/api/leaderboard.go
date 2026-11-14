@@ -52,7 +52,7 @@ func (h *Handler) getLeaderboard(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		slog.Error("get leaderboard failed", "err", err, "lat", lat, "lon", lon)
-		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		writeJSONError(w, "internal server error", serverErrorStatus(err))
 		return
 	}
 

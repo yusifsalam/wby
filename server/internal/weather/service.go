@@ -138,9 +138,43 @@ type Service struct {
 	uvFlight       flightGroup[[]UVDataPoint]
 	precipFlight   flightGroup[*PrecipitationOverlay]
 
+	precipToDateFlight flightGroup[*PrecipitationObservations]
+
 	gribFile            string
 	nowcastFailingSince atomic.Int64
+	gribWarmedAt        atomic.Int64
+	newestRadarGridAt   atomic.Int64
 }
+
+// GribWarmedAt is when a warm last stored GRIB grids; zero when none has
+// since the process started.
+func (s *Service) GribWarmedAt() time.Time {
+	return unixNanoTime(s.gribWarmedAt.Load())
+}
+
+// NewestRadarGridAt is the valid time of the newest radar frame held for
+// serving; zero when none is.
+func (s *Service) NewestRadarGridAt() time.Time {
+	return unixNanoTime(s.newestRadarGridAt.Load())
+}
+
+func unixNanoTime(ns int64) time.Time {
+	if ns == 0 {
+		return time.Time{}
+	}
+	return time.Unix(0, ns)
+}
+
+// Caps on the request-keyed caches. A grid cell's hourly forecast is the
+// largest entry at roughly 100 KB; a precipitation tile is a PNG of up to
+// 1600x1600 pixels.
+const (
+	maxCachedCells = 1000
+	maxCachedTiles = 128
+)
+
+// persistTimeout bounds a write that outlives the request that caused it.
+const persistTimeout = 10 * time.Second
 
 // upstreamRetryAfter is how long a stale or empty result stands in for a
 // failed upstream fetch before the next request tries the upstream again.
@@ -159,13 +193,13 @@ func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL 
 		fmi:               fmiClient,
 		wms:               wms,
 		precipHistory:     precipHistory,
-		precipToDateCache: NewCache[*PrecipitationObservations](time.Hour),
-		forecastCache:     NewCache[[]DailyForecast](forecastCacheTTL),
-		timezoneCache:     NewCache[string](forecastCacheTTL),
-		hourlyCache:       NewCache[[]HourlyForecast](forecastCacheTTL),
-		uvCache:           NewCache[[]UVDataPoint](forecastCacheTTL),
-		precipCache:       NewCache[*PrecipitationOverlay](30 * time.Minute),
-		leaderboardCache:  NewCache[[]LeaderboardEntry](5 * time.Minute),
+		precipToDateCache: NewCache[*PrecipitationObservations](time.Hour).Limit(maxCachedCells / 2),
+		forecastCache:     NewCache[[]DailyForecast](forecastCacheTTL).Limit(maxCachedCells),
+		timezoneCache:     NewCache[string](forecastCacheTTL).Limit(maxCachedCells),
+		hourlyCache:       NewCache[[]HourlyForecast](forecastCacheTTL).Limit(maxCachedCells),
+		uvCache:           NewCache[[]UVDataPoint](forecastCacheTTL).Limit(maxCachedCells),
+		precipCache:       NewCache[*PrecipitationOverlay](30 * time.Minute).Limit(maxCachedTiles),
+		leaderboardCache:  NewCache[[]LeaderboardEntry](5 * time.Minute).Limit(maxCachedCells / 2),
 		gribGridCache:     NewCache[*FieldGrid](0),
 		gribPrecipCache:   NewCache[*PrecipitationForecastGrid](0),
 		radarPrecipCache:  NewCache[*PrecipitationForecastGrid](radarGridCacheTTL),
@@ -233,12 +267,14 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 		applyUVToHourly(uvPoints, hourly)
 		applyUVToDaily(uvPoints, forecast, loc)
 		if uvFresh {
-			if err := s.store.UpsertHourlyForecasts(ctx, gridLat, gridLon, hourly); err != nil {
+			persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), persistTimeout)
+			if err := s.store.UpsertHourlyForecasts(persistCtx, gridLat, gridLon, hourly); err != nil {
 				slog.Warn("failed to persist UV-enriched hourly forecasts", "err", err)
 			}
-			if err := s.store.UpsertForecasts(ctx, forecast); err != nil {
+			if err := s.store.UpsertForecasts(persistCtx, forecast); err != nil {
 				slog.Warn("failed to persist UV-enriched daily forecasts", "err", err)
 			}
+			cancel()
 		}
 	}
 
@@ -455,7 +491,7 @@ func (s *Service) GetTemperatureOverlay(ctx context.Context, req MapOverlayReque
 		return nil, fmt.Errorf("temperature samples: %w", err)
 	}
 
-	overlay, err := RenderTemperatureOverlay(req, samples)
+	overlay, err := RenderTemperatureOverlay(ctx, req, samples)
 	if err != nil {
 		return nil, fmt.Errorf("render overlay: %w", err)
 	}
@@ -680,6 +716,9 @@ func (s *Service) WarmGribGrids(ctx context.Context) {
 	s.gribGridCache.DeleteFunc(func(_ string, grid *FieldGrid) bool { return gribGridExpired(grid, start) })
 	s.gribPrecipCache.DeleteFunc(func(_ string, grid *PrecipitationForecastGrid) bool { return gribGridExpired(grid.Grid, start) })
 
+	if precip+temp > 0 {
+		s.gribWarmedAt.Store(time.Now().UnixNano())
+	}
 	log := slog.Info
 	if (s.gribPrecip != nil && precip == 0) || (s.gribTemp != nil && temp == 0) {
 		log = slog.Warn
@@ -898,8 +937,8 @@ func (s *Service) getUVData(ctx context.Context, gridLat, gridLon float64, timez
 		if err != nil {
 			slog.Warn("UV forecast fetch failed", "err", err)
 			points = nil
-		} else {
-			slog.Info("fetched UV forecast from FMI", "lat", gridLat, "lon", gridLon, "points", len(points), "data", points)
+		} else if len(points) > 0 {
+			slog.Info("fetched UV forecast from FMI", "lat", gridLat, "lon", gridLon, "points", len(points))
 		}
 		if len(points) == 0 {
 			s.uvCache.SetTTL(cacheKey, nil, upstreamRetryAfter)
@@ -1055,8 +1094,9 @@ func (s *Service) GetDailyClimateNormals(ctx context.Context, lat, lon float64, 
 
 // observedPrecipitationThisMonth returns hourly precipitation since the first
 // of the local month from the gauge nearest lat/lon, cached per ~1 km grid
-// cell and hour. A fetch failure or missing gauge is logged and yields nil so
-// the normals still serve.
+// cell and hour. A fetch failure or missing gauge yields nil so the normals
+// still serve; a failure is retried after upstreamRetryAfter. The fetch is
+// shared between concurrent requests and outlives the one that started it.
 func (s *Service) observedPrecipitationThisMonth(ctx context.Context, lat, lon float64, now time.Time, loc *time.Location) *PrecipitationObservations {
 	if s.precipHistory == nil {
 		return nil
@@ -1068,13 +1108,24 @@ func (s *Service) observedPrecipitationThisMonth(ctx context.Context, lat, lon f
 		return cached
 	}
 	monthStart := time.Date(local.Year(), local.Month(), 1, 0, 0, 0, 0, loc)
-	observed, err := s.precipHistory.FetchHourlyPrecipitationNear(ctx, lat, lon, monthStart, now)
+	observed, _, err := s.precipToDateFlight.Do(ctx, key, func(ctx context.Context) (*PrecipitationObservations, error) {
+		observed, err := s.precipHistory.FetchHourlyPrecipitationNear(ctx, lat, lon, monthStart, now)
+		if errors.Is(err, ErrNoStation) {
+			s.precipToDateCache.Set(key, nil)
+			return nil, nil
+		}
+		if err != nil {
+			slog.Warn("observed precipitation this month", "lat", lat, "lon", lon, "err", err)
+			s.precipToDateCache.SetTTL(key, nil, upstreamRetryAfter)
+			return nil, nil
+		}
+		s.precipToDateCache.Set(key, &observed)
+		return &observed, nil
+	})
 	if err != nil {
-		slog.Warn("observed precipitation this month", "lat", lat, "lon", lon, "err", err)
 		return nil
 	}
-	s.precipToDateCache.Set(key, &observed)
-	return &observed
+	return observed
 }
 
 func (s *Service) GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*Station, float64, []ClimateNormal, InterpolatedNormal, error) {

@@ -29,10 +29,9 @@ services:
           "CMD-SHELL",
           'python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(''http://localhost:9090/health'').status==200 else 1)"',
         ]
-      # Probe rapidly only until first healthy (clears the server's depends_on
-      # gate fast), then settle to an infrequent steady-state check — nothing
-      # reacts to gribsvc going unhealthy after startup, so this is just a
-      # liveness signal.
+      # Probe rapidly until first healthy, then settle to an infrequent
+      # steady-state check: nothing reacts to gribsvc going unhealthy, so this
+      # is just a liveness signal.
       start_period: 15s
       start_interval: 2s
       interval: 30m
@@ -58,11 +57,18 @@ services:
       REQUEST_SIGNATURE_MAX_AGE_SECONDS: "${REQUEST_SIGNATURE_MAX_AGE_SECONDS:-300}"
     volumes:
       - gribdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:$${PORT}/health"]
+      start_period: 20s
+      start_interval: 2s
+      interval: 30s
+      timeout: 3s
+      retries: 3
     depends_on:
       db:
         condition: service_healthy
       gribsvc:
-        condition: service_healthy
+        condition: service_started
 
   web:
     build:

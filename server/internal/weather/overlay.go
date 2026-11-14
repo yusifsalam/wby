@@ -2,6 +2,7 @@ package weather
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image"
 	"image/color"
@@ -35,7 +36,9 @@ var temperatureColorStops = []struct {
 	{temp: 40, rgb: color.NRGBA{R: 109, G: 22, B: 11, A: 255}},
 }
 
-func RenderTemperatureOverlay(req MapOverlayRequest, samples []TemperatureSample) (*TemperatureOverlay, error) {
+// RenderTemperatureOverlay interpolates the samples over the requested extent
+// into a PNG. It stops with ctx's error when ctx ends mid-render.
+func RenderTemperatureOverlay(ctx context.Context, req MapOverlayRequest, samples []TemperatureSample) (*TemperatureOverlay, error) {
 	if req.Width <= 0 || req.Height <= 0 {
 		return nil, fmt.Errorf("invalid output size")
 	}
@@ -64,6 +67,9 @@ func RenderTemperatureOverlay(req MapOverlayRequest, samples []TemperatureSample
 	lonSpan := req.MaxLon - req.MinLon
 
 	for y := 0; y < req.Height; y++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		lat := latitudeAtRow(req.MinLat, req.MaxLat, y, req.Height)
 		cosLat := math.Cos(lat * math.Pi / 180.0)
 		for x := 0; x < req.Width; x++ {

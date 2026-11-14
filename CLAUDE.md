@@ -62,6 +62,14 @@ and radar GeoTIFFs into JSON values, binary float32 rasters
 4. **FMI client** (`internal/fmi/client.go`) fetches WFS XML; **parser** (`internal/fmi/parser.go`) converts XML to domain models.
 5. **Store** (`internal/store/store.go`) handles all Postgres/PostGIS persistence with `pgx/v5` batch operations.
 
+Runtime behavior (`cmd/server/main.go`):
+
+- **Config** (`internal/config/`) is validated at startup: any invalid env var stops the server with every problem listed. Booleans take `1`/`0`/`true`/`false`.
+- **Middleware** (`internal/api/middleware.go`), outermost first: access log (one JSON line per request with `X-Request-ID`, no query string) → panic recovery → request timeout (`REQUEST_TIMEOUT_SECONDS`, default 12; a request that runs out of time gets 504) → HMAC signature.
+- **Health**: `/health` is liveness only. `/health/ready` returns 503 when the database does not answer or the newest fetched observation is over 30 min old (also right after startup, until the first fetch lands); GRIB and radar freshness are reported but do not affect the status. Point uptime monitoring at `/health/ready`.
+- **Background loops** run under `fetcher.Supervise` (restart after a panic, each cycle bounded by its interval) and are drained on SIGTERM. The observation fetch and GRIB download retry inside a cycle (2 s, 8 s, 30 s).
+- **FMI calls** go through `internal/fmi/http.go`, which strips the API key from errors, caps response sizes, and returns a typed `*fmi.StatusError` for non-200 answers.
+
 ### Shared infrastructure (`infra/`)
 
 Host-wide Caddy ingress + observability live in the top-level `infra/` stack
@@ -72,8 +80,8 @@ private per app.
 
 - **Caddy** (`infra/conf/caddy/`) — the only stack that publishes ports 80/443.
   A base `Caddyfile` imports per-app fragments from `sites/`; `weather.caddy`
-  routes `yourweatherapp.fi`→`weather-web:4321`, `api.…/v1/*`+`/health`→
-  `weather-api:8080` (other API paths 404), `logs.…`→`grafana:3000`. Upstreams
+  routes `yourweatherapp.fi`→`weather-web:4321`, `api.…/v1/*`+`/health`+
+  `/health/ready`→`weather-api:8080` (other API paths 404), `logs.…`→`grafana:3000`. Upstreams
   are the `edge` aliases set in `server/docker-compose.prod.yml`.
 - **Observability** (`logging` profile) — **Alloy** (`conf/alloy/config.alloy`)
   discovers every container via the Docker socket and ships logs to **Loki**

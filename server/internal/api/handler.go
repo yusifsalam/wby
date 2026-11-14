@@ -29,7 +29,8 @@ type WeatherService interface {
 }
 
 type Handler struct {
-	service WeatherService
+	service      WeatherService
+	healthChecks []HealthCheck
 }
 
 func NewHandler(service WeatherService) *Handler {
@@ -50,6 +51,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/climate-normals/daily", h.getDailyClimateNormals)
 	mux.HandleFunc("GET /v1/leaderboard", h.getLeaderboard)
 	mux.HandleFunc("GET /health", h.health)
+	mux.HandleFunc("GET /health/ready", h.ready)
 }
 
 type weatherJSON struct {
@@ -177,7 +179,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		slog.Error("get weather failed", "err", err, "lat", lat, "lon", lon)
-		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		writeJSONError(w, "internal server error", serverErrorStatus(err))
 		return
 	}
 
@@ -307,7 +309,7 @@ func (h *Handler) getHourlyForecast(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		slog.Error("get hourly forecast failed", "err", err, "lat", lat, "lon", lon)
-		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		writeJSONError(w, "internal server error", serverErrorStatus(err))
 		return
 	}
 
@@ -326,11 +328,20 @@ func writeJSONError(w http.ResponseWriter, msg string, status int) {
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
-// isClientCanceled reports whether the request's own context is done, i.e. the
-// client closed the connection. A context error from an upstream call whose
-// deadline elapsed while the client is still waiting is not a cancel.
+// isClientCanceled reports whether the client closed the connection. The
+// request running into its time limit, or an upstream call into its own, is
+// not a cancel: the client is still waiting for an answer.
 func isClientCanceled(r *http.Request, err error) bool {
-	return r.Context().Err() != nil
+	return errors.Is(r.Context().Err(), context.Canceled)
+}
+
+// serverErrorStatus maps a failure in the service to a response status: 504
+// when it ran out of time, 500 otherwise.
+func serverErrorStatus(err error) int {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return http.StatusGatewayTimeout
+	}
+	return http.StatusInternalServerError
 }
 
 // upstreamStatus maps an upstream failure to a response status: 504 when the
@@ -430,8 +441,11 @@ func (h *Handler) getDailyClimateNormals(w http.ResponseWriter, r *http.Request)
 
 	res, err := h.service.GetDailyClimateNormals(r.Context(), lat, lon, currentTemp, time.Now())
 	if err != nil {
+		if isClientCanceled(r, err) {
+			return
+		}
 		slog.Error("daily climate normals", "err", err)
-		writeJSONError(w, "failed to get daily climate normals", http.StatusInternalServerError)
+		writeJSONError(w, "failed to get daily climate normals", serverErrorStatus(err))
 		return
 	}
 	if res == nil {
@@ -511,8 +525,11 @@ func (h *Handler) getClimateNormals(w http.ResponseWriter, r *http.Request) {
 
 	station, distKm, normals, today, err := h.service.GetClimateNormals(r.Context(), lat, lon, currentTemp)
 	if err != nil {
+		if isClientCanceled(r, err) {
+			return
+		}
 		slog.Error("climate normals", "err", err)
-		writeJSONError(w, "failed to get climate normals", http.StatusInternalServerError)
+		writeJSONError(w, "failed to get climate normals", serverErrorStatus(err))
 		return
 	}
 
@@ -550,11 +567,6 @@ func (h *Handler) getClimateNormals(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	json.NewEncoder(w).Encode(resp)
-}
-
-func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"status":"ok"}`))
 }
 
 // oktasToPercent converts an FMI station cloud-cover observation (oktas,

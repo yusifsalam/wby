@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -69,7 +67,7 @@ func (c *Client) FetchObservations(ctx context.Context) (*ObservationResult, err
 		"bbox": {"19,59,32,71"},
 	}
 
-	data, err := c.fetch(ctx, params)
+	data, err := c.fetchWithRetry(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("fetch observations: %w", err)
 	}
@@ -141,25 +139,9 @@ func (c *Client) FetchUVForecast(ctx context.Context, lat, lon float64, start ti
 		c.timeseriesURL, c.apiKey, lat, lon, startTime,
 	)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build UV request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	body, err := c.getBody(ctx, "UV API", reqURL, maxUVBody)
 	if err != nil {
 		return nil, fmt.Errorf("fetch UV forecast: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("UV API returned %d: %s", resp.StatusCode, string(body))
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read UV response: %w", err)
 	}
 
 	var raw []struct {
@@ -167,8 +149,7 @@ func (c *Client) FetchUVForecast(ctx context.Context, lat, lon float64, start ti
 		UVCumulated *float64 `json:"uvCumulated"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
-		slog.Warn("failed to parse UV response", "err", err, "body", string(body))
-		return nil, nil
+		return nil, fmt.Errorf("parse UV response (%d bytes): %w", len(body), err)
 	}
 
 	var points []weather.UVDataPoint
@@ -215,23 +196,15 @@ func (c *Client) FetchClimateNormals(ctx context.Context, fmisids string) ([]byt
 }
 
 func (c *Client) fetch(ctx context.Context, params url.Values) ([]byte, error) {
-	reqURL := c.baseURL + "?" + params.Encode()
+	return c.getBody(ctx, "FMI", c.baseURL+"?"+params.Encode(), maxWFSBody)
+}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("FMI returned %d: %s", resp.StatusCode, string(body))
-	}
-
-	return io.ReadAll(resp.Body)
+// fetchWithRetry is fetch repeated as Retry allows.
+func (c *Client) fetchWithRetry(ctx context.Context, params url.Values) ([]byte, error) {
+	var data []byte
+	err := Retry(ctx, func() (err error) {
+		data, err = c.fetch(ctx, params)
+		return err
+	})
+	return data, err
 }

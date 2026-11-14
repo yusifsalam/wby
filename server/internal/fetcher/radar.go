@@ -47,7 +47,7 @@ type NowcastRunner interface {
 func (f *Fetcher) RunRadarLoop(ctx context.Context, radar *fmi.RadarClient, job RadarJob, onRefresh func(context.Context)) {
 	slog.Info("radar fetcher starting", "dir", job.DataDir, "span", job.Span)
 
-	f.fetchRadarWindow(ctx, radar, job, onRefresh, true)
+	cycle(ctx, radarFrameStep, func(ctx context.Context) { f.fetchRadarWindow(ctx, radar, job, onRefresh, true) })
 
 	ticker := time.NewTicker(radarFrameStep)
 	defer ticker.Stop()
@@ -58,7 +58,7 @@ func (f *Fetcher) RunRadarLoop(ctx context.Context, radar *fmi.RadarClient, job 
 			slog.Info("radar fetcher stopped")
 			return
 		case <-ticker.C:
-			f.fetchRadarWindow(ctx, radar, job, onRefresh, false)
+			cycle(ctx, radarFrameStep, func(ctx context.Context) { f.fetchRadarWindow(ctx, radar, job, onRefresh, false) })
 		}
 	}
 }
@@ -70,6 +70,12 @@ func (f *Fetcher) fetchRadarWindow(ctx context.Context, radar *fmi.RadarClient, 
 	start := time.Now()
 	latest := start.UTC().Truncate(radarFrameStep)
 	fetched := 0
+	var newest time.Time
+	onDisk := func(at time.Time) {
+		if at.After(newest) {
+			newest = at
+		}
+	}
 
 	for at := latest; !at.Before(latest.Add(-job.Span)); at = at.Add(-radarFrameStep) {
 		if ctx.Err() != nil {
@@ -77,6 +83,7 @@ func (f *Fetcher) fetchRadarWindow(ctx context.Context, radar *fmi.RadarClient, 
 		}
 		path := filepath.Join(job.DataDir, weather.RadarFrameFile(at))
 		if _, err := os.Stat(path); err == nil {
+			onDisk(at)
 			continue
 		}
 
@@ -91,6 +98,10 @@ func (f *Fetcher) fetchRadarWindow(ctx context.Context, radar *fmi.RadarClient, 
 			continue
 		}
 		fetched++
+		onDisk(at)
+	}
+	if !newest.IsZero() {
+		f.updateStatus(func(s *Status) { s.NewestRadarFrameAt = newest })
 	}
 
 	f.pruneRadarFrames(job)

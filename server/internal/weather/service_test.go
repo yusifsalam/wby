@@ -347,3 +347,44 @@ func TestCurrentConditionsOlderThanExpiryCarryNoValues(t *testing.T) {
 		}
 	}
 }
+
+type fakePrecipHistory struct {
+	fakeFMI
+	err   error
+	calls atomic.Int32
+}
+
+func (f *fakePrecipHistory) FetchHourlyPrecipitationNear(ctx context.Context, lat, lon float64, start, end time.Time) (PrecipitationObservations, error) {
+	f.calls.Add(1)
+	if f.err != nil {
+		return PrecipitationObservations{}, f.err
+	}
+	return PrecipitationObservations{Station: testStation, DistanceKM: 2}, nil
+}
+
+func TestObservedPrecipitationFetchIsNotRepeatedAfterAFailure(t *testing.T) {
+	loc, err := time.LoadLocation(DefaultPlaceTimezone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	for name, fetchErr := range map[string]error{
+		"upstream failure": errors.New("FMI returned 503"),
+		"no gauge nearby":  ErrNoStation,
+		"success":          nil,
+	} {
+		history := &fakePrecipHistory{err: fetchErr}
+		svc := NewService(&fakeStore{station: testStation}, history, time.Minute)
+
+		var last *PrecipitationObservations
+		for range 3 {
+			last = svc.observedPrecipitationThisMonth(context.Background(), testLat, testLon, now, loc)
+		}
+		if n := history.calls.Load(); n != 1 {
+			t.Errorf("%s: fetched %d times for 3 requests, want 1", name, n)
+		}
+		if (last != nil) != (fetchErr == nil) {
+			t.Errorf("%s: result = %v", name, last)
+		}
+	}
+}

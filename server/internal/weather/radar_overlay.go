@@ -264,18 +264,28 @@ func (s *Service) WarmRadarGrids(ctx context.Context) {
 	base := start.UTC().Truncate(radarFrameStep)
 	frames := int(RadarObsSpan / radarFrameStep)
 	warmed := 0
+	var newest time.Time
 	for i := 0; i <= frames; i++ {
 		if ctx.Err() != nil {
 			return
 		}
 		at := base.Add(time.Duration(-i) * radarFrameStep)
-		if _, ok := s.radarPrecipCache.Get(radarGridKey(at)); ok {
-			warmed++
-			continue
+		_, held := s.radarPrecipCache.Get(radarGridKey(at))
+		if !held {
+			grid, err := s.fetchRadarGrid(ctx, at)
+			held = err == nil && grid != nil
 		}
-		if grid, err := s.fetchRadarGrid(ctx, at); err == nil && grid != nil {
+		if held {
 			warmed++
+			if newest.IsZero() {
+				newest = at
+			}
 		}
+	}
+	if newest.IsZero() {
+		s.newestRadarGridAt.Store(0)
+	} else {
+		s.newestRadarGridAt.Store(newest.UnixNano())
 	}
 	pruneWarmCachePrefix(s.radarPrecipCache, radarGridPrefix, radarGridKey,
 		frameWindow(base, -(frames+radarPruneSlackFrames), 0))

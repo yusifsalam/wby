@@ -2,28 +2,78 @@ package fetcher
 
 import (
 	"context"
+	"errors"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"wby/internal/fmi"
-	"wby/internal/store"
+	"wby/internal/weather"
 )
 
-type Fetcher struct {
-	fmi   *fmi.Client
-	store *store.Store
+// FMISource is the part of the FMI client the fetcher polls.
+type FMISource interface {
+	FetchObservations(ctx context.Context) (*fmi.ObservationResult, error)
+	FetchGRIB(ctx context.Context, producer, params, bbox string, w io.Writer) error
 }
 
-func New(fmiClient *fmi.Client, store *store.Store) *Fetcher {
+// ObservationStore persists what the observation poll returns.
+type ObservationStore interface {
+	UpsertStations(ctx context.Context, stations []weather.Station) error
+	UpsertObservations(ctx context.Context, observations []weather.Observation) error
+}
+
+type Fetcher struct {
+	fmi   FMISource
+	store ObservationStore
+
+	mu     sync.Mutex
+	status Status
+}
+
+// Status is when each background fetch last succeeded; a zero time means not
+// since the process started.
+type Status struct {
+	// ObservationsFetchedAt is when observations were last fetched and stored.
+	ObservationsFetchedAt time.Time
+	// NewestObservationAt is the latest observation time in that fetch.
+	NewestObservationAt time.Time
+	// GribFetchedAt is when the GRIB file was last downloaded.
+	GribFetchedAt time.Time
+	// NewestRadarFrameAt is the valid time of the newest radar frame on disk.
+	NewestRadarFrameAt time.Time
+}
+
+func New(fmiClient FMISource, store ObservationStore) *Fetcher {
 	return &Fetcher{fmi: fmiClient, store: store}
+}
+
+func (f *Fetcher) Status() Status {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.status
+}
+
+func (f *Fetcher) updateStatus(update func(*Status)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	update(&f.status)
+}
+
+// cycle runs one pass of a polling loop, bounded by the loop's interval.
+func cycle(ctx context.Context, interval time.Duration, run func(context.Context)) {
+	ctx, cancel := context.WithTimeout(ctx, interval)
+	defer cancel()
+	run(ctx)
 }
 
 func (f *Fetcher) RunObservationLoop(ctx context.Context, interval time.Duration) {
 	slog.Info("observation fetcher starting", "interval", interval)
 
-	f.fetchObservations(ctx)
+	cycle(ctx, interval, f.fetchObservations)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -34,7 +84,7 @@ func (f *Fetcher) RunObservationLoop(ctx context.Context, interval time.Duration
 			slog.Info("observation fetcher stopped")
 			return
 		case <-ticker.C:
-			f.fetchObservations(ctx)
+			cycle(ctx, interval, f.fetchObservations)
 		}
 	}
 }
@@ -42,6 +92,9 @@ func (f *Fetcher) RunObservationLoop(ctx context.Context, interval time.Duration
 func (f *Fetcher) fetchObservations(ctx context.Context) {
 	start := time.Now()
 	result, err := f.fmi.FetchObservations(ctx)
+	if errors.Is(err, context.Canceled) {
+		return
+	}
 	if err != nil {
 		slog.Error("failed to fetch observations from FMI", "err", err)
 		return
@@ -63,6 +116,17 @@ func (f *Fetcher) fetchObservations(ctx context.Context) {
 		slog.Error("failed to upsert observations", "err", err)
 		return
 	}
+
+	var newest time.Time
+	for _, o := range result.Observations {
+		if o.ObservedAt.After(newest) {
+			newest = o.ObservedAt
+		}
+	}
+	f.updateStatus(func(s *Status) {
+		s.ObservationsFetchedAt = time.Now()
+		s.NewestObservationAt = newest
+	})
 
 	slog.Info("observations fetched",
 		"stations", len(result.Stations),
@@ -89,10 +153,12 @@ type GribJob struct {
 func (f *Fetcher) RunGribLoop(ctx context.Context, job GribJob, interval time.Duration, onRefresh func(context.Context)) {
 	slog.Info("grib fetcher starting", "interval", interval, "dir", job.DataDir, "file", job.Filename)
 
-	if onRefresh != nil {
-		onRefresh(ctx)
-	}
-	f.fetchGrib(ctx, job, onRefresh)
+	cycle(ctx, interval, func(ctx context.Context) {
+		if onRefresh != nil {
+			onRefresh(ctx)
+		}
+		f.fetchGrib(ctx, job, onRefresh)
+	})
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -103,16 +169,21 @@ func (f *Fetcher) RunGribLoop(ctx context.Context, job GribJob, interval time.Du
 			slog.Info("grib fetcher stopped")
 			return
 		case <-ticker.C:
-			f.fetchGrib(ctx, job, onRefresh)
+			cycle(ctx, interval, func(ctx context.Context) { f.fetchGrib(ctx, job, onRefresh) })
 		}
 	}
 }
 
 func (f *Fetcher) fetchGrib(ctx context.Context, job GribJob, onRefresh func(context.Context)) {
 	start := time.Now()
-	if err := f.downloadGrib(ctx, job); err != nil {
+	err := fmi.Retry(ctx, func() error { return f.downloadGrib(ctx, job) })
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+	if err != nil {
 		slog.Error("failed to fetch grib from FMI", "err", err, "producer", job.Producer)
 	} else {
+		f.updateStatus(func(s *Status) { s.GribFetchedAt = time.Now() })
 		slog.Info("grib fetched", "producer", job.Producer, "file", job.Filename, "duration", time.Since(start))
 	}
 

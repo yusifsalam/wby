@@ -107,3 +107,53 @@ func TestCache_DeleteFuncSeesValues(t *testing.T) {
 		t.Error("b should be deleted")
 	}
 }
+
+func TestCache_LimitEvictsTheEntryExpiringSoonest(t *testing.T) {
+	c := NewCache[string](time.Hour).Limit(3)
+	c.SetTTL("brief", "v", time.Minute)
+	c.Set("a", "v")
+	c.Set("b", "v")
+	c.Set("a", "updated")
+	if got := cacheLen(c); got != 3 {
+		t.Fatalf("cache holds %d entries, want 3: rewriting a key must not evict", got)
+	}
+
+	c.Set("c", "v")
+	if got := cacheLen(c); got != 3 {
+		t.Fatalf("cache holds %d entries, want it capped at 3", got)
+	}
+	if _, ok := c.Get("brief"); ok {
+		t.Error("the entry expiring soonest should have been evicted")
+	}
+	for _, key := range []string{"a", "b", "c"} {
+		if _, ok := c.Get(key); !ok {
+			t.Errorf("%q was evicted ahead of an entry expiring sooner", key)
+		}
+	}
+}
+
+func TestCache_LimitPrefersDroppingExpiredEntries(t *testing.T) {
+	c := NewCache[string](time.Hour).Limit(2)
+	c.SetTTL("expired", "v", 20*time.Millisecond)
+	c.SetTTL("brief", "v", time.Minute)
+
+	time.Sleep(40 * time.Millisecond)
+	c.Set("new", "v")
+
+	if _, ok := c.Get("brief"); !ok {
+		t.Error("a live entry was evicted while an expired one was there to drop")
+	}
+	if _, ok := c.Get("new"); !ok {
+		t.Error("the new entry is missing")
+	}
+}
+
+func TestCache_LimitHoldsUnderManyKeys(t *testing.T) {
+	c := NewCache[int](time.Hour).Limit(50)
+	for i := range 5000 {
+		c.Set(fmt.Sprintf("cell-%d", i), i)
+	}
+	if got := cacheLen(c); got != 50 {
+		t.Fatalf("cache holds %d entries, want 50", got)
+	}
+}

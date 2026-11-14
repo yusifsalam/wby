@@ -2,6 +2,7 @@ package weather
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/color"
 	"image/png"
@@ -24,7 +25,7 @@ func TestRenderTemperatureOverlay(t *testing.T) {
 		{Lat: 60.10, Lon: 25.15, Temperature: 4, ObservedAt: time.Date(2026, 3, 7, 9, 55, 0, 0, time.UTC)},
 	}
 
-	overlay, err := RenderTemperatureOverlay(req, samples)
+	overlay, err := RenderTemperatureOverlay(context.Background(), req, samples)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -49,7 +50,7 @@ func TestRenderTemperatureOverlay(t *testing.T) {
 
 func TestRenderTemperatureOverlay_NotEnoughSamples(t *testing.T) {
 	req := MapOverlayRequest{MinLon: 24, MinLat: 60, MaxLon: 25, MaxLat: 61, Width: 200, Height: 100}
-	_, err := RenderTemperatureOverlay(req, []TemperatureSample{
+	_, err := RenderTemperatureOverlay(context.Background(), req, []TemperatureSample{
 		{Lat: 60.1, Lon: 24.9, Temperature: 1},
 		{Lat: 60.2, Lon: 25.0, Temperature: 2},
 	})
@@ -95,11 +96,11 @@ func TestRenderTemperatureOverlay_UsesAbsoluteColorScale(t *testing.T) {
 		{Lat: 60.01, Lon: 24.39, Temperature: 40, ObservedAt: time.Date(2026, 3, 7, 10, 0, 0, 0, time.UTC)},
 	}
 
-	baseOverlay, err := RenderTemperatureOverlay(req, baseSamples)
+	baseOverlay, err := RenderTemperatureOverlay(context.Background(), req, baseSamples)
 	if err != nil {
 		t.Fatalf("render base overlay: %v", err)
 	}
-	outlierOverlay, err := RenderTemperatureOverlay(req, outlierSamples)
+	outlierOverlay, err := RenderTemperatureOverlay(context.Background(), req, outlierSamples)
 	if err != nil {
 		t.Fatalf("render outlier overlay: %v", err)
 	}
@@ -127,7 +128,7 @@ func TestRenderTemperatureOverlay_MasksAreasFarFromStations(t *testing.T) {
 		{Lat: 9.8, Lon: 9.9, Temperature: 3.5, ObservedAt: time.Date(2026, 3, 7, 10, 0, 0, 0, time.UTC)},
 	}
 
-	overlay, err := RenderTemperatureOverlay(req, samples)
+	overlay, err := RenderTemperatureOverlay(context.Background(), req, samples)
 	if err != nil {
 		t.Fatalf("render overlay: %v", err)
 	}
@@ -195,4 +196,25 @@ func channelDiff(a, b uint8) uint8 {
 		return a - b
 	}
 	return b - a
+}
+
+func TestRenderTemperatureOverlayStopsWhenCanceled(t *testing.T) {
+	req := MapOverlayRequest{MinLon: 19, MaxLon: 32, MinLat: 59, MaxLat: 71, Width: 1600, Height: 1600}
+	var samples []TemperatureSample
+	for i := range 300 {
+		samples = append(samples, TemperatureSample{
+			Lat: 59 + float64(i%20)*0.6, Lon: 19 + float64(i/20)*0.8, Temperature: float64(i % 30), ObservedAt: time.Now(),
+		})
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	started := time.Now()
+	_, err := RenderTemperatureOverlay(ctx, req, samples)
+	if err != context.Canceled {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	if took := time.Since(started); took > 500*time.Millisecond {
+		t.Errorf("a canceled render still took %v", took)
+	}
 }

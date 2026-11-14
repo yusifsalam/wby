@@ -1,13 +1,12 @@
 package fmi
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"math"
-	"net/http"
 	"net/url"
 	"strconv"
 	"time"
@@ -54,54 +53,36 @@ func (c *Client) FetchWMSTile(ctx context.Context, req weather.WMSTileRequest) (
 
 	reqURL := fmt.Sprintf("%s/fmi-apikey/%s/wms?%s", c.wmsURL, c.apiKey, params.Encode())
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build WMS request: %w", err)
-	}
-
+	target := req.Time.UTC().Format(time.RFC3339)
 	started := time.Now()
-	resp, err := c.httpClient.Do(httpReq)
+	body, err := c.getBody(ctx, "WMS", reqURL, maxTileBody)
 	if err != nil {
 		slog.Warn("FMI WMS request failed",
 			"err", err,
 			"duration_ms", time.Since(started).Milliseconds(),
 			"layer", req.Layer,
-			"target", req.Time.UTC().Format(time.RFC3339),
+			"target", target,
 			"width", req.Width,
 			"height", req.Height,
 		)
-		return nil, fmt.Errorf("fetch WMS tile: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		slog.Warn("FMI WMS response read failed",
-			"err", err,
-			"status", resp.StatusCode,
-			"duration_ms", time.Since(started).Milliseconds(),
-			"layer", req.Layer,
-			"target", req.Time.UTC().Format(time.RFC3339),
-			"width", req.Width,
-			"height", req.Height,
-		)
-		return nil, fmt.Errorf("read WMS response: %w", err)
+		return nil, fmt.Errorf("fetch WMS tile for layer %s @ %s: %w", req.Layer, target, err)
 	}
 	slog.Info("FMI WMS request completed",
-		"status", resp.StatusCode,
 		"duration_ms", time.Since(started).Milliseconds(),
 		"layer", req.Layer,
-		"target", req.Time.UTC().Format(time.RFC3339),
+		"target", target,
 		"width", req.Width,
 		"height", req.Height,
 		"bytes", len(body),
 	)
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("WMS returned %d for layer %s @ %s: %s",
-			resp.StatusCode, req.Layer, req.Time.UTC().Format(time.RFC3339), truncate(string(body), 256))
+	if !bytes.HasPrefix(body, pngSignature) {
+		return nil, fmt.Errorf("WMS answered layer %s @ %s with something other than a PNG: %s",
+			req.Layer, target, c.redact(truncate(string(body), 256)))
 	}
 	return body, nil
 }
+
+var pngSignature = []byte("\x89PNG\r\n\x1a\n")
 
 func lonLatToMercator(lon, lat float64) (x, y float64) {
 	const earthRadius = 6378137.0

@@ -13,16 +13,16 @@ api.yourweatherapp.fi {
 	import accesslog
 	encode gzip zstd
 
-	# Don't log the uptime/health probe.
-	@health path /health
+	# Don't log the uptime/health probes.
+	@health path /health /health/ready
 	log_skip @health
 
-	@api path /v1/* /health
+	@api path /v1/* /health /health/ready
 	handle @api {
 		reverse_proxy weather-api:8080
 	}
 
-	# No landing page — the API host serves only /v1/* and /health.
+	# No landing page — the API host serves only /v1/* and the health probes.
 	handle {
 		respond 404
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 )
 
@@ -23,23 +22,11 @@ func (c *Client) FetchGRIB(ctx context.Context, producer, params, bbox string, w
 		"bbox":       {bbox},
 		"projection": {"EPSG:4326"},
 	}
-	reqURL := c.downloadURL + "?" + q.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return fmt.Errorf("build GRIB request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.get(ctx, "FMI download", c.downloadURL+"?"+q.Encode())
 	if err != nil {
 		return fmt.Errorf("fetch GRIB: %w", err)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return fmt.Errorf("FMI download returned %d: %s", resp.StatusCode, string(body))
-	}
 
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		return fmt.Errorf("stream GRIB body: %w", err)
