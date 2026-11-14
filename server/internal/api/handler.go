@@ -151,14 +151,8 @@ type hourlyForecastJSON struct {
 }
 
 func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
-	lat, err := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
-	if err != nil {
-		writeJSONError(w, "invalid lat parameter", http.StatusBadRequest)
-		return
-	}
-	lon, err := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
-	if err != nil {
-		writeJSONError(w, "invalid lon parameter", http.StatusBadRequest)
+	lat, lon, ok := parseLatLon(w, r)
+	if !ok {
 		return
 	}
 
@@ -285,14 +279,8 @@ type hourlyForecastResponseJSON struct {
 }
 
 func (h *Handler) getHourlyForecast(w http.ResponseWriter, r *http.Request) {
-	lat, err := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
-	if err != nil {
-		writeJSONError(w, "invalid lat parameter", http.StatusBadRequest)
-		return
-	}
-	lon, err := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
-	if err != nil {
-		writeJSONError(w, "invalid lon parameter", http.StatusBadRequest)
+	lat, lon, ok := parseLatLon(w, r)
+	if !ok {
 		return
 	}
 
@@ -415,14 +403,8 @@ type dailyNormalTodayJSON struct {
 }
 
 func (h *Handler) getDailyClimateNormals(w http.ResponseWriter, r *http.Request) {
-	lat, err := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
-	if err != nil {
-		writeJSONError(w, "invalid lat parameter", http.StatusBadRequest)
-		return
-	}
-	lon, err := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
-	if err != nil {
-		writeJSONError(w, "invalid lon parameter", http.StatusBadRequest)
+	lat, lon, ok := parseLatLon(w, r)
+	if !ok {
 		return
 	}
 	var currentTemp *float64
@@ -500,14 +482,8 @@ func (h *Handler) getDailyClimateNormals(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) getClimateNormals(w http.ResponseWriter, r *http.Request) {
-	lat, err := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
-	if err != nil {
-		writeJSONError(w, "invalid lat parameter", http.StatusBadRequest)
-		return
-	}
-	lon, err := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
-	if err != nil {
-		writeJSONError(w, "invalid lon parameter", http.StatusBadRequest)
+	lat, lon, ok := parseLatLon(w, r)
+	if !ok {
 		return
 	}
 

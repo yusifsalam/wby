@@ -132,20 +132,36 @@ func (s *Store) NearestStationWithClimateNormals(ctx context.Context, lat, lon f
 	return st, distMeters / 1000.0, nil
 }
 
+var observationValueColumns = []string{
+	"temperature", "wind_speed", "wind_gust", "wind_dir", "humidity", "dew_point",
+	"pressure", "precip_1h", "precip_intensity", "snow_depth", "visibility", "total_cloud_cover", "weather_code",
+}
+
+// upsertObservationSQL inserts an observation or, on conflict, fills in the
+// values the new row carries: a NULL never replaces a stored value, extras
+// are merged by key, and a row that would not change is left untouched.
+var upsertObservationSQL = func() string {
+	sets := make([]string, 0, len(observationValueColumns)+1)
+	changed := make([]string, 0, len(observationValueColumns)+1)
+	for _, col := range observationValueColumns {
+		sets = append(sets, fmt.Sprintf("%[1]s = COALESCE(EXCLUDED.%[1]s, observations.%[1]s)", col))
+		changed = append(changed, fmt.Sprintf("(EXCLUDED.%[1]s IS NOT NULL AND EXCLUDED.%[1]s IS DISTINCT FROM observations.%[1]s)", col))
+	}
+	sets = append(sets, `extra = CASE WHEN EXCLUDED.extra IS NULL THEN observations.extra
+	                          ELSE COALESCE(observations.extra, '{}'::jsonb) || EXCLUDED.extra END`)
+	changed = append(changed, "(EXCLUDED.extra IS NOT NULL AND NOT COALESCE(observations.extra, '{}'::jsonb) @> EXCLUDED.extra)")
+	return `INSERT INTO observations (fmisid, observed_at, ` + strings.Join(observationValueColumns, ", ") + `, extra)
+	 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+	 ON CONFLICT (fmisid, observed_at) DO UPDATE SET ` + strings.Join(sets, ", ") + `
+	 WHERE ` + strings.Join(changed, " OR ")
+}()
+
 func (s *Store) UpsertObservations(ctx context.Context, observations []weather.Observation) error {
 	batch := &pgx.Batch{}
 	for _, o := range observations {
 		extra := encodeNumericExtras(o.ExtraNumericParams)
 		batch.Queue(
-			`INSERT INTO observations (
-				fmisid, observed_at, temperature, wind_speed, wind_gust, wind_dir, humidity, dew_point,
-				pressure, precip_1h, precip_intensity, snow_depth, visibility, total_cloud_cover, weather_code, extra
-			)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-			 ON CONFLICT (fmisid, observed_at) DO UPDATE SET
-			   temperature = $3, wind_speed = $4, wind_gust = $5, wind_dir = $6, humidity = $7, dew_point = $8,
-			   pressure = $9, precip_1h = $10, precip_intensity = $11, snow_depth = $12, visibility = $13,
-			   total_cloud_cover = $14, weather_code = $15, extra = $16`,
+			upsertObservationSQL,
 			o.FMISID, o.ObservedAt, o.Temperature, o.WindSpeed, o.WindGust, o.WindDir, o.Humidity, o.DewPoint,
 			o.Pressure, o.Precip1h, o.PrecipIntensity, o.SnowDepth, o.Visibility, o.TotalCloudCover, o.WeatherCode, extra,
 		)
@@ -312,6 +328,9 @@ func (s *Store) GetLatestTemperatureSamplesInBBox(ctx context.Context, minLon, m
 			ObservedAt:  at,
 		})
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("latest temperature samples: %w", err)
+	}
 	return result, nil
 }
 
@@ -377,6 +396,9 @@ func (s *Store) GetObservationSamplesAtTimeInBBox(ctx context.Context, minLon, m
 			ObservedAt:  obsAt,
 		})
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("observation samples at time: %w", err)
+	}
 	return result, nil
 }
 
@@ -402,6 +424,8 @@ func decodeNumericExtras(raw []byte) map[string]float64 {
 	return result
 }
 
+// UpsertForecasts stores daily forecasts and deletes each grid cell's stored
+// days after the last one given.
 func (s *Store) UpsertForecasts(ctx context.Context, forecasts []weather.DailyForecast) error {
 	batch := &pgx.Batch{}
 	for _, f := range forecasts {
@@ -437,9 +461,23 @@ func (s *Store) UpsertForecasts(ctx context.Context, forecasts []weather.DailyFo
 			f.UVIndexAvg, f.FeelsLikeHigh, f.FeelsLikeLow, f.FeelsLikeAvg,
 		)
 	}
+	type cell struct{ lat, lon float64 }
+	lastDay := make(map[cell]time.Time)
+	for _, f := range forecasts {
+		c := cell{f.GridLat, f.GridLon}
+		if f.Date.After(lastDay[c]) {
+			lastDay[c] = f.Date
+		}
+	}
+	for c, last := range lastDay {
+		batch.Queue(
+			`DELETE FROM forecasts WHERE grid_lat = $1 AND grid_lon = $2 AND forecast_for > $3`,
+			c.lat, c.lon, last,
+		)
+	}
 	br := s.pool.SendBatch(ctx, batch)
 	defer br.Close()
-	for range forecasts {
+	for range batch.Len() {
 		if _, err := br.Exec(); err != nil {
 			return fmt.Errorf("upsert forecast: %w", err)
 		}
@@ -486,6 +524,9 @@ func (s *Store) GetForecasts(ctx context.Context, gridLat, gridLon float64, from
 			return nil, err
 		}
 		result = append(result, f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get forecasts: %w", err)
 	}
 	return result, nil
 }
@@ -559,6 +600,9 @@ func (s *Store) GetHourlyForecasts(ctx context.Context, gridLat, gridLon float64
 			return nil, err
 		}
 		result = append(result, h)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get hourly forecasts: %w", err)
 	}
 	return result, nil
 }

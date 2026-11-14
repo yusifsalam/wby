@@ -46,6 +46,9 @@ func (f *Fetcher) fetchObservations(ctx context.Context) {
 		slog.Error("failed to fetch observations from FMI", "err", err)
 		return
 	}
+	if result.SkippedMembers > 0 {
+		slog.Warn("observation fetch skipped series without a usable station", "series", result.SkippedMembers)
+	}
 	if len(result.Stations) == 0 {
 		slog.Warn("observation fetch returned no stations")
 		return

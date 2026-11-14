@@ -4,12 +4,11 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 )
 
 type leaderboardJSON struct {
-	Timeframe   string               `json:"timeframe"`
+	Timeframe   string                 `json:"timeframe"`
 	Leaderboard []leaderboardEntryJSON `json:"leaderboard"`
 }
 
@@ -33,14 +32,8 @@ var supportedTimeframes = map[string]bool{
 }
 
 func (h *Handler) getLeaderboard(w http.ResponseWriter, r *http.Request) {
-	lat, err := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
-	if err != nil {
-		writeJSONError(w, "invalid lat parameter", http.StatusBadRequest)
-		return
-	}
-	lon, err := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
-	if err != nil {
-		writeJSONError(w, "invalid lon parameter", http.StatusBadRequest)
+	lat, lon, ok := parseLatLon(w, r)
+	if !ok {
 		return
 	}
 

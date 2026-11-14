@@ -100,10 +100,10 @@ const (
 )
 
 // FetchHourlyPrecipitationNear returns the hourly precipitation accumulation
-// between start and end (inclusive) from the gauge nearest to lat/lon that
-// reported any value in the range; each record's PrecipMm covers the hour
-// ending at its time. Not every station has a gauge, so the nearest weather
-// station is not necessarily the one returned. ErrNoStation when none report.
+// between start and end (inclusive) from the gauge picked by
+// pickPrecipitationGauge; each record's PrecipMm covers the hour ending at its
+// time. Not every station has a gauge, so the nearest weather station is not
+// necessarily the one returned. ErrNoStation when none report.
 func (c *Client) FetchHourlyPrecipitationNear(ctx context.Context, lat, lon float64, start, end time.Time) (weather.PrecipitationObservations, error) {
 	bbox := fmt.Sprintf("%.3f,%.3f,%.3f,%.3f", lon-precipSearchHalfLon, lat-precipSearchHalfLat, lon+precipSearchHalfLon, lat+precipSearchHalfLat)
 	chunks, err := c.fetchChunked(ctx, "fmi::observations::weather::hourly::timevaluepair", "PRA_PT1H_ACC", url.Values{"bbox": {bbox}}, start, end, hourlyObservationChunk)
@@ -117,6 +117,9 @@ func (c *Client) FetchHourlyPrecipitationNear(ctx context.Context, lat, lon floa
 			return weather.PrecipitationObservations{}, err
 		}
 		for _, st := range stations {
+			if !validStation(st.Station) {
+				continue
+			}
 			var recs []weather.HourlyRecord
 			for _, r := range st.Hourly {
 				if r.PrecipMm != nil {
@@ -134,17 +137,73 @@ func (c *Client) FetchHourlyPrecipitationNear(ctx context.Context, lat, lon floa
 			agg.Hourly = append(agg.Hourly, recs...)
 		}
 	}
-	var best *weather.PrecipitationObservations
+	gauges := make([]*weather.PrecipitationObservations, 0, len(byStation))
 	for _, st := range byStation {
-		if best == nil || st.DistanceKM < best.DistanceKM {
-			best = st
-		}
+		slices.SortFunc(st.Hourly, func(a, b weather.HourlyRecord) int { return a.Time.Compare(b.Time) })
+		st.Hourly = slices.CompactFunc(st.Hourly, func(a, b weather.HourlyRecord) bool { return a.Time.Equal(b.Time) })
+		gauges = append(gauges, st)
 	}
+	best := pickPrecipitationGauge(gauges, start)
 	if best == nil {
 		return weather.PrecipitationObservations{}, weather.ErrNoStation
 	}
-	slices.SortFunc(best.Hourly, func(a, b weather.HourlyRecord) int { return a.Time.Compare(b.Time) })
 	return *best, nil
+}
+
+// minGaugeCoverage is the share of hours a gauge must report to be preferred
+// over a more complete one farther away.
+const minGaugeCoverage = 0.9
+
+// pickPrecipitationGauge returns the nearest gauge that reported at least
+// minGaugeCoverage of the hours between start and the newest record of any
+// gauge. When none did, it returns the one with the most hours. Each gauge's
+// Hourly must be sorted and free of duplicates.
+func pickPrecipitationGauge(gauges []*weather.PrecipitationObservations, start time.Time) *weather.PrecipitationObservations {
+	var latest time.Time
+	for _, g := range gauges {
+		if n := len(g.Hourly); n > 0 && g.Hourly[n-1].Time.After(latest) {
+			latest = g.Hourly[n-1].Time
+		}
+	}
+	required := int(math.Ceil(minGaugeCoverage * float64(latest.Sub(start)/time.Hour)))
+
+	hours := func(g *weather.PrecipitationObservations) int {
+		n := 0
+		for _, r := range g.Hourly {
+			if r.Time.After(start) {
+				n++
+			}
+		}
+		return n
+	}
+	nearer := func(a, b *weather.PrecipitationObservations) bool {
+		if a.DistanceKM != b.DistanceKM {
+			return a.DistanceKM < b.DistanceKM
+		}
+		return a.Station.FMISID < b.Station.FMISID
+	}
+
+	var best *weather.PrecipitationObservations
+	bestHours, bestComplete := 0, false
+	for _, g := range gauges {
+		n := hours(g)
+		complete := n >= required
+		var better bool
+		switch {
+		case best == nil:
+			better = true
+		case complete != bestComplete:
+			better = complete
+		case complete || n == bestHours:
+			better = nearer(g, best)
+		default:
+			better = n > bestHours
+		}
+		if better {
+			best, bestHours, bestComplete = g, n, complete
+		}
+	}
+	return best
 }
 
 // fetchWithRetry retries throttled (429) and server-side (5xx) failures and

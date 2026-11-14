@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -225,5 +226,113 @@ func TestUpsertHourlyForecastsReleasesBatchConnBeforeCleanup(t *testing.T) {
 	if _, err := s.pool.Exec(context.Background(),
 		`DELETE FROM hourly_forecasts WHERE grid_lat = 89.99 AND grid_lon = 179.99`); err != nil {
 		t.Fatalf("cleanup: %v", err)
+	}
+}
+
+func TestUpsertObservationsKeepsValuesALaterFetchLacks(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+
+	const fmisid = 999003
+	if err := s.UpsertStations(ctx, []weather.Station{{FMISID: fmisid, Name: "Test Refetch", Lat: 69.9, Lon: 31.7}}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = s.pool.Exec(ctx, `DELETE FROM observations WHERE fmisid = $1`, fmisid)
+		_, _ = s.pool.Exec(ctx, `DELETE FROM stations WHERE fmisid = $1`, fmisid)
+	})
+
+	f := func(v float64) *float64 { return &v }
+	at := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+	upsert := func(o weather.Observation) {
+		t.Helper()
+		o.FMISID, o.ObservedAt = fmisid, at
+		if err := s.UpsertObservations(ctx, []weather.Observation{o}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	type row struct {
+		temp, wind, humidity *float64
+		extra                map[string]float64
+		version              string
+	}
+	read := func() row {
+		t.Helper()
+		var r row
+		var extraRaw []byte
+		err := s.pool.QueryRow(ctx,
+			`SELECT temperature, wind_speed, humidity, extra, xmin::text FROM observations WHERE fmisid = $1 AND observed_at = $2`,
+			fmisid, at,
+		).Scan(&r.temp, &r.wind, &r.humidity, &extraRaw, &r.version)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.extra = decodeNumericExtras(extraRaw)
+		return r
+	}
+	check := func(name string, got *float64, want float64) {
+		t.Helper()
+		if got == nil || *got != want {
+			t.Errorf("%s = %v, want %v", name, got, want)
+		}
+	}
+
+	upsert(weather.Observation{Temperature: f(5), WindSpeed: f(3), ExtraNumericParams: map[string]float64{"glob_1min": 120}})
+	upsert(weather.Observation{WindSpeed: f(4), Humidity: f(80), ExtraNumericParams: map[string]float64{"tg_1min": 2}})
+
+	merged := read()
+	check("temperature kept", merged.temp, 5)
+	check("wind updated", merged.wind, 4)
+	check("humidity filled in", merged.humidity, 80)
+	if merged.extra["glob_1min"] != 120 || merged.extra["tg_1min"] != 2 {
+		t.Errorf("extra = %v, want both keys merged", merged.extra)
+	}
+
+	upsert(weather.Observation{Temperature: f(5), WindSpeed: f(4), ExtraNumericParams: map[string]float64{"tg_1min": 2}})
+	upsert(weather.Observation{})
+	if again := read(); again.version != merged.version {
+		t.Errorf("row was rewritten by an upsert that changed nothing (xmin %s -> %s)", merged.version, again.version)
+	}
+}
+
+func TestUpsertForecastsDropsStoredDaysPastTheNewLastDay(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+
+	const lat, lon = 89.97, 179.97
+	const otherLat, otherLon = 89.96, 179.96
+	t.Cleanup(func() {
+		_, _ = s.pool.Exec(ctx, `DELETE FROM forecasts WHERE (grid_lat, grid_lon) IN (($1, $2), ($3, $4))`, lat, lon, otherLat, otherLon)
+	})
+
+	day := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	days := func(lat, lon float64, n int) []weather.DailyForecast {
+		var out []weather.DailyForecast
+		for i := range n {
+			temp := float64(i)
+			out = append(out, weather.DailyForecast{GridLat: lat, GridLon: lon, Date: day.AddDate(0, 0, i), FetchedAt: time.Now(), TempAvg: &temp})
+		}
+		return out
+	}
+	count := func(lat, lon float64) int {
+		t.Helper()
+		got, err := s.GetForecasts(ctx, lat, lon, day)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(got)
+	}
+
+	if err := s.UpsertForecasts(ctx, slices.Concat(days(lat, lon, 5), days(otherLat, otherLon, 5))); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertForecasts(ctx, days(lat, lon, 3)); err != nil {
+		t.Fatal(err)
+	}
+	if got := count(lat, lon); got != 3 {
+		t.Errorf("stored days = %d, want 3 after a shorter forecast replaced a longer one", got)
+	}
+	if got := count(otherLat, otherLon); got != 5 {
+		t.Errorf("another cell's stored days = %d, want 5 untouched", got)
 	}
 }

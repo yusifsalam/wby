@@ -61,3 +61,46 @@ func TestPrecipitationToDate(t *testing.T) {
 		t.Errorf("February 2026 month normal = %v, want 56 (29 Feb skipped in a common year)", feb.MonthNormalMm)
 	}
 }
+
+func TestPrecipitationToDateWithholdsSumsThatAreMostlyGaps(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Helsinki")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := func(v float64) *float64 { return &v }
+	now := time.Date(2026, 9, 20, 15, 30, 0, 0, loc)
+	dayStart := time.Date(2026, 9, 20, 0, 0, 0, 0, loc)
+	monthStart := time.Date(2026, 9, 1, 0, 0, 0, 0, loc)
+	hours := func(from time.Time, n int) []HourlyRecord {
+		var out []HourlyRecord
+		for i := 1; i <= n; i++ {
+			out = append(out, HourlyRecord{Time: from.Add(time.Duration(i) * time.Hour).UTC(), PrecipMm: f(1)})
+		}
+		return out
+	}
+
+	onlyToday := precipitationToDate(nil, hours(dayStart, 15), now, loc)
+	if onlyToday.TodayObservedMm == nil || *onlyToday.TodayObservedMm != 15 {
+		t.Errorf("today observed = %v, want 15", onlyToday.TodayObservedMm)
+	}
+	if onlyToday.MonthToDateObservedMm != nil {
+		t.Errorf("month observed = %v, want nil: 15 of ~470 hours reported", *onlyToday.MonthToDateObservedMm)
+	}
+	if onlyToday.ObservedThrough == nil {
+		t.Error("observed through should still be set")
+	}
+
+	stoppedYesterday := precipitationToDate(nil, hours(monthStart, 19*24), now, loc)
+	if stoppedYesterday.MonthToDateObservedMm == nil || *stoppedYesterday.MonthToDateObservedMm != 19*24 {
+		t.Errorf("month observed = %v, want %d", stoppedYesterday.MonthToDateObservedMm, 19*24)
+	}
+	if stoppedYesterday.TodayObservedMm != nil {
+		t.Errorf("today observed = %v, want nil: no hour reported today by 15:30", *stoppedYesterday.TodayObservedMm)
+	}
+
+	earlyMorning := time.Date(2026, 9, 20, 2, 30, 0, 0, loc)
+	lagging := precipitationToDate(nil, hours(monthStart, 19*24), earlyMorning, loc)
+	if lagging.TodayObservedMm == nil || *lagging.TodayObservedMm != 0 {
+		t.Errorf("today observed = %v, want 0: the first hours may not be published yet", lagging.TodayObservedMm)
+	}
+}

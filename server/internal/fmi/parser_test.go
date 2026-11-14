@@ -413,7 +413,107 @@ func TestParseForecastDefaultParamsFixture(t *testing.T) {
 	if day.WindVMSAvg == nil {
 		t.Error("expected wind_vms_avg")
 	}
-	if day.WindVectorMSAvg == nil {
-		t.Error("expected wind_vector_ms_avg")
+	if day.WindVectorMSAvg != nil {
+		t.Errorf("wind_vector_ms_avg = %v, want nil: FMI packs speed and direction into one number, which cannot be averaged", *day.WindVectorMSAvg)
+	}
+}
+
+func TestParseForecastDropsPartialTailDay(t *testing.T) {
+	data, err := os.ReadFile("testdata/forecast.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := ParseForecast(data, 60.17, 24.94)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var dates []string
+	for _, f := range result.Forecasts {
+		dates = append(dates, f.Date.Format("2006-01-02"))
+	}
+	want := []string{"2026-02-16", "2026-02-17", "2026-02-18"}
+	if !slices.Equal(dates, want) {
+		t.Fatalf("dates = %v, want %v (the fixture ends 09:00 local on Feb 19)", dates, want)
+	}
+}
+
+func TestParseObservationsSkipsStationsWithoutPosition(t *testing.T) {
+	data, err := os.ReadFile("testdata/observations.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pos := []byte("<gml:pos>60.17523 24.94459 </gml:pos>")
+	series := bytes.Count(data, pos)
+	if series == 0 {
+		t.Fatal("expected station positions in fixture")
+	}
+
+	result, err := ParseObservations(bytes.ReplaceAll(data, pos, []byte("<gml:pos></gml:pos>")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Stations) != 0 || len(result.Observations) != 0 {
+		t.Fatalf("got %d stations and %d observations, want none", len(result.Stations), len(result.Observations))
+	}
+	if result.SkippedMembers != series {
+		t.Fatalf("SkippedMembers = %d, want %d", result.SkippedMembers, series)
+	}
+
+	result, err = ParseObservations(bytes.ReplaceAll(data,
+		[]byte(`stationcode/fmisid">100971<`), []byte(`stationcode/fmisid">unknown<`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Stations) != 0 || result.SkippedMembers != series {
+		t.Fatalf("unparseable FMISID: got %d stations, %d skipped; want 0 and %d", len(result.Stations), result.SkippedMembers, series)
+	}
+}
+
+func TestParsePos(t *testing.T) {
+	cases := []struct {
+		in       string
+		lat, lon float64
+	}{
+		{"60.17523 24.94459 ", 60.17523, 24.94459},
+		{"", 0, 0},
+		{"60.17523", 0, 0},
+		{"60.17523 east", 0, 0},
+		{"NaN 24.9", 0, 0},
+		{"60.1 Inf", 0, 0},
+	}
+	for _, c := range cases {
+		lat, lon := parsePos(c.in)
+		if lat != c.lat || lon != c.lon {
+			t.Errorf("parsePos(%q) = %v, %v; want %v, %v", c.in, lat, lon, c.lat, c.lon)
+		}
+	}
+}
+
+func TestForecastTimeWindowEndsOnLastHourOfLastDay(t *testing.T) {
+	loc, err := time.LoadLocation(weather.DefaultPlaceTimezone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	startRaw, endRaw := forecastTimeWindow(11)
+	start, err := time.Parse(time.RFC3339, startRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	end, err := time.Parse(time.RFC3339, endRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start, end = start.In(loc), end.In(loc)
+
+	if start.Hour() != 0 || start.Minute() != 0 {
+		t.Errorf("start = %s, want local midnight", start)
+	}
+	if end.Hour() != 23 {
+		t.Errorf("end = %s, want 23:00 local", end)
+	}
+	if got, want := end.Format("2006-01-02"), start.AddDate(0, 0, 10).Format("2006-01-02"); got != want {
+		t.Errorf("end date = %s, want %s (11 whole days)", got, want)
 	}
 }

@@ -184,9 +184,10 @@ func (c *Client) FetchUVForecast(ctx context.Context, lat, lon float64, start ti
 	return points, nil
 }
 
-// forecastTimeWindow spans today from local midnight (so today's aggregates
-// cover the elapsed hours too) through the next days-1 days. The app covers
-// Finland only, so the place timezone is known before the response names it.
+// forecastTimeWindow spans `days` whole local days: from today's midnight (so
+// today's aggregates cover the elapsed hours too) through 23:00 on the last
+// day. The app covers Finland only, so the place timezone is known before the
+// response names it.
 func forecastTimeWindow(days int) (start, end string) {
 	if days < 1 {
 		days = 1
@@ -197,7 +198,7 @@ func forecastTimeWindow(days int) (start, end string) {
 	}
 	now := time.Now().In(loc)
 	startTime := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
-	endTime := startTime.AddDate(0, 0, days-1)
+	endTime := startTime.AddDate(0, 0, days).Add(-time.Hour)
 	return startTime.UTC().Format(time.RFC3339), endTime.UTC().Format(time.RFC3339)
 }
 

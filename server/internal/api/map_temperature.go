@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -51,7 +52,7 @@ func parseMapTemperatureRequest(r *http.Request) (weather.MapOverlayRequest, err
 	var bbox [4]float64
 	for i, p := range parts {
 		v, err := strconv.ParseFloat(strings.TrimSpace(p), 64)
-		if err != nil {
+		if err != nil || math.IsNaN(v) {
 			return weather.MapOverlayRequest{}, fmt.Errorf("invalid bbox parameter")
 		}
 		bbox[i] = v

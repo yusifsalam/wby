@@ -1,9 +1,16 @@
 package fmi
 
 import (
+	"bytes"
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"wby/internal/weather"
 )
 
 func TestParseDailyObservations(t *testing.T) {
@@ -89,4 +96,86 @@ func TestParseHourlyObservationsFromInstantQuery(t *testing.T) {
 	if withAll < 150 {
 		t.Errorf("only %d of %d records have temperature, humidity and wind", withAll, len(recs))
 	}
+}
+
+func TestFetchHourlyPrecipitationNearDropsRecordsRepeatedAcrossChunks(t *testing.T) {
+	fixture, err := os.ReadFile("testdata/hourly_observations.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := bytes.ReplaceAll(fixture, []byte("param=TA_PT1H_AVG"), []byte("param=PRA_PT1H_ACC"))
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.Write(body)
+	}))
+	defer srv.Close()
+
+	start := time.Date(2020, 2, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2020, 3, 10, 0, 0, 0, 0, time.UTC)
+	got, err := NewClient(srv.URL, "", "").FetchHourlyPrecipitationNear(context.Background(), 60.17, 24.94, start, end)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := requests.Load(); n < 2 {
+		t.Fatalf("got %d requests, want the range split into at least 2 chunks", n)
+	}
+	if got.Station.FMISID != 100971 {
+		t.Fatalf("station = %d, want 100971", got.Station.FMISID)
+	}
+	if len(got.Hourly) != 6 {
+		t.Fatalf("got %d records, want 6 (each hour once)", len(got.Hourly))
+	}
+	for i := 1; i < len(got.Hourly); i++ {
+		if !got.Hourly[i].Time.After(got.Hourly[i-1].Time) {
+			t.Fatalf("records not strictly ascending at %d: %v then %v", i, got.Hourly[i-1].Time, got.Hourly[i].Time)
+		}
+	}
+}
+
+func TestPickPrecipitationGauge(t *testing.T) {
+	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	gauge := func(fmisid int, distKm float64, hours ...int) *weather.PrecipitationObservations {
+		g := &weather.PrecipitationObservations{Station: weather.Station{FMISID: fmisid}, DistanceKM: distKm}
+		zero := 0.0
+		for _, h := range hours {
+			g.Hourly = append(g.Hourly, weather.HourlyRecord{Time: start.Add(time.Duration(h) * time.Hour), PrecipMm: &zero})
+		}
+		return g
+	}
+	hours := func(from, to int) []int {
+		var out []int
+		for h := from; h <= to; h++ {
+			out = append(out, h)
+		}
+		return out
+	}
+
+	t.Run("complete gauge beats a nearer one with gaps", func(t *testing.T) {
+		near := gauge(1, 2, hours(1, 10)...)
+		far := gauge(2, 20, hours(0, 100)...)
+		if got := pickPrecipitationGauge([]*weather.PrecipitationObservations{near, far}, start); got != far {
+			t.Fatalf("picked gauge %d, want 2", got.Station.FMISID)
+		}
+	})
+	t.Run("nearest of the complete gauges", func(t *testing.T) {
+		near := gauge(1, 2, hours(1, 95)...)
+		far := gauge(2, 20, hours(1, 100)...)
+		if got := pickPrecipitationGauge([]*weather.PrecipitationObservations{far, near}, start); got != near {
+			t.Fatalf("picked gauge %d, want 1 (95 of 100 hours is enough)", got.Station.FMISID)
+		}
+	})
+	t.Run("most hours when none is complete", func(t *testing.T) {
+		near := gauge(1, 2, hours(1, 10)...)
+		mid := gauge(2, 10, hours(1, 40)...)
+		late := gauge(3, 30, 100)
+		if got := pickPrecipitationGauge([]*weather.PrecipitationObservations{near, mid, late}, start); got != mid {
+			t.Fatalf("picked gauge %d, want 2", got.Station.FMISID)
+		}
+	})
+	t.Run("no gauges", func(t *testing.T) {
+		if got := pickPrecipitationGauge(nil, start); got != nil {
+			t.Fatalf("picked %v, want nil", got)
+		}
+	})
 }

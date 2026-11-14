@@ -22,6 +22,10 @@ const (
 
 var ErrOutOfCoverage = errors.New("location outside coverage area")
 
+func inCoverage(lat, lon float64) bool {
+	return lon >= finlandMinLon && lon <= finlandMaxLon && lat >= finlandMinLat && lat <= finlandMaxLat
+}
+
 // ErrNoStation is returned by store lookups that found no matching station.
 var ErrNoStation = errors.New("no station found")
 
@@ -177,7 +181,7 @@ func (s *Service) SetPrecipitationStyle(style string) {
 }
 
 func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherResponse, error) {
-	if lon < finlandMinLon || lon > finlandMaxLon || lat < finlandMinLat || lat > finlandMaxLat {
+	if !inCoverage(lat, lon) {
 		return nil, ErrOutOfCoverage
 	}
 
@@ -199,6 +203,8 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 	loc := placeLocation(forecastTimezone)
 	uvPoints, uvFresh := s.getUVData(ctx, gridLat, gridLon, forecastTimezone)
 	if len(uvPoints) > 0 {
+		hourly = slices.Clone(hourly)
+		forecast = slices.Clone(forecast)
 		applyUVToHourly(uvPoints, hourly)
 		applyUVToDaily(uvPoints, forecast, loc)
 		if uvFresh {
@@ -244,7 +250,7 @@ func upcomingHours(hourly []HourlyForecast, now time.Time, n int) []HourlyForeca
 }
 
 func (s *Service) GetHourlyForecast(ctx context.Context, lat, lon float64) (*HourlyForecastResponse, error) {
-	if lon < finlandMinLon || lon > finlandMaxLon || lat < finlandMinLat || lat > finlandMaxLat {
+	if !inCoverage(lat, lon) {
 		return nil, ErrOutOfCoverage
 	}
 
@@ -258,6 +264,7 @@ func (s *Service) GetHourlyForecast(ctx context.Context, lat, lon float64) (*Hou
 		return nil, fmt.Errorf("hourly forecast: %w", err)
 	}
 	if uvPoints, _ := s.getUVData(ctx, gridLat, gridLon, timezone); len(uvPoints) > 0 {
+		hourly = slices.Clone(hourly)
 		applyUVToHourly(uvPoints, hourly)
 	}
 	return &HourlyForecastResponse{Hourly: hourly, Timezone: timezone}, nil
@@ -844,6 +851,9 @@ const dailyNormalsPeriod = "1991-2020"
 // history, from the station chosen by pickNormalsStations. A nil result with
 // a nil error means no station within range has them.
 func (s *Service) GetDailyClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64, now time.Time) (*DailyNormalsResult, error) {
+	if !inCoverage(lat, lon) {
+		return nil, nil
+	}
 	loc, err := time.LoadLocation(DefaultPlaceTimezone)
 	if err != nil {
 		loc = time.UTC
@@ -950,6 +960,9 @@ func (s *Service) observedPrecipitationThisMonth(ctx context.Context, lat, lon f
 }
 
 func (s *Service) GetClimateNormals(ctx context.Context, lat, lon float64, currentTemp *float64) (*Station, float64, []ClimateNormal, InterpolatedNormal, error) {
+	if !inCoverage(lat, lon) {
+		return nil, 0, nil, InterpolatedNormal{}, nil
+	}
 	station, distKm, err := s.store.NearestStationWithClimateNormals(ctx, lat, lon, "1991-2020")
 	if err != nil {
 		return nil, 0, nil, InterpolatedNormal{}, fmt.Errorf("nearest station with climate normals: %w", err)

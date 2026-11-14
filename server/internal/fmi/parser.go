@@ -113,6 +113,9 @@ type timeValuePair struct {
 type ObservationResult struct {
 	Stations     []weather.Station
 	Observations []weather.Observation
+	// SkippedMembers counts series dropped because their station had no
+	// usable FMISID or position.
+	SkippedMembers int
 }
 
 // ParseObservations parses an FMI WFS observation response.
@@ -132,19 +135,19 @@ func ParseObservations(data []byte) (*ObservationResult, error) {
 		t      time.Time
 	}
 	obsMap := make(map[obsKey]*weather.Observation)
+	skipped := 0
 
 	for _, m := range fc.Members {
 		param := strings.ToLower(extractParam(m.Observation.ObservedProperty.Href))
 		fmisid, name, lat, lon, wmo := extractStationInfo(m.Observation)
+		station := weather.Station{FMISID: fmisid, Name: name, Lat: lat, Lon: lon, WMOCode: wmo}
+		if !validStation(station) {
+			skipped++
+			continue
+		}
 
 		if _, ok := stationMap[fmisid]; !ok {
-			stationMap[fmisid] = &weather.Station{
-				FMISID:  fmisid,
-				Name:    name,
-				Lat:     lat,
-				Lon:     lon,
-				WMOCode: wmo,
-			}
+			stationMap[fmisid] = &station
 		}
 
 		for _, pt := range m.Observation.Result.TimeSeries.Points {
@@ -202,7 +205,7 @@ func ParseObservations(data []byte) (*ObservationResult, error) {
 		}
 	}
 
-	result := &ObservationResult{}
+	result := &ObservationResult{SkippedMembers: skipped}
 	for _, s := range stationMap {
 		result.Stations = append(result.Stations, *s)
 	}
@@ -223,6 +226,10 @@ func ParseObservations(data []byte) (*ObservationResult, error) {
 
 	return result, nil
 }
+
+// minTailDayHours is how many hourly temperatures the last day of a daily
+// forecast needs to be reported.
+const minTailDayHours = 20
 
 // hourlyEntry is one timestamped forecast value for a single parameter.
 type hourlyEntry struct {
@@ -294,6 +301,7 @@ func ParseForecast(data []byte, gridLat, gridLon float64) (weather.ForecastData,
 
 	now := time.Now()
 	var forecasts []weather.DailyForecast
+	var hoursPerDay []int
 	for _, dk := range dayOrder {
 		b := days[dk]
 		date, _ := time.Parse("2006-01-02", dk)
@@ -355,9 +363,12 @@ func ParseForecast(data []byte, gridLat, gridLon float64) (weather.ForecastData,
 		f.WeatherSymbol3Mode = modeRoundedFloatPtr(vals("weathersymbol3"))
 		f.WindUMSAvg = avgPtr(vals("windums"))
 		f.WindVMSAvg = avgPtr(vals("windvms"))
-		f.WindVectorMSAvg = avgPtr(vals("windvectorms"))
 
 		forecasts = append(forecasts, f)
+		hoursPerDay = append(hoursPerDay, len(tempVals))
+	}
+	for len(forecasts) > 1 && hoursPerDay[len(forecasts)-1] < minTailDayHours {
+		forecasts = forecasts[:len(forecasts)-1]
 	}
 	return weather.ForecastData{
 		Forecasts: forecasts,
@@ -808,14 +819,25 @@ func isLikelyCodeValue(v string) bool {
 	return true
 }
 
+// parsePos parses a "lat lon" position, returning 0, 0 when either part is
+// missing or not a finite number.
 func parsePos(pos string) (float64, float64) {
 	parts := strings.Fields(pos)
 	if len(parts) != 2 {
 		return 0, 0
 	}
-	lat, _ := strconv.ParseFloat(parts[0], 64)
-	lon, _ := strconv.ParseFloat(parts[1], 64)
+	lat, latErr := strconv.ParseFloat(parts[0], 64)
+	lon, lonErr := strconv.ParseFloat(parts[1], 64)
+	if latErr != nil || lonErr != nil || math.IsNaN(lat) || math.IsInf(lat, 0) || math.IsNaN(lon) || math.IsInf(lon, 0) {
+		return 0, 0
+	}
 	return lat, lon
+}
+
+// validStation reports whether a parsed station carries a real FMISID and
+// position.
+func validStation(st weather.Station) bool {
+	return st.FMISID > 0 && (st.Lat != 0 || st.Lon != 0)
 }
 
 func parseFloat(s string) *float64 {
