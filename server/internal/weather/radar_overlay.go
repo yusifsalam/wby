@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 )
 
@@ -191,11 +192,41 @@ func (s *Service) fetchNowcastGrid(ctx context.Context, at time.Time) (*Precipit
 	return out, nil
 }
 
+// NowcastRunner triggers a gribsvc nowcast recompute.
+type NowcastRunner interface {
+	RunNowcast(ctx context.Context) error
+}
+
+// nowcastMaxOutage is how long nowcast runs may keep failing before the
+// predictions of the last successful run stop being served.
+const nowcastMaxOutage = 15 * time.Minute
+
+// RunNowcast triggers a nowcast recompute through the radar source and tracks
+// since when runs have been failing.
+func (s *Service) RunNowcast(ctx context.Context) error {
+	runner, ok := s.radarPrecip.(NowcastRunner)
+	if !ok {
+		return nil
+	}
+	if err := runner.RunNowcast(ctx); err != nil {
+		s.nowcastFailingSince.CompareAndSwap(0, time.Now().UnixNano())
+		return err
+	}
+	s.nowcastFailingSince.Store(0)
+	return nil
+}
+
 // WarmNowcastGrids re-fetches every nowcast frame in the served window,
 // overwriting cache entries left from the previous run. Intended to run after
-// each nowcast run; best-effort like WarmRadarGrids.
+// each nowcast run; best-effort like WarmRadarGrids. Once runs have been
+// failing for nowcastMaxOutage it drops the cached frames instead.
 func (s *Service) WarmNowcastGrids(ctx context.Context) {
 	if s.radarPrecip == nil {
+		return
+	}
+	if since := s.nowcastFailingSince.Load(); since != 0 && time.Since(time.Unix(0, since)) > nowcastMaxOutage {
+		s.radarPrecipCache.DeleteIf(func(k string) bool { return strings.HasPrefix(k, nowcastGridPrefix) })
+		slog.Error("nowcast runs keep failing, dropped nowcast grids", "failing_since", time.Unix(0, since).UTC())
 		return
 	}
 

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"os"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -130,6 +132,23 @@ type Service struct {
 
 	precipHistory     PrecipitationHistoryFetcher
 	precipToDateCache *Cache[*PrecipitationObservations]
+
+	forecastFlight flightGroup[forecastResult]
+	hourlyFlight   flightGroup[[]HourlyForecast]
+	uvFlight       flightGroup[[]UVDataPoint]
+	precipFlight   flightGroup[*PrecipitationOverlay]
+
+	gribFile            string
+	nowcastFailingSince atomic.Int64
+}
+
+// upstreamRetryAfter is how long a stale or empty result stands in for a
+// failed upstream fetch before the next request tries the upstream again.
+const upstreamRetryAfter = time.Minute
+
+type forecastResult struct {
+	forecasts []DailyForecast
+	timezone  string
 }
 
 func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL time.Duration) *Service {
@@ -165,6 +184,12 @@ func (s *Service) SetGribTemperatureSource(src GribTemperatureSource) {
 // GetPrecipitationForecastOverlay report the feature as disabled.
 func (s *Service) SetGribPrecipitationSource(src GribPrecipitationSource) {
 	s.gribPrecip = src
+}
+
+// SetGribFile names the GRIB file on disk that the temperature and
+// precipitation sources read, so warming can tell how old it is.
+func (s *Service) SetGribFile(path string) {
+	s.gribFile = path
 }
 
 // SetPrecipitationLayers configures the WMS layer names used for the
@@ -227,11 +252,30 @@ func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherRes
 			DistanceKM:  distKM,
 			Observation: obs,
 		},
-		Hourly:   upcomingHours(hourly, time.Now(), weatherResponseHourlyHours),
-		Forecast: forecast,
-		UV:       uvPoints,
-		Timezone: forecastTimezone,
+		Hourly:            upcomingHours(hourly, time.Now(), weatherResponseHourlyHours),
+		Forecast:          forecast,
+		UV:                uvPoints,
+		Timezone:          forecastTimezone,
+		ForecastFetchedAt: oldestFetchedAt(forecast, hourly),
 	}, nil
+}
+
+// oldestFetchedAt is the earliest time any of the given forecast rows was
+// fetched from FMI, or zero when none carries a fetch time.
+func oldestFetchedAt(daily []DailyForecast, hourly []HourlyForecast) time.Time {
+	var oldest time.Time
+	note := func(t time.Time) {
+		if !t.IsZero() && (oldest.IsZero() || t.Before(oldest)) {
+			oldest = t
+		}
+	}
+	for _, f := range daily {
+		note(f.FetchedAt)
+	}
+	for _, h := range hourly {
+		note(h.FetchedAt)
+	}
+	return oldest
 }
 
 // weatherResponseHourlyHours caps the hourly list embedded in GetWeather;
@@ -257,17 +301,22 @@ func (s *Service) GetHourlyForecast(ctx context.Context, lat, lon float64) (*Hou
 	gridLat, gridLon := snapToGrid(lat, lon)
 	_, timezone, err := s.getForecast(ctx, gridLat, gridLon)
 	if err != nil {
-		return nil, fmt.Errorf("forecast: %w", err)
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("forecast: %w", err)
+		}
+		slog.Warn("daily forecast unavailable, using the known place timezone", "err", err, "lat", gridLat, "lon", gridLon)
+		timezone = s.cachedTimezoneForKey(fmt.Sprintf("%.2f,%.2f", gridLat, gridLon))
 	}
 	hourly, err := s.getHourlyForecast(ctx, gridLat, gridLon, timezone)
 	if err != nil {
 		return nil, fmt.Errorf("hourly forecast: %w", err)
 	}
+	fetchedAt := oldestFetchedAt(nil, hourly)
 	if uvPoints, _ := s.getUVData(ctx, gridLat, gridLon, timezone); len(uvPoints) > 0 {
 		hourly = slices.Clone(hourly)
 		applyUVToHourly(uvPoints, hourly)
 	}
-	return &HourlyForecastResponse{Hourly: hourly, Timezone: timezone}, nil
+	return &HourlyForecastResponse{Hourly: hourly, Timezone: timezone, FetchedAt: fetchedAt}, nil
 }
 
 // currentConditions picks the station representing lat/lon (see
@@ -300,7 +349,7 @@ func (s *Service) currentConditions(ctx context.Context, lat, lon float64) (Stat
 	if err != nil {
 		return Station{}, 0, Observation{}, fmt.Errorf("latest observation: %w", err)
 	}
-	return station, distKM, obs, nil
+	return station, distKM, withoutExpiredValues(obs, time.Now()), nil
 }
 
 func (s *Service) GetTemperatureSamples(ctx context.Context) (*TemperatureSamplesResponse, error) {
@@ -422,17 +471,35 @@ func (s *Service) getForecast(ctx context.Context, gridLat, gridLon float64) ([]
 		}
 	}
 
-	forecasts, err := s.store.GetForecasts(ctx, gridLat, gridLon, startOfLocalDay(time.Now(), s.cachedTimezoneForKey(cacheKey)))
-	if err == nil && len(forecasts) > 0 && isFresh(forecasts, 3*time.Hour) && hasExpandedForecastData(forecasts) {
-		s.forecastCache.Set(cacheKey, forecasts)
-		return forecasts, s.cachedTimezoneForKey(cacheKey), nil
+	res, _, err := s.forecastFlight.Do(ctx, cacheKey, func(ctx context.Context) (forecastResult, error) {
+		return s.loadForecast(ctx, cacheKey, gridLat, gridLon)
+	})
+	return res.forecasts, res.timezone, err
+}
+
+// loadForecast returns the persisted daily forecast when it is fresh, and
+// otherwise fetches it from FMI. When FMI fails or returns nothing, persisted
+// rows of any age are served instead.
+func (s *Service) loadForecast(ctx context.Context, cacheKey string, gridLat, gridLon float64) (forecastResult, error) {
+	persistedTimezone := s.cachedTimezoneForKey(cacheKey)
+	persisted, storeErr := s.store.GetForecasts(ctx, gridLat, gridLon, startOfLocalDay(time.Now(), persistedTimezone))
+	usable := storeErr == nil && len(persisted) > 0 && hasExpandedForecastData(persisted)
+	if usable && isFresh(persisted, 3*time.Hour) {
+		s.forecastCache.Set(cacheKey, persisted)
+		return forecastResult{persisted, persistedTimezone}, nil
 	}
 
 	forecastData, err := s.fmi.FetchForecast(ctx, gridLat, gridLon)
-	if err != nil {
-		return nil, "", err
+	if (err != nil || len(forecastData.Forecasts) == 0) && usable {
+		slog.Warn("using stale persisted daily forecast", "err", err, "lat", gridLat, "lon", gridLon,
+			"fetched_at", oldestFetchedAt(persisted, nil))
+		s.forecastCache.SetTTL(cacheKey, persisted, upstreamRetryAfter)
+		return forecastResult{persisted, persistedTimezone}, nil
 	}
-	forecasts = forecastData.Forecasts
+	if err != nil {
+		return forecastResult{}, err
+	}
+	forecasts := forecastData.Forecasts
 	timezone := normalizePlaceTimezone(forecastData.Timezone)
 
 	if storeErr := s.store.UpsertForecasts(ctx, forecasts); storeErr != nil {
@@ -441,7 +508,7 @@ func (s *Service) getForecast(ctx context.Context, gridLat, gridLon float64) ([]
 	s.forecastCache.Set(cacheKey, forecasts)
 	s.timezoneCache.Set(cacheKey, timezone)
 
-	return forecasts, timezone, nil
+	return forecastResult{forecasts, timezone}, nil
 }
 
 func (s *Service) cachedTimezoneForKey(cacheKey string) string {
@@ -466,6 +533,13 @@ func (s *Service) getHourlyForecast(ctx context.Context, gridLat, gridLon float6
 		return cached, nil
 	}
 
+	hourly, _, err := s.hourlyFlight.Do(ctx, cacheKey, func(ctx context.Context) ([]HourlyForecast, error) {
+		return s.loadHourlyForecast(ctx, cacheKey, gridLat, gridLon, timezone)
+	})
+	return hourly, err
+}
+
+func (s *Service) loadHourlyForecast(ctx context.Context, cacheKey string, gridLat, gridLon float64, timezone string) ([]HourlyForecast, error) {
 	from := startOfLocalDay(time.Now(), timezone)
 	persistedHourly, storeErr := s.store.GetHourlyForecasts(ctx, gridLat, gridLon, from, HourlyForecastHours)
 	if storeErr == nil && len(persistedHourly) > 0 && isHourlyFresh(persistedHourly, 90*time.Minute) {
@@ -476,8 +550,9 @@ func (s *Service) getHourlyForecast(ctx context.Context, gridLat, gridLon float6
 	hourly, err := s.fmi.FetchHourlyForecast(ctx, gridLat, gridLon, from, HourlyForecastHours)
 	if err != nil {
 		if len(persistedHourly) > 0 {
-			slog.Warn("using stale persisted hourly forecast", "err", err, "lat", gridLat, "lon", gridLon)
-			s.hourlyCache.Set(cacheKey, persistedHourly)
+			slog.Warn("using stale persisted hourly forecast", "err", err, "lat", gridLat, "lon", gridLon,
+				"fetched_at", oldestFetchedAt(nil, persistedHourly))
+			s.hourlyCache.SetTTL(cacheKey, persistedHourly, upstreamRetryAfter)
 			return persistedHourly, nil
 		}
 		return nil, err
@@ -578,6 +653,12 @@ func (s *Service) WarmGribGrids(ctx context.Context) {
 	if ctx.Err() != nil {
 		return
 	}
+	if age, stale := s.gribFileAge(); stale {
+		s.gribGridCache.DeleteIf(func(string) bool { return true })
+		s.gribPrecipCache.DeleteIf(func(string) bool { return true })
+		slog.Error("grib file too old, dropped its grids", "file", s.gribFile, "age", age.Round(time.Minute))
+		return
+	}
 	start := time.Now()
 	base := time.Now().UTC().Truncate(time.Hour)
 	precipHours := warmHours(base, PrecipForecastHorizon+warmHorizonSlack)
@@ -596,11 +677,41 @@ func (s *Service) WarmGribGrids(ctx context.Context) {
 	if s.gribTemp != nil {
 		pruneWarmCache(s.gribGridCache, gribTempGridKey, tempHours)
 	}
-	slog.Info("warmed grib grids",
+	s.gribGridCache.DeleteFunc(func(_ string, grid *FieldGrid) bool { return gribGridExpired(grid, start) })
+	s.gribPrecipCache.DeleteFunc(func(_ string, grid *PrecipitationForecastGrid) bool { return gribGridExpired(grid.Grid, start) })
+
+	log := slog.Info
+	if (s.gribPrecip != nil && precip == 0) || (s.gribTemp != nil && temp == 0) {
+		log = slog.Warn
+	}
+	log("warmed grib grids",
 		"precipitation_frames", precip,
 		"temperature_frames", temp,
 		"duration", time.Since(start),
 	)
+}
+
+// gribMaxAge bounds how old GRIB data may get before it stops being served:
+// both the downloaded file and a grid a later warm failed to re-read.
+const gribMaxAge = 6 * time.Hour
+
+// gribFileAge reports how long ago the GRIB file was downloaded and whether
+// that exceeds gribMaxAge. A file that is not configured or not on disk is
+// not stale.
+func (s *Service) gribFileAge() (time.Duration, bool) {
+	if s.gribFile == "" {
+		return 0, false
+	}
+	info, err := os.Stat(s.gribFile)
+	if err != nil {
+		return 0, false
+	}
+	age := time.Since(info.ModTime())
+	return age, age > gribMaxAge
+}
+
+func gribGridExpired(grid *FieldGrid, now time.Time) bool {
+	return grid != nil && !grid.FetchedAt.IsZero() && now.Sub(grid.FetchedAt) > gribMaxAge
 }
 
 func gribTempGridKey(hour time.Time) string {
@@ -771,26 +882,33 @@ func hasExpandedForecastData(forecasts []DailyForecast) bool {
 	return false
 }
 
-// getUVData returns the UV forecast for the grid cell and whether it was just
-// fetched from FMI (as opposed to served from the in-process cache). Only a
-// fresh fetch carries anything the persisted forecasts don't already have, so
-// callers persist on fresh only.
+// getUVData returns the UV forecast for the grid cell and whether this call
+// just fetched it from FMI (as opposed to getting it from the in-process cache
+// or from another request's fetch). Only a fresh fetch carries anything the
+// persisted forecasts don't already have, so callers persist on fresh only. A
+// failed or empty fetch is remembered for upstreamRetryAfter.
 func (s *Service) getUVData(ctx context.Context, gridLat, gridLon float64, timezone string) ([]UVDataPoint, bool) {
 	cacheKey := fmt.Sprintf("uv:%.2f,%.2f", gridLat, gridLon)
 	if cached, ok := s.uvCache.Get(cacheKey); ok {
 		return cached, false
 	}
 
-	points, err := s.fmi.FetchUVForecast(ctx, gridLat, gridLon, startOfLocalDay(time.Now(), timezone))
-	if err != nil {
-		slog.Warn("UV forecast fetch failed", "err", err)
-		return nil, false
-	}
-	slog.Info("fetched UV forecast from FMI", "lat", gridLat, "lon", gridLon, "points", len(points), "data", points)
-	if len(points) > 0 {
+	points, leader, _ := s.uvFlight.Do(ctx, cacheKey, func(ctx context.Context) ([]UVDataPoint, error) {
+		points, err := s.fmi.FetchUVForecast(ctx, gridLat, gridLon, startOfLocalDay(time.Now(), timezone))
+		if err != nil {
+			slog.Warn("UV forecast fetch failed", "err", err)
+			points = nil
+		} else {
+			slog.Info("fetched UV forecast from FMI", "lat", gridLat, "lon", gridLon, "points", len(points), "data", points)
+		}
+		if len(points) == 0 {
+			s.uvCache.SetTTL(cacheKey, nil, upstreamRetryAfter)
+			return nil, nil
+		}
 		s.uvCache.Set(cacheKey, points)
-	}
-	return points, true
+		return points, nil
+	})
+	return points, leader && len(points) > 0
 }
 
 func placeLocation(timezone string) *time.Location {

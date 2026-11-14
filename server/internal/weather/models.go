@@ -95,6 +95,8 @@ const HourlyForecastHours = 11 * 24
 type HourlyForecastResponse struct {
 	Hourly   []HourlyForecast
 	Timezone string
+	// FetchedAt is when the oldest of Hourly was fetched from FMI.
+	FetchedAt time.Time
 }
 
 type HourlyForecast struct {
@@ -131,6 +133,9 @@ type WeatherResponse struct {
 	Forecast []DailyForecast
 	UV       []UVDataPoint
 	Timezone string
+	// ForecastFetchedAt is when the oldest of Hourly and Forecast was fetched
+	// from FMI.
+	ForecastFetchedAt time.Time
 }
 
 type ForecastData struct {
@@ -181,6 +186,8 @@ type FieldGrid struct {
 	MaxLon     float64
 	Values     []float32 // row-major, NaN = masked
 	ObservedAt time.Time
+	// FetchedAt is when the grid was read from its source; zero when unknown.
+	FetchedAt time.Time
 }
 
 // GridRange returns the min and max over the grid's valid (non-NaN) cells, or

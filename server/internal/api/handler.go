@@ -59,6 +59,17 @@ type weatherJSON struct {
 	Forecast []dailyForecastJSON  `json:"daily_forecast"`
 	UV       []uvPointJSON        `json:"uv_forecast"`
 	Timezone string               `json:"timezone"`
+	// ForecastFetchedAt is when the oldest forecast data in the response was
+	// fetched from FMI.
+	ForecastFetchedAt *time.Time `json:"forecast_fetched_at,omitempty"`
+}
+
+func timeOrNil(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	t = t.UTC().Truncate(time.Second)
+	return &t
 }
 
 // Hourly UV index from the local midnight through the next day.
@@ -193,7 +204,8 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			Extra:           result.Current.Observation.ExtraNumericParams,
 			ObservedAt:      result.Current.Observation.ObservedAt,
 		},
-		Timezone: result.Timezone,
+		Timezone:          result.Timezone,
+		ForecastFetchedAt: timeOrNil(result.ForecastFetchedAt),
 	}
 
 	for _, f := range result.Forecast {
@@ -274,8 +286,9 @@ func hourlyForecastsJSON(hourly []weather.HourlyForecast) []hourlyForecastJSON {
 }
 
 type hourlyForecastResponseJSON struct {
-	Hourly   []hourlyForecastJSON `json:"hourly_forecast"`
-	Timezone string               `json:"timezone"`
+	Hourly            []hourlyForecastJSON `json:"hourly_forecast"`
+	Timezone          string               `json:"timezone"`
+	ForecastFetchedAt *time.Time           `json:"forecast_fetched_at,omitempty"`
 }
 
 func (h *Handler) getHourlyForecast(w http.ResponseWriter, r *http.Request) {
@@ -301,8 +314,9 @@ func (h *Handler) getHourlyForecast(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	json.NewEncoder(w).Encode(hourlyForecastResponseJSON{
-		Hourly:   hourlyForecastsJSON(result.Hourly),
-		Timezone: result.Timezone,
+		Hourly:            hourlyForecastsJSON(result.Hourly),
+		Timezone:          result.Timezone,
+		ForecastFetchedAt: timeOrNil(result.FetchedAt),
 	})
 }
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 	_ "time/tzdata"
@@ -44,6 +45,7 @@ func main() {
 	svc.SetPrecipitationStyle(cfg.FMIPrecipStyle)
 	svc.SetGribTemperatureSource(grib.New(cfg.GribsvcURL, cfg.GribFilename, cfg.GribTempParam, cfg.GribStep))
 	svc.SetGribPrecipitationSource(grib.NewPrecipitation(cfg.GribsvcURL, cfg.GribFilename, cfg.GribPrecipParam, cfg.GribPrecipStep))
+	svc.SetGribFile(filepath.Join(cfg.GRIBDataDir, cfg.GribFilename))
 	var radarGrib *grib.Client
 	if cfg.RadarFetchEnable {
 		radarGrib = grib.NewRadar(cfg.GribsvcURL, cfg.RadarGridStep)
@@ -68,7 +70,7 @@ func main() {
 			Width:   cfg.RadarWidth,
 			Height:  cfg.RadarHeight,
 			Span:    cfg.RadarFrameSpan,
-			Nowcast: radarGrib,
+			Nowcast: svc,
 		}, func(ctx context.Context) {
 			svc.WarmRadarGrids(ctx)
 			svc.WarmNowcastGrids(ctx)

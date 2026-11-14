@@ -12,6 +12,7 @@ const (
 	stationSearchRadiusKm = 30.0
 	stationCandidateLimit = 8
 	observationMaxAge     = 2 * time.Hour
+	observationExpiry     = 3 * time.Hour
 
 	penaltyMissingTemperatureKm = 15.0
 	penaltyMissingWeatherKm     = 10.0
@@ -40,7 +41,8 @@ func stationRankKm(sd StationDistance, o Observation) float64 {
 // pickStation returns the best-ranked fresh candidate (candidates are nearest
 // first) with its observation backfilled from the other fresh ones in distance
 // order. Without any fresh observation it returns the nearest candidate that
-// has one, unmerged; ok is false when none has any.
+// has one, unmerged and without its values once they are older than
+// observationExpiry; ok is false when none has any.
 func pickStation(candidates []StationDistance, obs map[int]Observation, now time.Time) (StationDistance, Observation, bool) {
 	var fresh []StationDistance
 	for _, c := range candidates {
@@ -52,7 +54,7 @@ func pickStation(candidates []StationDistance, obs map[int]Observation, now time
 	if len(fresh) == 0 {
 		for _, c := range candidates {
 			if o, ok := obs[c.FMISID]; ok {
-				return c, o, true
+				return c, withoutExpiredValues(o, now), true
 			}
 		}
 		return StationDistance{}, Observation{}, false
@@ -75,6 +77,15 @@ func pickStation(candidates []StationDistance, obs map[int]Observation, now time
 		fillObservation(&merged, obs[c.FMISID])
 	}
 	return best, merged, true
+}
+
+// withoutExpiredValues returns o, stripped to its station and timestamp when
+// it is older than observationExpiry.
+func withoutExpiredValues(o Observation, now time.Time) Observation {
+	if now.Sub(o.ObservedAt) <= observationExpiry {
+		return o
+	}
+	return Observation{FMISID: o.FMISID, ObservedAt: o.ObservedAt}
 }
 
 // fillObservation copies each parameter that dst lacks from src.

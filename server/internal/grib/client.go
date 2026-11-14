@@ -351,6 +351,7 @@ func (c *Client) readRasterFrames(body io.Reader, g rasterGeometry, validTimes [
 		return nil, fmt.Errorf("gribsvc raster: body %d bytes, want %d for %d frame(s) of %dx%d", len(raw), want, len(validTimes), g.rows, g.cols)
 	}
 
+	fetchedAt := time.Now()
 	grids := make([]*weather.FieldGrid, 0, len(validTimes))
 	for f, validTime := range validTimes {
 		frame := raw[f*cells*4 : (f+1)*cells*4]
@@ -372,6 +373,7 @@ func (c *Client) readRasterFrames(body io.Reader, g rasterGeometry, validTimes [
 			MaxLon:     g.maxLon,
 			Values:     values,
 			ObservedAt: validTime,
+			FetchedAt:  fetchedAt,
 		})
 	}
 	return grids, nil

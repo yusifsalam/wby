@@ -3,6 +3,8 @@ package weather
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -376,5 +378,73 @@ func TestWarmPrecipitationGrids_StopsOnCancel(t *testing.T) {
 
 	if grid, series := src.counts(); grid != 0 || series != 0 {
 		t.Fatalf("expected no calls after cancel, got %d/%d", grid, series)
+	}
+}
+
+func TestWarmGribGrids_DropsGridsWhenTheFileIsTooOld(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "harmonie_surface.grib2")
+	if err := os.WriteFile(file, []byte("grib"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := &countingTempSource{}
+	svc := &Service{
+		gribTemp:        src,
+		gribGridCache:   NewCache[*FieldGrid](0),
+		gribPrecipCache: NewCache[*PrecipitationForecastGrid](0),
+	}
+	svc.SetGribFile(file)
+	hour := time.Now().UTC().Truncate(time.Hour)
+
+	svc.WarmGribGrids(context.Background())
+	if svc.gribTemperatureGrid(hour) == nil {
+		t.Fatal("expected grids warmed from a freshly downloaded file")
+	}
+	_, seriesBefore := src.counts()
+
+	old := time.Now().Add(-gribMaxAge - time.Hour)
+	if err := os.Chtimes(file, old, old); err != nil {
+		t.Fatal(err)
+	}
+	svc.WarmGribGrids(context.Background())
+	if svc.gribTemperatureGrid(hour) != nil {
+		t.Fatal("grids from a file older than gribMaxAge are still served")
+	}
+	if _, series := src.counts(); series != seriesBefore {
+		t.Errorf("warming read the stale file (%d series calls, want %d)", series, seriesBefore)
+	}
+
+	svc.SetGribFile(filepath.Join(t.TempDir(), "missing.grib2"))
+	svc.WarmGribGrids(context.Background())
+	if svc.gribTemperatureGrid(hour) == nil {
+		t.Fatal("a file that is not on disk must not block warming")
+	}
+}
+
+func TestWarmGribGrids_DropsGridsALaterWarmCouldNotRefresh(t *testing.T) {
+	src := &countingTempSource{seriesErr: context.DeadlineExceeded}
+	svc := &Service{
+		gribTemp:        src,
+		gribGridCache:   NewCache[*FieldGrid](0),
+		gribPrecipCache: NewCache[*PrecipitationForecastGrid](0),
+	}
+	hour := time.Now().UTC().Truncate(time.Hour)
+	grid := func(at time.Time, fetchedAt time.Time) *FieldGrid {
+		return &FieldGrid{Rows: 1, Cols: 1, Values: []float32{1}, ObservedAt: at, FetchedAt: fetchedAt}
+	}
+	recent, expired, unknown := hour, hour.Add(time.Hour), hour.Add(2*time.Hour)
+	svc.gribGridCache.Set(gribTempGridKey(recent), grid(recent, time.Now().Add(-time.Hour)))
+	svc.gribGridCache.Set(gribTempGridKey(expired), grid(expired, time.Now().Add(-gribMaxAge-time.Hour)))
+	svc.gribGridCache.Set(gribTempGridKey(unknown), grid(unknown, time.Time{}))
+
+	svc.WarmGribGrids(context.Background())
+
+	if svc.gribTemperatureGrid(recent) == nil {
+		t.Error("a grid read an hour ago should survive a warm that timed out")
+	}
+	if svc.gribTemperatureGrid(expired) != nil {
+		t.Error("a grid last read before gribMaxAge is still served")
+	}
+	if svc.gribTemperatureGrid(unknown) == nil {
+		t.Error("a grid without a read time should be kept")
 	}
 }

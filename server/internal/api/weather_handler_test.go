@@ -88,6 +88,41 @@ func TestGetHourlyForecast(t *testing.T) {
 	}
 }
 
+func TestForecastFetchedAtIsReportedWhenKnown(t *testing.T) {
+	fetchedAt := time.Date(2026, 11, 14, 9, 30, 0, 0, time.UTC)
+	h := NewHandler(weatherServiceStub{
+		weather: &weather.WeatherResponse{ForecastFetchedAt: fetchedAt},
+		hourly:  &weather.HourlyForecastResponse{FetchedAt: fetchedAt},
+	})
+	handlers := map[string]http.HandlerFunc{
+		"/v1/weather":        h.getWeather,
+		"/v1/weather/hourly": h.getHourlyForecast,
+	}
+	for path, handler := range handlers {
+		rr := httptest.NewRecorder()
+		handler(rr, httptest.NewRequest(http.MethodGet, path+"?lat=60.1&lon=24.9", nil))
+		var resp struct {
+			ForecastFetchedAt *time.Time `json:"forecast_fetched_at"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("%s: decode response: %v", path, err)
+		}
+		if resp.ForecastFetchedAt == nil || !resp.ForecastFetchedAt.Equal(fetchedAt) {
+			t.Errorf("%s: forecast_fetched_at = %v, want %v", path, resp.ForecastFetchedAt, fetchedAt)
+		}
+	}
+
+	rr := httptest.NewRecorder()
+	NewHandler(weatherServiceStub{}).getWeather(rr, httptest.NewRequest(http.MethodGet, "/v1/weather?lat=60.1&lon=24.9", nil))
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(rr.Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := raw["forecast_fetched_at"]; present {
+		t.Error("forecast_fetched_at should be omitted when unknown")
+	}
+}
+
 type weatherServiceStub struct {
 	weather *weather.WeatherResponse
 	hourly  *weather.HourlyForecastResponse

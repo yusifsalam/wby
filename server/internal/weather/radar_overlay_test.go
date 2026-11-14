@@ -2,6 +2,7 @@ package weather
 
 import (
 	"context"
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -201,5 +202,68 @@ func TestObservationGridRejectsOutOfWindowTargets(t *testing.T) {
 		if _, err := s.GetPrecipitationObservationGrid(context.Background(), PrecipitationOverlayRequest{Time: target}); err != ErrPrecipitationDisabled {
 			t.Fatalf("target %s: want ErrPrecipitationDisabled, got %v", target, err)
 		}
+	}
+}
+
+type fakeNowcastSource struct {
+	fakeRadarSource
+	runErr error
+	runs   int
+}
+
+func (f *fakeNowcastSource) RunNowcast(ctx context.Context) error {
+	f.runs++
+	return f.runErr
+}
+
+func TestNowcastGridsAreDroppedOnceRunsKeepFailing(t *testing.T) {
+	s := newRadarTestService()
+	ctx := context.Background()
+	next := time.Now().UTC().Truncate(radarFrameStep).Add(radarFrameStep)
+	src := &fakeNowcastSource{fakeRadarSource: fakeRadarSource{frames: map[string]*FieldGrid{
+		NowcastFrameFile(next): radarTestGrid(2),
+	}}}
+	s.SetRadarPrecipitationSource(src)
+	served := func() bool {
+		_, err := s.GetPrecipitationNowcastGrid(ctx, PrecipitationOverlayRequest{Time: next})
+		return err == nil
+	}
+
+	if err := s.RunNowcast(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s.WarmNowcastGrids(ctx)
+	if !served() {
+		t.Fatal("expected the nowcast frame after a successful run")
+	}
+
+	src.runErr = errors.New("gribsvc unavailable")
+	if err := s.RunNowcast(ctx); err == nil {
+		t.Fatal("expected the run error to be returned")
+	}
+	s.WarmNowcastGrids(ctx)
+	if !served() {
+		t.Fatal("one failed run must not drop the previous run's frames")
+	}
+
+	s.nowcastFailingSince.Store(time.Now().Add(-nowcastMaxOutage - time.Minute).UnixNano())
+	if err := s.RunNowcast(ctx); err == nil {
+		t.Fatal("expected the run error to be returned")
+	}
+	s.WarmNowcastGrids(ctx)
+	if served() {
+		t.Fatal("frames of a run older than nowcastMaxOutage are still served")
+	}
+
+	src.runErr = nil
+	if err := s.RunNowcast(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s.WarmNowcastGrids(ctx)
+	if !served() {
+		t.Fatal("expected the nowcast frame again once runs recover")
+	}
+	if src.runs != 4 {
+		t.Errorf("source ran %d times, want 4", src.runs)
 	}
 }

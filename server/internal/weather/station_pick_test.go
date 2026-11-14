@@ -85,6 +85,18 @@ func TestPickStationSkipsStaleAndFallsBack(t *testing.T) {
 		t.Fatalf("expected stale nearest fallback, got %d ok=%v", picked.FMISID, ok)
 	}
 
+	expired := map[int]Observation{1: {FMISID: 1, ObservedAt: now.Add(-4 * time.Hour), Temperature: f(20), WindSpeed: f(1)}}
+	picked, merged, ok = pickStation(candidates, expired, now)
+	if !ok || picked.FMISID != 1 {
+		t.Fatalf("expected the nearest station even when its observation expired, got %d ok=%v", picked.FMISID, ok)
+	}
+	if merged.Temperature != nil || merged.WindSpeed != nil {
+		t.Error("values older than observationExpiry must not be served")
+	}
+	if !merged.ObservedAt.Equal(now.Add(-4*time.Hour)) || merged.FMISID != 1 {
+		t.Errorf("expired observation should keep its station and time, got %d at %v", merged.FMISID, merged.ObservedAt)
+	}
+
 	if _, _, ok := pickStation(candidates, nil, now); ok {
 		t.Error("expected ok=false with no observations")
 	}

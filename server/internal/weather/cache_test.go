@@ -76,3 +76,34 @@ func TestCache_ZeroTTLKeepsEntriesForExplicitPruning(t *testing.T) {
 		t.Fatal("DeleteIf did not remove the entry")
 	}
 }
+
+func TestCache_SetTTLOverridesTheDefault(t *testing.T) {
+	c := NewCache[string](time.Hour)
+	c.SetTTL("brief", "v", 30*time.Millisecond)
+	c.Set("normal", "v")
+	if _, ok := c.Get("brief"); !ok {
+		t.Fatal("expected a hit before the entry's own TTL passed")
+	}
+
+	time.Sleep(60 * time.Millisecond)
+
+	if _, ok := c.Get("brief"); ok {
+		t.Error("entry outlived its own TTL")
+	}
+	if _, ok := c.Get("normal"); !ok {
+		t.Error("entry with the default TTL expired early")
+	}
+}
+
+func TestCache_DeleteFuncSeesValues(t *testing.T) {
+	c := NewCache[int](0)
+	c.Set("a", 1)
+	c.Set("b", 2)
+	c.DeleteFunc(func(_ string, v int) bool { return v > 1 })
+	if _, ok := c.Get("a"); !ok {
+		t.Error("a should remain")
+	}
+	if _, ok := c.Get("b"); ok {
+		t.Error("b should be deleted")
+	}
+}

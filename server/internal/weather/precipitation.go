@@ -64,6 +64,18 @@ func (s *Service) GetPrecipitationOverlay(ctx context.Context, req Precipitation
 		"height", req.Height,
 	)
 
+	overlay, _, err := s.precipFlight.Do(ctx, cacheKey, func(ctx context.Context) (*PrecipitationOverlay, error) {
+		return s.fetchPrecipitationTile(ctx, cacheKey, layer, target, req)
+	})
+	return overlay, err
+}
+
+// fetchPrecipitationTile fetches the tile for target from FMI and caches it.
+// An earlier frame served in place of an unpublished one is cached only for
+// upstreamRetryAfter.
+func (s *Service) fetchPrecipitationTile(ctx context.Context, cacheKey, layer string, target time.Time, req PrecipitationOverlayRequest) (*PrecipitationOverlay, error) {
+	const precipStep = 5 * time.Minute
+
 	// FMI's radar observation composite lags real time: the current 5-min mark
 	// (and often several before it) isn't published yet, so a request for it
 	// returns "InvalidDimensionValue: Invalid time requested!". The lag is
@@ -100,10 +112,12 @@ func (s *Service) GetPrecipitationOverlay(ctx context.Context, req Precipitation
 				DataTime: attemptTarget,
 				Layer:    layer,
 			}
-			s.precipCache.Set(cacheKey, overlay)
 			if attempt > 0 {
+				s.precipCache.SetTTL(cacheKey, overlay, upstreamRetryAfter)
 				slog.Info("precipitation tile fallback succeeded", "layer", layer,
 					"requested", target, "served", attemptTarget, "attempts", attempt+1)
+			} else {
+				s.precipCache.Set(cacheKey, overlay)
 			}
 			return overlay, nil
 		}

@@ -54,9 +54,10 @@ and radar GeoTIFFs into JSON values, binary float32 rasters
 2. **API request** hits `GET /v1/weather?lat=X&lon=Y` (`internal/api/handler.go`).
 3. **Service** (`internal/weather/service.go`) orchestrates the response:
    - Finds nearest station via PostGIS spatial query (`<->` operator)
-   - Returns latest observation from that station
+   - Returns latest observation from that station; values older than 3 h are withheld (only `observed_at` remains)
    - Snaps coordinates to 0.01° grid (~1km) for forecast cache keys
-   - Checks 3-tier cache: in-process (10min TTL) → Postgres (3h TTL) → FMI API
+   - Checks 3-tier cache: in-process (10min TTL) → Postgres (3h TTL) → FMI API; concurrent requests for one cell share a single upstream fetch
+   - When FMI fails, persisted forecast rows of any age are served and retried after a minute; `forecast_fetched_at` in the response shows their age
    - Combines current conditions + hourly forecast (12h) + daily forecast (7-10d)
 4. **FMI client** (`internal/fmi/client.go`) fetches WFS XML; **parser** (`internal/fmi/parser.go`) converts XML to domain models.
 5. **Store** (`internal/store/store.go`) handles all Postgres/PostGIS persistence with `pgx/v5` batch operations.
