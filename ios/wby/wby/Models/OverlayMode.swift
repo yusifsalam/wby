@@ -13,11 +13,9 @@ enum OverlayMode: String, CaseIterable {
         }
     }
 
-    var toggled: OverlayMode {
-        switch self {
-        case .metal: return .png
-        case .png: return .metal
-        }
+    var usesMetal: Bool {
+        get { self == .metal }
+        set { self = newValue ? .metal : .png }
     }
 
     static func load(defaults: UserDefaults = .standard) -> OverlayMode {

@@ -102,9 +102,11 @@ the override, so `.dev.yml` is self-contained.
 
 ### iOS Architecture
 
-- `WeatherService` (actor): REST client with offline JSON cache fallback
-- `LocationService` (@Observable): CoreLocation GPS + reverse geocoding + altitude
-- `ContentView`: main scrollable weather screen; individual cards in `Views/`
+- `WeatherService` (actor): signed REST client; responses are cached only by `URLCache` per the API's `Cache-Control` headers, with no offline fallback
+- `LocationService` (@Observable): CoreLocation GPS + authorization state + reverse geocoding + altitude
+- `ContentView`: horizontal pager of `WeatherPageView`s (GPS page + favorites); each page loads its own weather; individual cards in `Views/Card/`
+- `WeatherMapViewModel` drives the UIKit `MKMapView` bridge for the map; overlays are rendered through `TemperatureMetalRenderer`
+- `APIDay`: parses and formats the API's `yyyy-MM-dd` days in the place time zone, independent of device calendar and locale
 - `SmartSymbol`: maps FMI SmartSymbol codes (1-77, 100+ for night) to SF Symbols
 - No third-party dependencies
 

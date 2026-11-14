@@ -124,15 +124,15 @@ private struct SmartSymbolGallery: View {
         .frame(maxWidth: .infinity)
         .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isNight
-                      ? Color(red: 0.05, green: 0.08, blue: 0.18)
-                      : Color(red: 0.45, green: 0.68, blue: 0.92))
+            isNight
+                ? Color(red: 0.05, green: 0.08, blue: 0.18)
+                : Color(red: 0.45, green: 0.68, blue: 0.92),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
         )
-        .overlay(
+        .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.primary.opacity(0.08))
-        )
+        }
         .foregroundStyle(.white)
     }
 }

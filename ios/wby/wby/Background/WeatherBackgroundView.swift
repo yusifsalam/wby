@@ -208,7 +208,7 @@ private struct WeatherBackgroundPreview: View {
 }
 
 #Preview("Clear day") {
-    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .clearDay, cloudCover: 1))
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .clearDay, cloudCover: 12))
 }
 
 #Preview("Clear night") {
@@ -216,25 +216,25 @@ private struct WeatherBackgroundPreview: View {
 }
 
 #Preview("Partly cloudy") {
-    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .partlyCloudy, cloudCover: 5, windSpeed: 6, windDirection: 250))
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .partlyCloudy, cloudCover: 62, windSpeed: 6, windDirection: 250))
 }
 
 #Preview("Partly cloudy night") {
-    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .partlyCloudyNight, cloudCover: 5))
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .partlyCloudyNight, cloudCover: 62))
 }
 
 #Preview("Overcast") {
-    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .overcast, cloudCover: 8, windSpeed: 4, windDirection: 180))
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .overcast, cloudCover: 100, windSpeed: 4, windDirection: 180))
 }
 
 #Preview("Rain") {
-    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .rain, precipitation1h: 0.6, cloudCover: 8, windSpeed: 7, windDirection: 240))
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .rain, precipitation1h: 0.6, cloudCover: 100, windSpeed: 7, windDirection: 240))
 }
 
 #Preview("Snow") {
-    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .snow, precipitation1h: 0.8, cloudCover: 8, windSpeed: 4, windDirection: 300))
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .snow, precipitation1h: 0.8, cloudCover: 100, windSpeed: 4, windDirection: 300))
 }
 
 #Preview("Storm") {
-    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .storm, precipitation1h: 3.0, cloudCover: 8, windSpeed: 12, windDirection: 220))
+    WeatherBackgroundPreview(state: WeatherBackgroundState(scene: .storm, precipitation1h: 3.0, cloudCover: 100, windSpeed: 12, windDirection: 220))
 }

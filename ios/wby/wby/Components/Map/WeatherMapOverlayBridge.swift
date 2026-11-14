@@ -1,4 +1,5 @@
 import MapKit
+import Synchronization
 import UIKit
 
 // UIKit/MapKit bridge retained for custom raster temperature overlay rendering.
@@ -11,11 +12,16 @@ nonisolated final class TemperatureImageOverlay: NSObject, MKOverlay {
     // coastline (matching the web map). Precipitation stays unclipped: rain
     // over the sea is real data.
     let clipsToFinland: Bool
-    var image: UIImage
+    private let storedImage: Mutex<UIImage>
+
+    var image: UIImage {
+        get { storedImage.withLock { $0 } }
+        set { storedImage.withLock { $0 = newValue } }
+    }
 
     init(bbox: MapBBox, image: UIImage, clipsToFinland: Bool = false) {
         self.bbox = bbox
-        self.image = image
+        self.storedImage = Mutex(image)
         self.clipsToFinland = clipsToFinland
         coordinate = CLLocationCoordinate2D(
             latitude: (bbox.minLat + bbox.maxLat) / 2.0,

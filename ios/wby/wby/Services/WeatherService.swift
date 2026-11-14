@@ -53,16 +53,10 @@ actor WeatherService {
     }
 
     func fetchTemperatureOverlay(bbox: MapBBox, width: Int, height: Int) async throws -> TemperatureOverlayImage {
-        let bboxValue = [
-            Self.coordinateString(bbox.minLon),
-            Self.coordinateString(bbox.minLat),
-            Self.coordinateString(bbox.maxLon),
-            Self.coordinateString(bbox.maxLat),
-        ].joined(separator: ",")
         let (data, httpResponse) = try await performRequest(
             path: "v1/map/temperature",
             queryItems: [
-                URLQueryItem(name: "bbox", value: bboxValue),
+                URLQueryItem(name: "bbox", value: bbox.queryValue),
                 URLQueryItem(name: "width", value: String(width)),
                 URLQueryItem(name: "height", value: String(height)),
             ]
@@ -87,14 +81,8 @@ actor WeatherService {
         height: Int,
         time: Date?
     ) async throws -> PrecipitationOverlayImage {
-        let bboxValue = [
-            Self.coordinateString(bbox.minLon),
-            Self.coordinateString(bbox.minLat),
-            Self.coordinateString(bbox.maxLon),
-            Self.coordinateString(bbox.maxLat),
-        ].joined(separator: ",")
         var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "bbox", value: bboxValue),
+            URLQueryItem(name: "bbox", value: bbox.queryValue),
             URLQueryItem(name: "width", value: String(width)),
             URLQueryItem(name: "height", value: String(height)),
         ]
@@ -168,14 +156,8 @@ actor WeatherService {
         height: Int,
         time: Date?
     ) async throws -> PrecipitationForecastResponse {
-        let bboxValue = [
-            Self.coordinateString(bbox.minLon),
-            Self.coordinateString(bbox.minLat),
-            Self.coordinateString(bbox.maxLon),
-            Self.coordinateString(bbox.maxLat),
-        ].joined(separator: ",")
         var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "bbox", value: bboxValue),
+            URLQueryItem(name: "bbox", value: bbox.queryValue),
             URLQueryItem(name: "width", value: String(width)),
             URLQueryItem(name: "height", value: String(height)),
         ]
@@ -201,15 +183,15 @@ actor WeatherService {
         )
     }
 
-    func fetchDailyClimateNormals(lat: Double, lon: Double, currentTemp: Double?) async throws -> DailyClimateNormalsResponse {
-        var queryItems = [
-            URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
-            URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
-        ]
-        if let currentTemp {
-            queryItems.append(URLQueryItem(name: "current_temp", value: String(format: "%.1f", currentTemp)))
-        }
-        return try await fetchJSON(path: "v1/climate-normals/daily", queryItems: queryItems, dateDecodingStrategy: .iso8601)
+    func fetchDailyClimateNormals(lat: Double, lon: Double) async throws -> DailyClimateNormalsResponse {
+        try await fetchJSON(
+            path: "v1/climate-normals/daily",
+            queryItems: [
+                URLQueryItem(name: "lat", value: Self.coordinateString(lat)),
+                URLQueryItem(name: "lon", value: Self.coordinateString(lon)),
+            ],
+            dateDecodingStrategy: .iso8601
+        )
     }
 
     // MARK: - Leaderboard
@@ -398,6 +380,11 @@ enum WeatherError: Error {
     case httpStatus(Int, String?)
     case decoding(Error)
     case serverError
+
+    var isCancellation: Bool {
+        guard case .network(let error) = self else { return false }
+        return error is CancellationError || (error as? URLError)?.code == .cancelled
+    }
 }
 
 extension WeatherError: LocalizedError {

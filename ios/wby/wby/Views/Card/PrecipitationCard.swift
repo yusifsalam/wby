@@ -27,17 +27,16 @@ struct PrecipitationCard: View {
         guard let pop = forecasts.first?.popAvg else {
             return "Today"
         }
-        let percentage = pop <= 1 ? pop * 100 : pop
-        return "\(Int(percentage.rounded()))% chance"
+        return "\(Int(pop.rounded()))% chance"
     }
 
     private var nextMessage: String {
-        guard let next = forecasts.dropFirst().first(where: { (precipitationAmount(for: $0) ?? 0) >= 0.3 || (precipitationProbability($0) ?? 0) >= 35 }) else {
+        guard let next = forecasts.dropFirst().first(where: { (precipitationAmount(for: $0) ?? 0) >= 0.3 || ($0.popAvg ?? 0) >= 35 }) else {
             return "No significant precipitation expected in the next days."
         }
         let kind = precipitationKind(for: next)
         let typeNote = precipitationTypeText(for: next)
-        if let pop = precipitationProbability(next) {
+        if let pop = next.popAvg {
             if let typeNote {
                 return "Next \(kind) expected \(displayDate(next.date)) (\(Int(pop.rounded()))% chance, \(typeNote))."
             }
@@ -52,11 +51,6 @@ struct PrecipitationCard: View {
     private func precipitationAmount(for forecast: DailyForecast?) -> Double? {
         guard let forecast else { return nil }
         return forecast.precipitationMm ?? forecast.precipitation1hSum
-    }
-
-    private func precipitationProbability(_ forecast: DailyForecast) -> Double? {
-        guard let pop = forecast.popAvg else { return nil }
-        return pop <= 1 ? pop * 100 : pop
     }
 
     private func precipitationKind(for forecast: DailyForecast) -> String {
@@ -92,10 +86,7 @@ struct PrecipitationCard: View {
     }
 
     private func displayDate(_ raw: String) -> String {
-        let parser = DateFormatter()
-        parser.dateFormat = "yyyy-MM-dd"
-        parser.timeZone = timeZone
-        guard let date = parser.date(from: raw) else { return raw }
+        guard let date = APIDay.date(raw, in: timeZone) else { return raw }
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         formatter.timeZone = timeZone

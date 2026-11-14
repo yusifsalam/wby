@@ -10,8 +10,8 @@ struct WeatherMapView: View {
     private let previewConfig: PreviewConfig?
 
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(OverlayMode.storageKey) private var overlayModeRawValue = OverlayMode.metal.rawValue
-    @AppStorage(MapLayerKind.storageKey) private var layerRawValue = MapLayerKind.temperature.rawValue
+    @AppStorage(OverlayMode.storageKey) private var overlayMode: OverlayMode = .metal
+    @AppStorage(MapLayerKind.storageKey) private var layer: MapLayerKind = .temperature
     @State private var viewModel: WeatherMapViewModel
     @Namespace private var glassNamespace
 
@@ -28,7 +28,6 @@ struct WeatherMapView: View {
         self.previewConfig = previewConfig
         _viewModel = State(
             wrappedValue: WeatherMapViewModel(
-                overlayService: MapOverlayService(weatherService: weatherService),
                 weatherService: weatherService,
                 networkEnabled: !disableAutoLoad,
                 initialMeta: previewConfig?.overlayMeta,
@@ -119,10 +118,10 @@ struct WeatherMapView: View {
                 _ = await locationService.requestFreshLocation()
             }
         }
-        .onChange(of: overlayModeRawValue) {
+        .onChange(of: overlayMode) {
             applyOverlayModeFromSettings()
         }
-        .onChange(of: layerRawValue) {
+        .onChange(of: layer) {
             applyLayerFromSettings()
         }
         .onChange(of: locationService.coordinate.map { "\($0.latitude),\($0.longitude)" }) {
@@ -142,12 +141,8 @@ struct WeatherMapView: View {
     }
 
     private func applyOverlayModeFromSettings() {
-        let mode = OverlayMode(rawValue: overlayModeRawValue) ?? .metal
-        if overlayModeRawValue != mode.rawValue {
-            overlayModeRawValue = mode.rawValue
-        }
         withAnimation {
-            viewModel.setOverlayMode(mode)
+            viewModel.setOverlayMode(overlayMode)
         }
         if viewModel.isScrubberVisible {
             viewModel.prefetchTimeline()
@@ -155,10 +150,6 @@ struct WeatherMapView: View {
     }
 
     private func applyLayerFromSettings() {
-        let layer = MapLayerKind(rawValue: layerRawValue) ?? .temperature
-        if layerRawValue != layer.rawValue {
-            layerRawValue = layer.rawValue
-        }
         withAnimation {
             viewModel.setSelectedLayer(layer)
         }
@@ -169,10 +160,10 @@ struct WeatherMapView: View {
 
     private var layerMenu: some View {
         Menu {
-            Picker("Layer", selection: $layerRawValue) {
-                ForEach(MapLayerKind.allCases, id: \.rawValue) { layer in
+            Picker("Layer", selection: $layer) {
+                ForEach(MapLayerKind.allCases, id: \.self) { layer in
                     Label(layer.displayName, systemImage: layer.symbolName)
-                        .tag(layer.rawValue)
+                        .tag(layer)
                 }
             }
         } label: {

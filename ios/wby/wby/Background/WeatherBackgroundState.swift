@@ -21,12 +21,10 @@ struct WeatherBackgroundState: Equatable {
         self.windDirection = windDirection
     }
 
-    /// Cloud cover in 0...1. FMI may report oktas (0-8) or percent (0-100);
-    /// matches the display logic in CurrentConditionsCard.formatCloudCover.
+    /// Cloud cover in 0...1, from the percent the API reports.
     var coverage: Float {
         guard let cover = cloudCover else { return 0.5 }
-        let normalized: Double = cover <= 8.5 ? cover / 8.0 : cover / 100.0
-        return Float(min(max(normalized, 0.0), 1.0))
+        return Float(min(max(cover / 100.0, 0.0), 1.0))
     }
 
     /// Precipitation intensity in 0...3, drizzle through torrential.

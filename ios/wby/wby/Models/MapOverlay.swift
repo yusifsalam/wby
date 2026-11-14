@@ -1,6 +1,6 @@
 import Foundation
 
-struct MapBBox: Equatable, Hashable {
+nonisolated struct MapBBox: Equatable, Hashable {
     /// Full Finland bounding box matching the FMI observation coverage.
     static let finland = MapBBox(minLon: 19.0, minLat: 59.0, maxLon: 32.0, maxLat: 71.5)
 
@@ -16,22 +16,6 @@ struct MapBBox: Equatable, Hashable {
             Self.coordinateString(maxLon),
             Self.coordinateString(maxLat),
         ].joined(separator: ",")
-    }
-
-    func expanded(by factor: Double) -> MapBBox {
-        guard factor > 1 else { return clampedToWorld() }
-
-        let lonSpan = maxLon - minLon
-        let latSpan = maxLat - minLat
-        let lonPad = lonSpan * (factor - 1) * 0.5
-        let latPad = latSpan * (factor - 1) * 0.5
-
-        return MapBBox(
-            minLon: minLon - lonPad,
-            minLat: minLat - latPad,
-            maxLon: maxLon + lonPad,
-            maxLat: maxLat + latPad
-        ).clampedToWorld()
     }
 
     func clampedToWorld() -> MapBBox {

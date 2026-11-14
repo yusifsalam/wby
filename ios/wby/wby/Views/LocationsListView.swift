@@ -12,8 +12,10 @@ struct LocationsListView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var myLocationWeather: WeatherResponse?
-    @State private var favoriteWeathers: [UUID: WeatherResponse] = [:]
+    @State private var favoriteWeathers: [UUID: WeatherResponse]
     @State private var searchText = ""
+    @State private var searchErrorMessage = ""
+    @State private var showingSearchError = false
     @State private var completer = LocationSearchCompleter()
     @State private var editMode: EditMode
 
@@ -53,7 +55,7 @@ struct LocationsListView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(backgroundColor.ignoresSafeArea())
+            .background { backgroundColor.ignoresSafeArea() }
             .environment(\.editMode, $editMode)
             .searchable(text: $searchText, prompt: "Search city or place")
             .onChange(of: searchText) {
@@ -83,6 +85,11 @@ struct LocationsListView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .alert("Place Unavailable", isPresented: $showingSearchError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(searchErrorMessage)
+        }
         .task {
             guard !disableAutoLoad else { return }
             await loadWeathers()
@@ -139,8 +146,8 @@ struct LocationsListView: View {
 
     private var searchResultsList: some View {
         List {
-            ForEach(completer.results, id: \.self) { completion in
-                searchResultRow(completion)
+            ForEach(completer.results) { result in
+                searchResultRow(result.completion)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
@@ -207,17 +214,7 @@ struct LocationsListView: View {
 
     private func searchResultRow(_ completion: MKLocalSearchCompletion) -> some View {
         Button {
-            Task {
-                let request = MKLocalSearch.Request(completion: completion)
-                let response = try? await MKLocalSearch(request: request).start()
-                if let item = response?.mapItems.first,
-                   let favorite = favoriteLocation(from: item)
-                {
-                    favoritesStore.add(favorite)
-                    onSelect(favorite)
-                }
-                dismiss()
-            }
+            Task { await select(completion) }
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
@@ -267,6 +264,24 @@ struct LocationsListView: View {
         }
     }
 
+    private func select(_ completion: MKLocalSearchCompletion) async {
+        let request = MKLocalSearch.Request(completion: completion)
+        guard let item = try? await MKLocalSearch(request: request).start().mapItems.first,
+              let favorite = favoriteLocation(from: item)
+        else {
+            searchErrorMessage = "Couldn't look up that place. Try again."
+            showingSearchError = true
+            return
+        }
+        if let region = item.addressRepresentations?.region, region != .finland {
+            searchErrorMessage = "Weather is only available for places in Finland."
+            showingSearchError = true
+            return
+        }
+        onSelect(favoritesStore.add(favorite))
+        dismiss()
+    }
+
     private func favoriteLocation(from item: MKMapItem) -> FavoriteLocation? {
         let coordinate = item.location.coordinate
         guard CLLocationCoordinate2DIsValid(coordinate) else { return nil }
@@ -282,9 +297,14 @@ struct LocationsListView: View {
 
 // MARK: - Search Completer
 
+struct LocationSearchResult: Identifiable {
+    let id: String
+    let completion: MKLocalSearchCompletion
+}
+
 @Observable
 final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
-    var results: [MKLocalSearchCompletion] = []
+    var results: [LocationSearchResult] = []
 
     private let completer: MKLocalSearchCompleter = {
         let c = MKLocalSearchCompleter()
@@ -310,9 +330,13 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
     }
 
     func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
-        results = completer.results.filter { completion in
+        var seen = Set<String>()
+        results = completer.results.compactMap { completion in
             let sub = completion.subtitle
-            return sub.contains("Finland") || sub.contains("Suomi")
+            guard sub.contains("Finland") || sub.contains("Suomi") else { return nil }
+            let id = "\(completion.title)\n\(sub)"
+            guard seen.insert(id).inserted else { return nil }
+            return LocationSearchResult(id: id, completion: completion)
         }
     }
 

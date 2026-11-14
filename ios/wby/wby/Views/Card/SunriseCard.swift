@@ -79,7 +79,7 @@ struct SunriseCard: View {
                 Circle()
                     .fill(Color(red: 0.22, green: 0.24, blue: 0.32))
                     .frame(width: 12, height: 12)
-                    .overlay(Circle().stroke(Color.primary.opacity(0.75), lineWidth: 1.2))
+                    .overlay { Circle().stroke(Color.primary.opacity(0.75), lineWidth: 1.2) }
                     .position(x: markerX, y: markerY)
             }
         }
@@ -102,6 +102,7 @@ struct SunriseCard: View {
     // Cached: DateFormatter is expensive to allocate.
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "H.mm"
         return f
     }()

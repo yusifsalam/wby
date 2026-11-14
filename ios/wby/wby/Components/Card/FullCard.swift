@@ -67,11 +67,11 @@ struct FullCard<Visual: View>: View {
             Circle()
                 .fill(.white.opacity(0.15))
                 .frame(width: 136, height: 136)
-                .overlay(
+                .overlay {
                     Text("visual")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.6))
-                )
+                }
         }
         .padding()
     }

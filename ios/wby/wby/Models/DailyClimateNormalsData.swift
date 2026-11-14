@@ -86,7 +86,6 @@ struct DailyNormalToday: Codable {
     let windHourly: [Double]?
     let humidityHourly: [Double]?
     let tempNowNormal: Double?
-    let tempDiff: Double?
     let feelsLikeNowNormal: Double?
     let windNowNormal: Double?
     let humidityNowNormal: Double?
@@ -113,7 +112,6 @@ struct DailyNormalToday: Codable {
         case windHourly = "wind_hourly"
         case humidityHourly = "humidity_hourly"
         case tempNowNormal = "temp_now_normal"
-        case tempDiff = "temp_diff"
         case feelsLikeNowNormal = "feels_like_now_normal"
         case windNowNormal = "wind_now_normal"
         case humidityNowNormal = "humidity_now_normal"

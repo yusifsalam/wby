@@ -16,13 +16,24 @@ struct WeatherPageView: View {
     @State private var climateNormals: ClimateNormalsResponse?
     @State private var dailyClimateNormals: DailyClimateNormalsResponse?
     @State private var isLoading = false
-    @State private var isFetching = false
+    @State private var loadedKey: LoadKey?
+    @State private var inFlightKey: LoadKey?
     @State private var lastUpdated: Date?
     @State private var errorMessage: String?
     @State private var selectedDay: DailyForecast?
     @State private var hourlyWindow: [HourlyForecast]?
 
     private static let staleAfter: TimeInterval = 10 * 60
+
+    private struct LoadKey: Hashable {
+        let lat: Int
+        let lon: Int
+
+        init(_ coordinate: CLLocationCoordinate2D) {
+            lat = Int((coordinate.latitude * 100).rounded())
+            lon = Int((coordinate.longitude * 100).rounded())
+        }
+    }
 
     init(
         location: WeatherLocation,
@@ -67,6 +78,10 @@ struct WeatherPageView: View {
         }
     }
 
+    private var loadKey: LoadKey? {
+        coordinate.map(LoadKey.init)
+    }
+
     // MARK: - Scene
 
     private var currentScene: WeatherScene {
@@ -83,11 +98,11 @@ struct WeatherPageView: View {
         )
     }
 
-    private var backgroundState: WeatherBackgroundState? {
+    private func backgroundState(scene: WeatherScene) -> WeatherBackgroundState? {
         guard let weather else { return nil }
         let nextHour = weather.hourlyForecast.first
         return WeatherBackgroundState(
-            scene: currentScene,
+            scene: scene,
             precipitation1h: nextHour?.precipitation1h,
             cloudCover: weather.current.resolvedCloudCover,
             windSpeed: weather.current.resolvedWindSpeed ?? nextHour?.windSpeed,
@@ -98,10 +113,11 @@ struct WeatherPageView: View {
     // MARK: - Body
 
     var body: some View {
+        let scene = currentScene
         ScrollView {
             VStack(spacing: 8) {
                 if let weather, let coordinate {
-                    headerSection(weather)
+                    headerSection(weather, scene: scene)
                     if !weather.hourlyForecast.isEmpty {
                         HourlyForecastCard(
                             hourly: weather.hourlyForecast,
@@ -166,7 +182,8 @@ struct WeatherPageView: View {
                             normals: climateNormals,
                             currentTemp: weather.current.resolvedTemperature,
                             todayWeatherHigh: weather.dailyForecast.first?.high,
-                            todayWeatherLow: weather.dailyForecast.first?.low
+                            todayWeatherLow: weather.dailyForecast.first?.low,
+                            timeZone: weather.resolvedTimeZone
                         )
                     }
                     if let lastUpdated {
@@ -180,10 +197,9 @@ struct WeatherPageView: View {
                         .foregroundStyle(.primary)
                         .padding(.top, 100)
                 } else if coordinate == nil {
-                    ContentUnavailableView(
-                        "Location Unavailable",
-                        systemImage: "location.slash",
-                        description: Text("Enable location services to see weather here.")
+                    LocationUnavailableView(
+                        isDenied: locationService.isDenied,
+                        didFail: locationService.lastFixFailed
                     )
                 } else {
                     ContentUnavailableView(
@@ -223,25 +239,26 @@ struct WeatherPageView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, !disableAutoLoad, !isFetching, isStale else { return }
+            guard phase == .active, !disableAutoLoad, inFlightKey == nil, isStale else { return }
             Task { await refresh() }
         }
-        .onChange(of: backgroundState, initial: true) { _, state in onBackgroundUpdate(state) }
+        .onChange(of: backgroundState(scene: scene), initial: true) { _, state in onBackgroundUpdate(state) }
         .task {
-            guard !disableAutoLoad else { return }
-            await loadWeather()
-        }
-        .onChange(of: locationService.coordinate?.latitude) {
             guard case .gps = location, !disableAutoLoad else { return }
-            Task { await loadWeather() }
+            locationService.requestAuthorizationIfNeeded()
+        }
+        .task(id: loadKey) {
+            guard !disableAutoLoad, let coordinate else { return }
+            if loadedKey == loadKey, !isStale { return }
+            await fetchWeather(coord: coordinate)
         }
     }
 
     // MARK: - Header
 
-    private func headerSection(_ weather: WeatherResponse) -> some View {
-        let primary: Color = currentScene.prefersLightForeground ? .white : .primary
-        let secondary: Color = currentScene.prefersLightForeground ? .white.opacity(0.78) : .secondary
+    private func headerSection(_ weather: WeatherResponse, scene: WeatherScene) -> some View {
+        let primary: Color = scene.prefersLightForeground ? .white : .primary
+        let secondary: Color = scene.prefersLightForeground ? .white.opacity(0.78) : .secondary
         return VStack(spacing: 4) {
             HStack(spacing: 4) {
                 if case .gps = location {
@@ -303,62 +320,77 @@ struct WeatherPageView: View {
         return Date().timeIntervalSince(lastUpdated) > Self.staleAfter
     }
 
-    private func loadWeather() async {
-        guard let coordinate else { return }
-        await fetchWeather(coord: coordinate)
-    }
-
     private func refresh() async {
         if case .gps = location {
-            if let freshCoord = await locationService.requestFreshLocation() {
-                await fetchWeather(coord: freshCoord)
-            }
-        } else {
-            await fetchWeather()
+            let fresh = await locationService.requestFreshLocation()
+            guard let coord = fresh ?? locationService.coordinate else { return }
+            await fetchWeather(coord: coord)
+        } else if let coordinate {
+            await fetchWeather(coord: coordinate)
         }
     }
 
-    private func fetchWeather(coord: CLLocationCoordinate2D? = nil) async {
-        guard let coord = coord ?? coordinate else { return }
+    private func fetchWeather(coord: CLLocationCoordinate2D) async {
+        let key = LoadKey(coord)
+        guard inFlightKey != key else { return }
+        inFlightKey = key
         isLoading = weather == nil
-        isFetching = true
         defer {
-            isLoading = false
-            isFetching = false
+            if inFlightKey == key {
+                inFlightKey = nil
+                isLoading = false
+            }
         }
         do {
             let response = try await weatherService.fetchWeather(lat: coord.latitude, lon: coord.longitude)
+            guard inFlightKey == key else { return }
             weather = response
             hourlyWindow = nil
             lastUpdated = Date()
             errorMessage = nil
         } catch WeatherError.httpStatus(404, let message) {
+            guard inFlightKey == key else { return }
             weather = nil
             lastUpdated = nil
+            loadedKey = nil
+            dailyClimateNormals = nil
+            climateNormals = nil
             errorMessage = message ?? "No weather data for this location."
+            return
         } catch {
-            if weather == nil {
+            if (error as? WeatherError)?.isCancellation == true { return }
+            if inFlightKey == key, weather == nil {
                 errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             }
-        }
-        do {
-            dailyClimateNormals = try await weatherService.fetchDailyClimateNormals(
-                lat: coord.latitude,
-                lon: coord.longitude,
-                currentTemp: weather?.current.resolvedTemperature
-            )
-        } catch {
-            dailyClimateNormals = nil
-        }
-        guard dailyClimateNormals == nil else {
-            climateNormals = nil
             return
         }
-        do {
-            climateNormals = try await weatherService.fetchClimateNormals(lat: coord.latitude, lon: coord.longitude)
-        } catch {
-            climateNormals = nil
+        await loadNormals(coord: coord, key: key)
+        if inFlightKey == key, !Task.isCancelled {
+            loadedKey = key
         }
+    }
+
+    private func loadNormals(coord: CLLocationCoordinate2D, key: LoadKey) async {
+        do {
+            let daily = try await weatherService.fetchDailyClimateNormals(lat: coord.latitude, lon: coord.longitude)
+            guard inFlightKey == key else { return }
+            dailyClimateNormals = daily
+            climateNormals = nil
+            return
+        } catch WeatherError.httpStatus(404, _) {
+            guard inFlightKey == key else { return }
+            dailyClimateNormals = nil
+        } catch {
+            if dailyClimateNormals != nil { return }
+        }
+        do {
+            let monthly = try await weatherService.fetchClimateNormals(lat: coord.latitude, lon: coord.longitude)
+            guard inFlightKey == key else { return }
+            climateNormals = monthly
+        } catch WeatherError.httpStatus(404, _) {
+            guard inFlightKey == key else { return }
+            climateNormals = nil
+        } catch {}
     }
 
     /// The full ten-day hourly window is fetched lazily the first time a day
@@ -436,14 +468,14 @@ enum PreviewData {
 
     static func makeDaily() -> [DailyForecast] {
         let now = Date()
-        let cal = Calendar.current
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
+        var cal = Calendar(identifier: .gregorian)
+        let timeZone = TimeZone(identifier: "Europe/Helsinki")!
+        cal.timeZone = timeZone
         let symbols = ["2", "1", "3", "21", "1", "2", "3"]
         var result: [DailyForecast] = []
         for i in 0..<7 {
             result.append(DailyForecast(
-                date: fmt.string(from: cal.date(byAdding: .day, value: i, to: now)!),
+                date: APIDay.string(cal.date(byAdding: .day, value: i, to: now)!, in: timeZone),
                 high: 6.0 + Double(i),
                 low: -2.0 + Double(i),
                 symbol: symbols[i],

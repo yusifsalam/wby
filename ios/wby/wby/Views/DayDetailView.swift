@@ -212,6 +212,7 @@ struct DayDetailView: View {
 
     private static let hourFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "HH"
         return f
     }()

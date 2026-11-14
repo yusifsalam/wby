@@ -13,13 +13,14 @@ struct HourlyForecastCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            ScrollView(.horizontal) {
                 HStack(spacing: 18) {
                     ForEach(hourly) { hour in
                         hourCell(hour)
                     }
                 }
             }
+            .scrollIndicators(.hidden)
         }
         .weatherCard()
     }
@@ -75,6 +76,7 @@ struct HourlyForecastCard: View {
     // per cell on every body pass.
     private static let hourFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "HH"
         return f
     }()

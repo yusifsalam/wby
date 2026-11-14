@@ -91,9 +91,6 @@ struct CurrentConditionsCard: View {
 
     private func formatCloudCover(_ cover: Double?) -> String {
         guard let cover else { return "--" }
-        if cover <= 8.5 {
-            return "\(Int(cover.rounded()))/8"
-        }
         return "\(Int(cover.rounded()))%"
     }
 

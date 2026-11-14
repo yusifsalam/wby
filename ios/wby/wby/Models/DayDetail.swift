@@ -11,12 +11,9 @@ struct DayDetail: Identifiable {
 
     /// Pairs every daily forecast with the hours falling on its local date.
     static func build(days: [DailyForecast], hours: [HourlyForecast], timeZone: TimeZone) -> [DayDetail] {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = timeZone
         var byDate: [String: [HourlyForecast]] = [:]
         for hour in hours.sorted(by: { $0.time < $1.time }) {
-            byDate[formatter.string(from: hour.time), default: []].append(hour)
+            byDate[APIDay.string(hour.time, in: timeZone), default: []].append(hour)
         }
         return days.map { DayDetail(day: $0, hours: byDate[$0.date] ?? [], timeZone: timeZone) }
     }

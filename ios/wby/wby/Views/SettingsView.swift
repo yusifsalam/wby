@@ -2,26 +2,24 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
-    @AppStorage(OverlayMode.storageKey) private var overlayModeRawValue = OverlayMode.metal.rawValue
-    @AppStorage(MapRampStyle.storageKey) private var mapRampRawValue = MapRampStyle.smooth.rawValue
+    @AppStorage(OverlayMode.storageKey) private var overlayMode: OverlayMode = .metal
+    @AppStorage(MapRampStyle.storageKey) private var mapRamp: MapRampStyle = .smooth
     @State private var showingPurgeConfirmation = false
     @State private var cachePurged = false
 
     var body: some View {
         Form {
-            
-
             Section {
                 Toggle("Dynamic Background Effects", isOn: $dynamicEffectsEnabled)
             } footer: {
                 Text("Shows rain, snow, and other animated weather effects in the background.")
             }
-            
+
             Section {
-                Toggle("Use Metal Renderer", isOn: usesMetalRenderer)
-                Picker("Map Colors", selection: $mapRampRawValue) {
-                    ForEach(MapRampStyle.allCases, id: \.rawValue) { style in
-                        Text(style.displayName).tag(style.rawValue)
+                Toggle("Use Metal Renderer", isOn: $overlayMode.usesMetal)
+                Picker("Map Colors", selection: $mapRamp) {
+                    ForEach(MapRampStyle.allCases, id: \.self) { style in
+                        Text(style.displayName).tag(style)
                     }
                 }
             } header: {
@@ -49,13 +47,6 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
-    }
-
-    private var usesMetalRenderer: Binding<Bool> {
-        Binding(
-            get: { (OverlayMode(rawValue: overlayModeRawValue) ?? .metal) == .metal },
-            set: { overlayModeRawValue = $0 ? OverlayMode.metal.rawValue : OverlayMode.png.rawValue }
-        )
     }
 }
 

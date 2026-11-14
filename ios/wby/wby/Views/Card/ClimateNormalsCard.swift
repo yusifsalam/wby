@@ -5,6 +5,7 @@ struct ClimateNormalsCard: View {
     let currentTemp: Double?
     let todayWeatherHigh: Double?
     let todayWeatherLow: Double?
+    let timeZone: TimeZone
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -95,7 +96,7 @@ struct ClimateNormalsCard: View {
 
     private var chartData: NormalsTemperatureChart.Data {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        calendar.timeZone = timeZone
 
         let now = Date()
         let year = calendar.component(.year, from: now)
@@ -201,7 +202,8 @@ struct ClimateNormalsCard: View {
             ),
             currentTemp: -0.4,
             todayWeatherHigh: 1.5,
-            todayWeatherLow: -6.0
+            todayWeatherLow: -6.0,
+            timeZone: TimeZone(identifier: "Europe/Helsinki")!
         )
         .padding()
     }

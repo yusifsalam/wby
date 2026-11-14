@@ -31,6 +31,9 @@ struct LeaderboardView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var timeframe: LeaderboardTimeframe = .now
+    @State private var showsDistance = false
+
+    private static let fallbackCoordinate = CLLocationCoordinate2D(latitude: 64.9, longitude: 25.5)
 
     init(
         locationService: LocationService,
@@ -104,13 +107,9 @@ struct LeaderboardView: View {
                 .padding(.bottom, 8)
             }
         }
-        .task {
+        .task(id: timeframe) {
             guard !disableAutoLoad else { return }
             await fetchLeaderboard()
-        }
-        .onChange(of: timeframe) {
-            guard !disableAutoLoad else { return }
-            Task { await fetchLeaderboard() }
         }
     }
 
@@ -184,6 +183,7 @@ struct LeaderboardView: View {
     }
 
     private func subtitle(for entry: LeaderboardEntry) -> String {
+        guard showsDistance else { return relativeTime(entry.observedAt) }
         let distText = entry.distanceKm < 1
             ? "<1 km away"
             : "\(Int(entry.distanceKm.rounded())) km away"
@@ -203,13 +203,19 @@ struct LeaderboardView: View {
     }
 
     private func fetchLeaderboard() async {
-        guard let coord = locationService.coordinate else { return }
+        let userCoordinate = locationService.coordinate
+        let coord = userCoordinate ?? Self.fallbackCoordinate
         isLoading = response == nil
-        defer { isLoading = false }
         do {
-            response = try await weatherService.fetchLeaderboard(lat: coord.latitude, lon: coord.longitude, timeframe: timeframe.rawValue)
+            let result = try await weatherService.fetchLeaderboard(lat: coord.latitude, lon: coord.longitude, timeframe: timeframe.rawValue)
+            guard !Task.isCancelled else { return }
+            response = result
+            showsDistance = userCoordinate != nil
             errorMessage = nil
+            isLoading = false
         } catch {
+            if (error as? WeatherError)?.isCancellation == true { return }
+            isLoading = false
             if response == nil {
                 errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             }

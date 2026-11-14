@@ -31,7 +31,12 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
     var altitudeMeters: Double?
     var placeName: String?
-    var error: Error?
+    private(set) var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    private(set) var lastFixFailed = false
+
+    var isDenied: Bool {
+        authorizationStatus == .denied || authorizationStatus == .restricted
+    }
 
     private var pendingContinuations: [CheckedContinuation<CLLocationCoordinate2D?, Never>] = []
 
@@ -39,6 +44,12 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyKilometer
+        authorizationStatus = manager.authorizationStatus
+    }
+
+    func requestAuthorizationIfNeeded() {
+        guard manager.authorizationStatus == .notDetermined else { return }
+        manager.requestWhenInUseAuthorization()
     }
 
     /// One-shot location request. If authorized, suspends until CLLocationManager delivers a fix.
@@ -59,6 +70,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        authorizationStatus = manager.authorizationStatus
         switch manager.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
             manager.requestLocation()
@@ -69,6 +81,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
+        lastFixFailed = false
         coordinate = location.coordinate
         altitudeMeters = Self.validAltitude(from: location)
         reverseGeocode(location)
@@ -78,7 +91,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        self.error = error
+        lastFixFailed = true
         let waiting = pendingContinuations
         pendingContinuations.removeAll()
         for c in waiting { c.resume(returning: nil) }

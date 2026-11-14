@@ -260,7 +260,7 @@ extension DailyNormalsComparison {
                     tempHourly: hourly, tempHourlyP10: hourly.map { $0 - 2.8 }, tempHourlyP90: hourly.map { $0 + 3.1 },
                     feelsLikeHourly: hourly.map { $0 - 0.7 },
                     windHourly: Array(repeating: 4.1, count: 24), humidityHourly: Array(repeating: 78, count: 24),
-                    tempNowNormal: 13.9, tempDiff: 0.1,
+                    tempNowNormal: 13.9,
                     feelsLikeNowNormal: 13.2, windNowNormal: 4.1, humidityNowNormal: 78
                 ),
                 precipitation: DailyNormalsPrecipitation(

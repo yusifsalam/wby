@@ -73,7 +73,7 @@ struct OverlaySeed {
 }
 
 /// One precipitation timeline frame as a ready-to-apply overlay image. The
-/// 1h (WMS) layer decodes a server PNG; the 12h layer renders the GRIB grid
+/// 1h (WMS) layer decodes a server PNG; the 24h layer renders the GRIB grid
 /// client-side via the metal renderer.
 private struct PrecipFrame {
     let image: UIImage
@@ -103,7 +103,6 @@ final class WeatherMapViewModel {
     private let favoritePinsMaxLatitudeDelta: CLLocationDegrees = 5.8
     private let overlayRefreshInterval: TimeInterval = 3 * 60
     private let overlaySize: Int = 512
-    private let overlayService: MapOverlayService
     private let weatherService: WeatherService
     private let networkEnabled: Bool
     private let initialOverlaySeed: OverlaySeed?
@@ -125,7 +124,7 @@ final class WeatherMapViewModel {
     @ObservationIgnored private var cachedOverlayImage: TemperatureOverlayImage?
     @ObservationIgnored private var cachedMetalOverlaySeed: OverlaySeed?
     @ObservationIgnored private var precipImagesByHour: [Date: PrecipFrame] = [:]
-    // The 12h precip grid is fetched over a slightly padded bbox so the rendered
+    // The 24h precip grid is fetched over a slightly padded bbox so the rendered
     // Finland extent stays strictly inside the grid (no transparent edge strip).
     private let precipGridBBox = MapBBox(minLon: 18.8, minLat: 58.8, maxLon: 32.2, maxLat: 71.7)
     @ObservationIgnored private var inflightPrecipHours: Set<Date> = []
@@ -141,7 +140,6 @@ final class WeatherMapViewModel {
     @ObservationIgnored private var didCenterOnPreferredLocation = false
 
     init(
-        overlayService: MapOverlayService,
         weatherService: WeatherService,
         networkEnabled: Bool = true,
         initialMeta: OverlayMeta? = nil,
@@ -151,7 +149,6 @@ final class WeatherMapViewModel {
         overlayMode: OverlayMode = OverlayMode.load(),
         selectedLayer: MapLayerKind = MapLayerKind.load()
     ) {
-        self.overlayService = overlayService
         self.weatherService = weatherService
         self.networkEnabled = networkEnabled
         self.initialOverlaySeed = initialOverlaySeed
@@ -297,7 +294,7 @@ final class WeatherMapViewModel {
             case .metal:
                 scheduleSamplesRefresh()
             }
-        case .precipitation, .precipitation12h:
+        case .precipitation, .precipitation24h:
             break
         }
     }
@@ -371,7 +368,7 @@ final class WeatherMapViewModel {
         overlayTask = Task { [weak mapView] in
             guard !Task.isCancelled else { return }
             do {
-                let overlayImage = try await overlayService.fetchTemperatureOverlay(
+                let overlayImage = try await weatherService.fetchTemperatureOverlay(
                     bbox: .finland,
                     width: overlaySize,
                     height: overlaySize
@@ -411,7 +408,7 @@ final class WeatherMapViewModel {
             guard let self else { return }
             guard !Task.isCancelled else { return }
             do {
-                let resp = try await overlayService.fetchTemperatureSamples()
+                let resp = try await weatherService.fetchTemperatureSamples()
                 guard !Task.isCancelled else { return }
                 samplesLastFetchedAt = Date()
                 cachedSamples = resp
@@ -462,7 +459,7 @@ final class WeatherMapViewModel {
                     await fetchSamples(for: bucket)
                 }
             }
-        case .precipitation, .precipitation12h:
+        case .precipitation, .precipitation24h:
             precipPrefetchTask?.cancel()
             precipImagesByHour = precipImagesByHour.filter { validBuckets.contains($0.key) }
             precipPrefetchTask = Task { [weak self] in
@@ -491,7 +488,7 @@ final class WeatherMapViewModel {
                 guard let self else { return }
                 await fetchSamples(for: snapped)
             }
-        case .precipitation, .precipitation12h:
+        case .precipitation, .precipitation24h:
             invalidatePrecipFramesIfRampChanged()
             if let cached = precipImagesByHour[snapped] {
                 applyPrecipFrame(cached)
@@ -511,7 +508,7 @@ final class WeatherMapViewModel {
         defer { inflightSampleHours.remove(hour) }
         do {
             let at: Date? = isAtLiveNow(hour) ? nil : hour
-            let resp = try await overlayService.fetchTemperatureSamples(at: at)
+            let resp = try await weatherService.fetchTemperatureSamples(at: at)
             guard !Task.isCancelled else { return }
             samplesByHour[hour] = resp
             if snapToStep(selectedTime) == hour {
@@ -549,7 +546,7 @@ final class WeatherMapViewModel {
             let target: Date? = isAtLiveNow(hour) ? nil : hour
             let frame: PrecipFrame?
             switch selectedLayer {
-            case .precipitation12h:
+            case .precipitation24h:
                 frame = try await loadPrecipForecastFrame(time: target)
             default:
                 frame = try await loadNearTermPrecipFrame(time: target)
@@ -573,7 +570,7 @@ final class WeatherMapViewModel {
 
     // Near-term scrubber frame: past/now frames come from the radar
     // observation grid, future frames from the extrapolation nowcast grid;
-    // both render client-side like the 12h forecast. A radar miss (frame gap,
+    // both render client-side like the 24h forecast. A radar miss (frame gap,
     // older server) falls back to the WMS tiles so the scrubber never goes
     // blank.
     private func loadNearTermPrecipFrame(time: Date?) async throws -> PrecipFrame? {
@@ -590,10 +587,10 @@ final class WeatherMapViewModel {
     }
 
     // Radar observation grid (5-min frames): fetch and render via texture
-    // bilinear, the same path as the 12h forecast grid.
+    // bilinear, the same path as the 24h forecast grid.
     private func loadPrecipObservedFrame(time: Date?) async throws -> PrecipFrame? {
         renderPrecipGridFrame(
-            try await overlayService.fetchPrecipitationObservedGrid(
+            try await weatherService.fetchPrecipitationObservedGrid(
                 bbox: precipGridBBox,
                 width: overlaySize,
                 height: overlaySize,
@@ -604,7 +601,7 @@ final class WeatherMapViewModel {
     // Radar-extrapolation nowcast grid (5-min future frames).
     private func loadPrecipNowcastFrame(time: Date?) async throws -> PrecipFrame? {
         renderPrecipGridFrame(
-            try await overlayService.fetchPrecipitationNowcastGrid(
+            try await weatherService.fetchPrecipitationNowcastGrid(
                 bbox: precipGridBBox,
                 width: overlaySize,
                 height: overlaySize,
@@ -614,7 +611,7 @@ final class WeatherMapViewModel {
 
     // WMS tile fallback: decode the server PNG into an overlay image.
     private func loadPrecipTileFrame(time: Date?) async throws -> PrecipFrame? {
-        let response = try await overlayService.fetchPrecipitationOverlay(
+        let response = try await weatherService.fetchPrecipitationOverlay(
             bbox: .finland,
             width: overlaySize,
             height: overlaySize,
@@ -624,11 +621,11 @@ final class WeatherMapViewModel {
         return PrecipFrame(image: image, dataTime: response.dataTime, bbox: response.bbox)
     }
 
-    // 12h (Harmonie) forecast: fetch the GRIB raster and render it client-side
+    // 24h (Harmonie) forecast: fetch the GRIB raster and render it client-side
     // via texture bilinear, the same path as the temperature grid overlay.
     private func loadPrecipForecastFrame(time: Date?) async throws -> PrecipFrame? {
         renderPrecipGridFrame(
-            try await overlayService.fetchPrecipitationForecastGrid(
+            try await weatherService.fetchPrecipitationForecastGrid(
                 bbox: precipGridBBox,
                 width: overlaySize,
                 height: overlaySize,
@@ -752,7 +749,7 @@ final class WeatherMapViewModel {
             case .metal:
                 scheduleSamplesRefresh()
             }
-        case .precipitation, .precipitation12h:
+        case .precipitation, .precipitation24h:
             // Drive the same prefetch that scrubbing uses, ordered closest-to-now,
             // so the visible frame loads first and the rest of the timeline streams in.
             let now = snapToStep(Date())
@@ -789,7 +786,7 @@ final class WeatherMapViewModel {
                     }
                 }
             }
-        case .precipitation, .precipitation12h:
+        case .precipitation, .precipitation24h:
             let hour = snapToStep(selectedTime)
             if let cached = precipImagesByHour[hour] {
                 applyPrecipFrame(cached)

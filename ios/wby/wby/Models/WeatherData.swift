@@ -164,7 +164,7 @@ struct CurrentConditions: Codable {
     var resolvedPrecipitationIntensity: Double? { precipitationIntensity ?? extraValue("ri_10min") }
     var resolvedSnowDepth: Double? { snowDepth ?? extraValue("snow_aws") }
     var resolvedVisibility: Double? { visibility ?? extraValue("vis") }
-    var resolvedCloudCover: Double? { cloudCover ?? extraValue("n_man") }
+    var resolvedCloudCover: Double? { cloudCover ?? extraValue("n_man").map { min($0, 8) * 12.5 } }
     var resolvedWeatherCode: Double? { weatherCode ?? extraValue("wawa") }
     var resolvedRadiationGlobal: Double? {
         guard let extra, !extra.isEmpty else { return nil }
@@ -360,10 +360,7 @@ struct DailyForecast: Codable, Identifiable {
     }
 
     func displayDate(timeZone: TimeZone) -> Date? {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = timeZone
-        return formatter.date(from: date)
+        APIDay.date(date, in: timeZone)
     }
 
     enum CodingKeys: String, CodingKey {

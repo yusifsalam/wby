@@ -48,10 +48,10 @@ struct WindCard: View {
             .fill(.clear)
             .frame(width: 68, height: 68)
             .background(.ultraThinMaterial.opacity(0.38), in: Circle())
-            .overlay(
+            .overlay {
                 Circle()
                     .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-            )
+            }
     }
 
     private var tickRing: some View {

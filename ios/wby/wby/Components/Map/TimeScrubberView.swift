@@ -145,7 +145,6 @@ private struct TimeScrubberPreviewHost: View {
         let weatherService = WeatherService()
         _viewModel = State(
             wrappedValue: WeatherMapViewModel(
-                overlayService: MapOverlayService(weatherService: weatherService),
                 weatherService: weatherService,
                 networkEnabled: false
             )

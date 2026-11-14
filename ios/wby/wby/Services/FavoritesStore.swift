@@ -17,12 +17,16 @@ final class FavoritesStore {
         }
     }
 
-    func add(_ location: FavoriteLocation) {
-        guard !favorites.contains(where: {
+    @discardableResult
+    func add(_ location: FavoriteLocation) -> FavoriteLocation {
+        if let existing = favorites.first(where: {
             $0.latitude == location.latitude && $0.longitude == location.longitude
-        }) else { return }
+        }) {
+            return existing
+        }
         favorites.append(location)
         save()
+        return location
     }
 
     func remove(at offsets: IndexSet) {
@@ -43,12 +47,18 @@ final class FavoritesStore {
     private func save() {
         guard persistenceEnabled else { return }
         guard let data = try? JSONEncoder().encode(favorites) else { return }
-        try? data.write(to: storeURL)
+        try? data.write(to: storeURL, options: .atomic)
     }
 
     private func load() {
         guard persistenceEnabled else { return }
         guard let data = try? Data(contentsOf: storeURL) else { return }
-        favorites = (try? JSONDecoder().decode([FavoriteLocation].self, from: data)) ?? []
+        do {
+            favorites = try JSONDecoder().decode([FavoriteLocation].self, from: data)
+        } catch {
+            let backupURL = storeURL.deletingLastPathComponent().appendingPathComponent("favorites.unreadable.json")
+            try? FileManager.default.removeItem(at: backupURL)
+            try? FileManager.default.moveItem(at: storeURL, to: backupURL)
+        }
     }
 }
