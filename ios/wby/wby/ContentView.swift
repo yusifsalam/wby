@@ -31,6 +31,7 @@ struct ContentView: View {
     @State private var showingMap = false
     @State private var showingLeaderboard = false
     @State private var pendingPageID: PageID? = nil
+    @State private var pageSheetPresented = false
     @State private var pageBackgrounds: [PageID: WeatherBackgroundState] = [:]
     @State private var scrollModel = PageScrollModel()
     @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
@@ -62,7 +63,7 @@ struct ContentView: View {
                 RootBackgroundView(
                     state: activeBackground,
                     dynamicEffectsEnabled: dynamicEffectsEnabled,
-                    isCovered: showingMap || showingLeaderboard,
+                    isCovered: showingMap || showingLeaderboard || showingLocations || showingSettings || pageSheetPresented,
                     currentPageID: currentPageID,
                     scrollModel: scrollModel
                 )
@@ -97,6 +98,7 @@ struct ContentView: View {
                     set: { if let id = $0 { currentPageID = id } }
                 ))
                 .scrollIndicators(.hidden)
+                .onPreferenceChange(BackgroundCoveredKey.self) { pageSheetPresented = $0 }
                 .safeAreaBar(edge: .bottom) {
                     bottomBar
                 }

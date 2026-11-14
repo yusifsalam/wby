@@ -222,6 +222,7 @@ struct WeatherPageView: View {
         .refreshable {
             await Task { await refresh(reload: true) }.value
         }
+        .coversWeatherBackground(selectedDay != nil)
         .sheet(item: $selectedDay) { day in
             if let weather, let coordinate {
                 NavigationStack {

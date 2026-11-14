@@ -37,6 +37,7 @@ struct UVIndexCard: View {
                 }
             }
             .buttonStyle(.plain)
+            .coversWeatherBackground(showingDetail)
             .sheet(isPresented: $showingDetail) {
                 NavigationStack {
                     UVIndexDetailView(points: uvForecast, timeZone: timeZone)

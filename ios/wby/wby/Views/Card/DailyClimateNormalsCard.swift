@@ -54,6 +54,7 @@ struct DailyClimateNormalsCard: View {
             .weatherCard()
         }
         .buttonStyle(.plain)
+        .coversWeatherBackground(showingDetail)
         .sheet(isPresented: $showingDetail) {
             NavigationStack {
                 DailyClimateNormalsDetailView(comparison: comparison)
