@@ -4,15 +4,13 @@ import SwiftUI
 
 struct LocationsListView: View {
     let favoritesStore: FavoritesStore
-    let weatherService: WeatherService
+    let weatherStore: WeatherStore
     let currentLocationName: String?
     let currentCoordinate: CLLocationCoordinate2D?
     let onSelect: (FavoriteLocation?) -> Void
     let disableAutoLoad: Bool
 
     @Environment(\.dismiss) private var dismiss
-    @State private var myLocationWeather: WeatherResponse?
-    @State private var favoriteWeathers: [UUID: WeatherResponse]
     @State private var searchText = ""
     @State private var searchErrorMessage = ""
     @State private var showingSearchError = false
@@ -21,23 +19,19 @@ struct LocationsListView: View {
 
     init(
         favoritesStore: FavoritesStore,
-        weatherService: WeatherService,
+        weatherStore: WeatherStore,
         currentLocationName: String?,
         currentCoordinate: CLLocationCoordinate2D?,
         onSelect: @escaping (FavoriteLocation?) -> Void,
         previewEditing: Bool = false,
-        disableAutoLoad: Bool = false,
-        initialMyLocationWeather: WeatherResponse? = nil,
-        initialFavoriteWeathers: [UUID: WeatherResponse] = [:]
+        disableAutoLoad: Bool = false
     ) {
         self.favoritesStore = favoritesStore
-        self.weatherService = weatherService
+        self.weatherStore = weatherStore
         self.currentLocationName = currentLocationName
         self.currentCoordinate = currentCoordinate
         self.onSelect = onSelect
         self.disableAutoLoad = disableAutoLoad
-        self._myLocationWeather = State(initialValue: initialMyLocationWeather)
-        self._favoriteWeathers = State(initialValue: initialFavoriteWeathers)
         self._editMode = State(initialValue: previewEditing ? .active : .inactive)
     }
 
@@ -104,7 +98,7 @@ struct LocationsListView: View {
                 locationCard(
                     name: currentLocationName ?? "My Location",
                     isMyLocation: true,
-                    weather: myLocationWeather
+                    weather: currentCoordinate.flatMap { weatherStore.entry(for: $0)?.weather }
                 )
                 .contentShape(Rectangle())
                 .onTapGesture { onSelect(nil); dismiss() }
@@ -120,7 +114,7 @@ struct LocationsListView: View {
                     locationCard(
                         name: favorite.name,
                         isMyLocation: false,
-                        weather: favoriteWeathers[favorite.id]
+                        weather: weatherStore.entry(for: favorite.coordinate)?.weather
                     )
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -242,24 +236,10 @@ struct LocationsListView: View {
     // MARK: - Data loading
 
     private func loadWeathers() async {
-        // Load My Location weather using URLSession protocol cache semantics.
-        if let coord = currentCoordinate, myLocationWeather == nil {
-            myLocationWeather = try? await weatherService.fetchWeather(lat: coord.latitude, lon: coord.longitude)
-        }
-
-        // Load each favorite weather using URLSession protocol cache semantics.
-        await withTaskGroup(of: (UUID, WeatherResponse?).self) { group in
-            for favorite in favoritesStore.favorites where favoriteWeathers[favorite.id] == nil {
-                group.addTask {
-                    let weather = try? await weatherService.fetchWeather(
-                        lat: favorite.latitude,
-                        lon: favorite.longitude
-                    )
-                    return (favorite.id, weather)
-                }
-            }
-            for await (id, weather) in group {
-                if let weather { favoriteWeathers[id] = weather }
+        let coordinates = (currentCoordinate.map { [$0] } ?? []) + favoritesStore.favorites.map(\.coordinate)
+        await withTaskGroup(of: Void.self) { group in
+            for coordinate in coordinates {
+                group.addTask { _ = try? await weatherStore.load(coordinate) }
             }
         }
     }
@@ -359,39 +339,26 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
 
 #Preview {
     let store = LocationsListPreviewFixture.makeStore()
-    let sample = PreviewData.makeSample()
-    let firstID = store.favorites.first?.id
-    let secondID = store.favorites.dropFirst().first?.id
 
     LocationsListView(
         favoritesStore: store,
-        weatherService: WeatherService(),
+        weatherStore: LocationsListPreviewFixture.makeWeatherStore(store),
         currentLocationName: "Helsinki",
         currentCoordinate: CLLocationCoordinate2D(
             latitude: FavoriteLocation.previewHelsinki.latitude,
             longitude: FavoriteLocation.previewHelsinki.longitude
         ),
         onSelect: { _ in },
-        disableAutoLoad: true,
-        initialMyLocationWeather: sample,
-        initialFavoriteWeathers: {
-            var out: [UUID: WeatherResponse] = [:]
-            if let firstID { out[firstID] = sample }
-            if let secondID { out[secondID] = sample }
-            return out
-        }()
+        disableAutoLoad: true
     )
 }
 
 #Preview("Edit Mode") {
     let store = LocationsListPreviewFixture.makeStore()
-    let sample = PreviewData.makeSample()
-    let firstID = store.favorites.first?.id
-    let secondID = store.favorites.dropFirst().first?.id
 
     LocationsListView(
         favoritesStore: store,
-        weatherService: WeatherService(),
+        weatherStore: LocationsListPreviewFixture.makeWeatherStore(store),
         currentLocationName: "Helsinki",
         currentCoordinate: CLLocationCoordinate2D(
             latitude: FavoriteLocation.previewHelsinki.latitude,
@@ -399,14 +366,7 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
         ),
         onSelect: { _ in },
         previewEditing: true,
-        disableAutoLoad: true,
-        initialMyLocationWeather: sample,
-        initialFavoriteWeathers: {
-            var out: [UUID: WeatherResponse] = [:]
-            if let firstID { out[firstID] = sample }
-            if let secondID { out[secondID] = sample }
-            return out
-        }()
+        disableAutoLoad: true
     )
 }
 
@@ -419,5 +379,11 @@ private enum LocationsListPreviewFixture {
             ],
             persistenceEnabled: false
         )
+    }
+
+    static func makeWeatherStore(_ favorites: FavoritesStore) -> WeatherStore {
+        let sample = PreviewData.makeSample()
+        return WeatherStore(seed: [(FavoriteLocation.previewHelsinki.coordinate, sample)]
+            + favorites.favorites.map { ($0.coordinate, sample) })
     }
 }

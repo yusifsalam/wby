@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 
 struct FavoriteLocation: Codable, Identifiable, Equatable, Hashable {
@@ -6,6 +7,10 @@ struct FavoriteLocation: Codable, Identifiable, Equatable, Hashable {
     let subtitle: String   // e.g. "Finland"
     let latitude: Double
     let longitude: Double
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
 }
 
 extension FavoriteLocation {

@@ -8,7 +8,7 @@ struct ContentView: View {
     }
 
     @State private var locationService = LocationService()
-    @State private var weatherService = WeatherService()
+    @State private var weatherStore = WeatherStore()
     @State private var favoritesStore = FavoritesStore()
     @State private var currentPageID: WeatherPageID = .gps
     @State private var showingLocations = false
@@ -19,7 +19,6 @@ struct ContentView: View {
     @State private var pager = WeatherPagerModel()
     @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
     private let disableAutoLoad: Bool
-    private let initialWeather: WeatherResponse?
 
     private var pages: [Page] {
         [Page(id: .gps, location: .gps)] + favoritesStore.favorites.map { favorite in
@@ -31,9 +30,8 @@ struct ContentView: View {
         Set(pages.map(\.id))
     }
 
-    init(disableAutoLoad: Bool = false, initialWeather: WeatherResponse? = nil) {
+    init(disableAutoLoad: Bool = false) {
         self.disableAutoLoad = disableAutoLoad
-        self.initialWeather = initialWeather
     }
 
     var body: some View {
@@ -55,9 +53,8 @@ struct ContentView: View {
                                 pageID: page.id,
                                 pager: pager,
                                 locationService: locationService,
-                                weatherService: weatherService,
-                                disableAutoLoad: disableAutoLoad,
-                                initialWeather: initialWeather
+                                weatherStore: weatherStore,
+                                disableAutoLoad: disableAutoLoad
                             )
                             .containerRelativeFrame(.horizontal)
                             .id(page.id)
@@ -95,7 +92,7 @@ struct ContentView: View {
             }) {
                 LocationsListView(
                     favoritesStore: favoritesStore,
-                    weatherService: weatherService,
+                    weatherStore: weatherStore,
                     currentLocationName: locationService.placeName,
                     currentCoordinate: locationService.coordinate,
                     onSelect: { selected in
@@ -117,14 +114,14 @@ struct ContentView: View {
                 WeatherMapView(
                     locationService: locationService,
                     favoritesStore: favoritesStore,
-                    weatherService: weatherService,
+                    weatherStore: weatherStore,
                     disableAutoLoad: disableAutoLoad
                 )
             }
             .fullScreenCover(isPresented: $showingLeaderboard) {
                 LeaderboardView(
                     locationService: locationService,
-                    weatherService: weatherService,
+                    weatherService: weatherStore.service,
                     disableAutoLoad: disableAutoLoad
                 )
             }
@@ -230,5 +227,5 @@ private struct RootBackgroundView: View {
 }
 
 #Preview {
-    ContentView(disableAutoLoad: true, initialWeather: PreviewData.makeSample())
+    ContentView(disableAutoLoad: true)
 }

@@ -143,10 +143,9 @@ private struct TimeScrubberPreviewHost: View {
     @State private var viewModel: WeatherMapViewModel
 
     init() {
-        let weatherService = WeatherService()
         _viewModel = State(
             wrappedValue: WeatherMapViewModel(
-                weatherService: weatherService,
+                weatherStore: WeatherStore(),
                 networkEnabled: false
             )
         )

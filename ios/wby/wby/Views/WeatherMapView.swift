@@ -19,7 +19,7 @@ struct WeatherMapView: View {
     init(
         locationService: LocationService,
         favoritesStore: FavoritesStore,
-        weatherService: WeatherService,
+        weatherStore: WeatherStore,
         disableAutoLoad: Bool = false,
         previewConfig: PreviewConfig? = nil
     ) {
@@ -29,7 +29,7 @@ struct WeatherMapView: View {
         self.previewConfig = previewConfig
         _viewModel = State(
             wrappedValue: WeatherMapViewModel(
-                weatherService: weatherService,
+                weatherStore: weatherStore,
                 networkEnabled: !disableAutoLoad,
                 initialMeta: previewConfig?.overlayMeta,
                 initialFavoriteWeather: previewConfig?.favoriteWeatherByID ?? [:],
@@ -160,7 +160,7 @@ struct WeatherMapView: View {
     WeatherMapView(
         locationService: WeatherMapPreviewFixture.makeLocationService(),
         favoritesStore: WeatherMapPreviewFixture.makeStore(),
-        weatherService: WeatherService(),
+        weatherStore: WeatherStore(),
         disableAutoLoad: true,
         previewConfig: WeatherMapPreviewFixture.previewConfig
     )

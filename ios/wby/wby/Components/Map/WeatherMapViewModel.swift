@@ -37,11 +37,6 @@ struct FavoritePinWeather: Equatable {
     }
 }
 
-private struct CachedFavoritePinWeather {
-    let weather: FavoritePinWeather
-    let fetchedAt: Date
-}
-
 enum PreviewLoadState {
     case loading
     case loaded
@@ -93,10 +88,10 @@ final class WeatherMapViewModel {
     var scrubberStepSeconds: TimeInterval { selectedLayer.scrubberStepSeconds }
     private let playbackInterval: TimeInterval = 0.6
 
-    private let favoriteWeatherTTL: TimeInterval = 10 * 60
     private let favoritePinsMaxLatitudeDelta: CLLocationDegrees = 5.8
     private let overlayRefreshInterval: TimeInterval = 3 * 60
     private let overlaySize: Int = 512
+    private let weatherStore: WeatherStore
     private let weatherService: WeatherService
     private let networkEnabled: Bool
     private let initialSamples: TemperatureSamplesResponse?
@@ -119,7 +114,7 @@ final class WeatherMapViewModel {
     private let precipGridBBox = MapBBox(minLon: 18.8, minLat: 58.8, maxLon: 32.2, maxLat: 71.7)
     @ObservationIgnored private var inflightPrecipHours: Set<Date> = []
     @ObservationIgnored private var precipPrefetchTask: Task<Void, Never>?
-    @ObservationIgnored private var favoriteWeatherCache: [UUID: CachedFavoritePinWeather] = [:]
+    @ObservationIgnored private var favoritePinSeeds: [UUID: FavoritePinWeather] = [:]
     @ObservationIgnored private var favoriteWeatherTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var previewAnnotation: PreviewPinAnnotation?
     @ObservationIgnored private var previewWeatherTask: Task<Void, Never>?
@@ -130,7 +125,7 @@ final class WeatherMapViewModel {
     @ObservationIgnored private var didCenterOnPreferredLocation = false
 
     init(
-        weatherService: WeatherService,
+        weatherStore: WeatherStore,
         networkEnabled: Bool = true,
         initialMeta: OverlayMeta? = nil,
         initialFavoriteWeather: [UUID: FavoritePinWeather] = [:],
@@ -138,7 +133,8 @@ final class WeatherMapViewModel {
         initialSamples: TemperatureSamplesResponse? = nil,
         selectedLayer: MapLayerKind = MapLayerKind.load()
     ) {
-        self.weatherService = weatherService
+        self.weatherStore = weatherStore
+        self.weatherService = weatherStore.service
         self.networkEnabled = networkEnabled
         self.cachedMetalOverlaySeed = initialOverlaySeed
         self.initialSamples = initialSamples
@@ -146,9 +142,7 @@ final class WeatherMapViewModel {
         self.meta = initialMeta
         self.selectedLayer = selectedLayer
         self.selectedTime = Self.snap(Date(), toSeconds: selectedLayer.scrubberStepSeconds)
-        self.favoriteWeatherCache = initialFavoriteWeather.mapValues {
-            CachedFavoritePinWeather(weather: $0, fetchedAt: Date())
-        }
+        self.favoritePinSeeds = initialFavoriteWeather
         if let initialSamples {
             self.cachedSamples = initialSamples
         }
@@ -269,7 +263,6 @@ final class WeatherMapViewModel {
         for id in staleTaskIDs {
             favoriteWeatherTasks[id]?.cancel()
             favoriteWeatherTasks[id] = nil
-            favoriteWeatherCache[id] = nil
         }
 
         let existing = mapView.favoritePinAnnotations
@@ -281,7 +274,8 @@ final class WeatherMapViewModel {
                 id: $0.id,
                 title: $0.name,
                 coordinate: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude),
-                weather: favoriteWeatherCache[$0.id]?.weather
+                weather: weatherStore.entry(for: $0.coordinate).map { FavoritePinWeather.from(response: $0.weather) }
+                    ?? favoritePinSeeds[$0.id]
             )
         }
         mapView.addAnnotations(newAnnotations)
@@ -676,10 +670,7 @@ final class WeatherMapViewModel {
         previewWeatherTask = Task { [weak self, weak mapView] in
             guard let self else { return }
             do {
-                let response = try await self.weatherService.fetchWeather(
-                    lat: annotation.coordinate.latitude,
-                    lon: annotation.coordinate.longitude
-                )
+                let response = try await self.weatherStore.load(annotation.coordinate).weather
                 guard let mapView = activePreviewMapView(for: annotation, mapView: mapView) else { return }
 
                 annotation.weather = PreviewWeather.from(response: response)
@@ -736,37 +727,29 @@ final class WeatherMapViewModel {
 
         cancelFavoriteWeatherTasks(except: visibleIDs)
 
-        let now = Date()
         for annotation in visible {
-            if let cached = favoriteWeatherCache[annotation.id],
-               now.timeIntervalSince(cached.fetchedAt) < favoriteWeatherTTL
-            {
-                apply(weather: cached.weather, to: annotation, on: mapView)
+            if let entry = weatherStore.entry(for: annotation.coordinate), entry.isFresh {
+                apply(weather: FavoritePinWeather.from(response: entry.weather), to: annotation, on: mapView)
                 continue
             }
 
             if favoriteWeatherTasks[annotation.id] != nil {
                 continue
             }
-            startVisibleFavoriteWeatherFetch(
-                id: annotation.id,
-                latitude: annotation.coordinate.latitude,
-                longitude: annotation.coordinate.longitude
-            )
+            startVisibleFavoriteWeatherFetch(id: annotation.id, coordinate: annotation.coordinate)
         }
     }
 
-    private func startVisibleFavoriteWeatherFetch(id: UUID, latitude: Double, longitude: Double) {
+    private func startVisibleFavoriteWeatherFetch(id: UUID, coordinate: CLLocationCoordinate2D) {
         favoriteWeatherTasks[id] = Task { [weak self] in
             guard let self else { return }
             defer { self.favoriteWeatherTasks[id] = nil }
 
             do {
-                let response = try await weatherService.fetchWeather(lat: latitude, lon: longitude)
+                let response = try await weatherStore.load(coordinate).weather
                 guard !Task.isCancelled else { return }
 
                 let weather = FavoritePinWeather.from(response: response)
-                favoriteWeatherCache[id] = CachedFavoritePinWeather(weather: weather, fetchedAt: Date())
 
                 guard let mapView else { return }
                 guard let annotation = mapView.favoritePinAnnotation(id: id) else {

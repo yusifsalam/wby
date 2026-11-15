@@ -6,24 +6,21 @@ struct WeatherPageView: View {
     let pageID: WeatherPageID
     let pager: WeatherPagerModel
     let locationService: LocationService
-    let weatherService: WeatherService
+    let weatherStore: WeatherStore
     let disableAutoLoad: Bool
 
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var weather: WeatherResponse?
+    @State private var displayedKey: WeatherStore.Key?
     @State private var climateNormals: ClimateNormalsResponse?
     @State private var dailyClimateNormals: DailyClimateNormalsResponse?
     @State private var isLoading = false
     @State private var loadedKey: LoadKey?
     @State private var inFlightKey: LoadKey?
-    @State private var lastUpdated: Date?
-    @State private var showingSavedCopy = false
     @State private var errorMessage: String?
     @State private var selectedDay: DailyForecast?
     @State private var hourlyWindow: [HourlyForecast]?
 
-    private static let staleAfter: TimeInterval = 10 * 60
     private static let forecastStaleAfter: TimeInterval = 6 * 3600
 
     private struct LoadKey: Hashable {
@@ -41,17 +38,32 @@ struct WeatherPageView: View {
         pageID: WeatherPageID,
         pager: WeatherPagerModel,
         locationService: LocationService,
-        weatherService: WeatherService,
-        disableAutoLoad: Bool = false,
-        initialWeather: WeatherResponse? = nil
+        weatherStore: WeatherStore,
+        disableAutoLoad: Bool = false
     ) {
         self.location = location
         self.pageID = pageID
         self.pager = pager
         self.locationService = locationService
-        self.weatherService = weatherService
+        self.weatherStore = weatherStore
         self.disableAutoLoad = disableAutoLoad
-        self._weather = State(initialValue: initialWeather)
+        let initialCoordinate: CLLocationCoordinate2D? = switch location {
+        case .gps: locationService.coordinate
+        case .favorite(let f): f.coordinate
+        }
+        self._displayedKey = State(initialValue: initialCoordinate.map(WeatherStore.Key.init))
+    }
+
+    private var entry: WeatherStore.Entry? {
+        displayedKey.flatMap(weatherStore.entry(for:))
+    }
+
+    private var weather: WeatherResponse? {
+        entry?.weather
+    }
+
+    private var lastUpdated: Date? {
+        entry.flatMap { $0.isSavedCopy ? nil : $0.fetchedAt }
     }
 
     // MARK: - Computed coordinate/name/elevation
@@ -59,7 +71,7 @@ struct WeatherPageView: View {
     private var coordinate: CLLocationCoordinate2D? {
         switch location {
         case .gps: return locationService.coordinate
-        case .favorite(let f): return CLLocationCoordinate2D(latitude: f.latitude, longitude: f.longitude)
+        case .favorite(let f): return f.coordinate
         }
     }
 
@@ -152,7 +164,7 @@ struct WeatherPageView: View {
                     }
                     PrecipitationMapCard(
                         coordinate: coordinate,
-                        weatherService: weatherService,
+                        weatherService: weatherStore.service,
                         timeZone: weather.resolvedTimeZone,
                         refreshToken: lastUpdated,
                         disableAutoLoad: disableAutoLoad,
@@ -292,7 +304,7 @@ struct WeatherPageView: View {
                     .font(.subheadline)
                     .foregroundStyle(secondary)
             }
-            if showingSavedCopy {
+            if entry?.isSavedCopy == true {
                 Text("Offline · showing saved data")
                     .font(.subheadline)
                     .foregroundStyle(secondary)
@@ -381,8 +393,7 @@ struct WeatherPageView: View {
     // MARK: - Loading
 
     private var isStale: Bool {
-        guard let lastUpdated else { return true }
-        return Date().timeIntervalSince(lastUpdated) > Self.staleAfter
+        entry?.isFresh != true
     }
 
     private func refresh(reload: Bool) async {
@@ -407,19 +418,15 @@ struct WeatherPageView: View {
             }
         }
         do {
-            let load = try await weatherService.loadWeather(lat: coord.latitude, lon: coord.longitude, reload: reload)
+            try await weatherStore.load(coord, reload: reload)
             guard inFlightKey == key else { return }
-            weather = load.weather
+            displayedKey = WeatherStore.Key(coord)
             hourlyWindow = nil
-            showingSavedCopy = load.isSavedCopy
-            lastUpdated = load.isSavedCopy ? nil : Date()
             errorMessage = nil
         } catch WeatherError.httpStatus(404, let message) {
             guard inFlightKey == key else { return }
-            weather = nil
-            lastUpdated = nil
+            displayedKey = WeatherStore.Key(coord)
             loadedKey = nil
-            showingSavedCopy = false
             dailyClimateNormals = nil
             climateNormals = nil
             errorMessage = message ?? "No weather data for this location."
@@ -439,7 +446,7 @@ struct WeatherPageView: View {
 
     private func loadNormals(coord: CLLocationCoordinate2D, key: LoadKey) async {
         do {
-            let daily = try await weatherService.fetchDailyClimateNormals(lat: coord.latitude, lon: coord.longitude)
+            let daily = try await weatherStore.service.fetchDailyClimateNormals(lat: coord.latitude, lon: coord.longitude)
             guard inFlightKey == key else { return }
             dailyClimateNormals = daily
             climateNormals = nil
@@ -451,7 +458,7 @@ struct WeatherPageView: View {
             if dailyClimateNormals != nil { return }
         }
         do {
-            let monthly = try await weatherService.fetchClimateNormals(lat: coord.latitude, lon: coord.longitude)
+            let monthly = try await weatherStore.service.fetchClimateNormals(lat: coord.latitude, lon: coord.longitude)
             guard inFlightKey == key else { return }
             climateNormals = monthly
         } catch WeatherError.httpStatus(404, _) {
@@ -465,7 +472,7 @@ struct WeatherPageView: View {
     private func loadHourlyWindow(coord: CLLocationCoordinate2D) async {
         guard hourlyWindow == nil else { return }
         do {
-            let response = try await weatherService.fetchHourlyForecast(lat: coord.latitude, lon: coord.longitude)
+            let response = try await weatherStore.service.fetchHourlyForecast(lat: coord.latitude, lon: coord.longitude)
             hourlyWindow = response.hourlyForecast
         } catch {
             hourlyWindow = weather?.hourlyForecast ?? []
@@ -585,8 +592,7 @@ enum PreviewData {
         pageID: .favorite(FavoriteLocation.previewHelsinki.id),
         pager: WeatherPagerModel(),
         locationService: LocationService(),
-        weatherService: WeatherService(),
-        disableAutoLoad: true,
-        initialWeather: PreviewData.makeSample()
+        weatherStore: WeatherStore(seed: [(FavoriteLocation.previewHelsinki.coordinate, PreviewData.makeSample())]),
+        disableAutoLoad: true
     )
 }
