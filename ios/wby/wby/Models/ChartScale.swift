@@ -22,6 +22,13 @@ struct ChartScale {
         return ChartScale(min: min, max: max, ticks: ticks(from: min, to: max, step: step))
     }
 
+    /// Starts at zero and reaches at least `high`, snapped up to a whole step.
+    static func fromZero(to high: Double, divisions: Double) -> ChartScale {
+        let step = niceStep(Swift.max(high, 1) / divisions)
+        let max = Swift.max(ceil(high / step), 1) * step
+        return ChartScale(min: 0, max: max, ticks: ticks(from: 0, to: max, step: step))
+    }
+
     static func ticks(from min: Double, to max: Double, step: Double) -> [Double] {
         var ticks: [Double] = []
         var value = ceil(min / step) * step

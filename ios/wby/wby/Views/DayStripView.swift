@@ -24,7 +24,7 @@ struct DayStripView: View {
                             .frame(width: 32, height: 32)
                             .background {
                                 if selected {
-                                    Circle().fill(detail.isToday ? AnyShapeStyle(.tint) : AnyShapeStyle(.white))
+                                    Circle().fill(detail.isToday ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
                                 }
                             }
                     }
@@ -41,7 +41,7 @@ struct DayStripView: View {
     private func numberStyle(selected: Bool, today: Bool) -> AnyShapeStyle {
         switch (selected, today) {
         case (true, true): AnyShapeStyle(.white)
-        case (true, false): AnyShapeStyle(.black)
+        case (true, false): AnyShapeStyle(Color(uiColor: .systemBackground))
         case (false, true): AnyShapeStyle(.tint)
         case (false, false): AnyShapeStyle(.primary)
         }

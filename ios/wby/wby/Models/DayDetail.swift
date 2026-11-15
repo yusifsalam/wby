@@ -47,6 +47,27 @@ struct DayDetail: Identifiable {
         return Self.longDateFormatter(timeZone).string(from: date)
     }
 
+    /// Opens a day sheet on today, or the first day when today is missing.
+    static func initialSelection(in details: [DayDetail]) -> String {
+        details.first { $0.isToday }?.id ?? details.first?.id ?? ""
+    }
+
+    /// Sentence opener: "Today", "Tomorrow" or "On Tuesday".
+    var summaryLead: String {
+        switch shortTitle {
+        case "Today", "Tomorrow": shortTitle
+        default: "On \(shortTitle)"
+        }
+    }
+
+    /// Mid-sentence reference: "today", "tomorrow" or "on Tuesday".
+    var phraseName: String {
+        switch shortTitle {
+        case "Today", "Tomorrow": shortTitle.lowercased()
+        default: "on \(shortTitle)"
+        }
+    }
+
     /// "Sunday, November 15, 2026".
     var fullDate: String {
         guard let date else { return day.date }
