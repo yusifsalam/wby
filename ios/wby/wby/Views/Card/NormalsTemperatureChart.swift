@@ -122,7 +122,7 @@ struct NormalsTemperatureChart: View {
             }
             .stroke(.primary.opacity(0.08), lineWidth: 1)
 
-            Text("\(Int(tick.rounded()))°")
+            Text("\(tick.displayText())°")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .position(x: width - 14, y: clampedY)
@@ -190,7 +190,7 @@ struct NormalsTemperatureChart: View {
                     .frame(width: 7, height: 7)
                     .position(x: x, y: clampedY)
 
-                Text("Now \(Int(currentTemp.rounded()))°")
+                Text("Now \(currentTemp.displayText())°")
                     .font(.caption2)
                     .fontWeight(.semibold)
                     .foregroundStyle(.orange.opacity(0.95))
@@ -226,13 +226,13 @@ struct NormalsTemperatureChart: View {
                 .foregroundStyle(.indigo.opacity(0.9))
                 .position(x: x, y: yLow)
 
-            Text("H \(Int(high.rounded()))°")
+            Text("H \(high.displayText())°")
                 .font(.caption2)
                 .fontWeight(.semibold)
                 .foregroundStyle(.red.opacity(0.9))
                 .position(x: clampedLabelX, y: highLabelY)
 
-            Text("L \(Int(low.rounded()))°")
+            Text("L \(low.displayText())°")
                 .font(.caption2)
                 .fontWeight(.semibold)
                 .foregroundStyle(.indigo.opacity(0.9))

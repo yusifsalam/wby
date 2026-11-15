@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TemperatureLegendView: View {
-    private static let labels = ["40", "30", "20", "10", "0", "-20", "-40"]
+    private static let labels = ["40", "30", "20", "10", "0", "\u{2212}20", "\u{2212}40"]
     private static let colors: [Color] = [
         Color(red: 109.0 / 255.0, green:  22.0 / 255.0, blue:  11.0 / 255.0), //  40 dark red
         Color(red: 210.0 / 255.0, green:  50.0 / 255.0, blue:  40.0 / 255.0), //  30 red

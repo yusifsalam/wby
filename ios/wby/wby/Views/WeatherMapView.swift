@@ -78,7 +78,7 @@ struct WeatherMapView: View {
                             if let meta = viewModel.meta {
                                 VStack(alignment: .trailing, spacing: 4) {
                                     if let min = meta.minTemp, let max = meta.maxTemp {
-                                        Text("\(Int(min.rounded()))° ... \(Int(max.rounded()))°")
+                                        Text("\(min.displayText())° ... \(max.displayText())°")
                                             .font(.caption2.bold())
                                     }
                                     if let dataTime = meta.dataTime {

@@ -44,7 +44,7 @@ struct ClimateNormalsCard: View {
                 }
             }
         } else if let normalTemp = normals.today.tempAvg {
-            Text("Normal: \(Int(normalTemp.rounded()))°")
+            Text("Normal: \(normalTemp.displayText())°")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -52,10 +52,10 @@ struct ClimateNormalsCard: View {
 
     private func comparisonLine(label: String, value: Double, normal: Double) -> some View {
         HStack(spacing: 8) {
-            Text("\(label) \(Int(value.rounded()))°")
+            Text("\(label) \(value.displayText())°")
                 .font(.subheadline)
                 .fontWeight(.medium)
-            Text("normal \(Int(normal.rounded()))°")
+            Text("normal \(normal.displayText())°")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             diffBadge(value - normal)
@@ -86,10 +86,7 @@ struct ClimateNormalsCard: View {
     }
 
     private func formatDiff(_ value: Double) -> String {
-        if value == value.rounded() {
-            return "\(Int(value))"
-        }
-        return String(format: "%.1f", value)
+        value.displayText(decimals: value == value.rounded() ? 0 : 1)
     }
 
     // MARK: - Chart Data

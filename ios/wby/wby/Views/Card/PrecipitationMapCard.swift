@@ -14,12 +14,10 @@ struct PrecipitationMapCard: View {
     @State private var failed = false
 
     private var loadKey: String {
-        String(
-            format: "%.2f,%.2f,%@,%.0f",
-            coordinate.latitude, coordinate.longitude,
-            colorScheme == .dark ? "dark" : "light",
-            refreshToken?.timeIntervalSinceReferenceDate ?? 0
-        )
+        let place = String(format: "%.2f,%.2f", coordinate.latitude, coordinate.longitude)
+        let scheme = colorScheme == .dark ? "dark" : "light"
+        let refresh = Int(refreshToken?.timeIntervalSinceReferenceDate ?? 0)
+        return "\(place),\(scheme),\(refresh)"
     }
 
     var body: some View {

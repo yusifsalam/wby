@@ -113,7 +113,7 @@ struct DayDetail: Identifiable {
 
     static func formatTemp(_ value: Double?) -> String {
         guard let value else { return "--" }
-        return "\(Int(value.rounded()))°"
+        return "\(value.displayText())°"
     }
 
     static func formatPrecip(_ value: Double?) -> String {

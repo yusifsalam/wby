@@ -14,7 +14,7 @@ enum TemperatureText {
     }
 
     static func value(_ value: Int?) -> String {
-        value.map { "\($0)°" } ?? "--°"
+        value.map { "\($0.displayText)°" } ?? "--°"
     }
 
     static func range(low: Int?, high: Int?) -> String {

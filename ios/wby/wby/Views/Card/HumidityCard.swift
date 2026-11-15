@@ -24,7 +24,7 @@ struct HumidityCard: View {
 
     private var dewPointMessage: String? {
         guard let dewPoint = current.resolvedDewPoint else { return nil }
-        return "The dew point is \(Int(dewPoint.rounded()))° right now."
+        return "The dew point is \(dewPoint.displayText())° right now."
     }
 }
 

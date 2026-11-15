@@ -143,7 +143,7 @@ struct DailyNormalsComparison {
     }
 
     static func format(_ value: Double, decimals: Int) -> String {
-        String(format: "%.\(decimals)f", value)
+        value.displayText(decimals: decimals)
     }
 
     // MARK: - Chart Data

@@ -67,7 +67,7 @@ struct CurrentConditionsCard: View {
 
     private func formatTemperature(_ value: Double?) -> String {
         guard let value else { return "--" }
-        return "\(Int(value.rounded()))°"
+        return "\(value.displayText())°"
     }
 
     private func formatPressure(_ p: Double?) -> String {

@@ -127,7 +127,7 @@ struct TimeScrubberView: View {
         let delta = date.timeIntervalSince(Date())
         if abs(delta) < 60 { return "Now" }
         let absMinutes = Int(abs(delta) / 60)
-        let sign = delta >= 0 ? "+" : "-"
+        let sign = delta >= 0 ? "+" : "\u{2212}"
         if absMinutes >= 60 {
             let h = absMinutes / 60
             let m = absMinutes % 60

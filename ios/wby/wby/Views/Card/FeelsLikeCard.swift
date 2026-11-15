@@ -14,7 +14,7 @@ struct FeelsLikeCard: View {
 
     private var feelsLikeValue: String {
         guard let value = current.resolvedFeelsLike ?? current.resolvedTemperature else { return "--" }
-        return "\(Int(value.rounded()))°"
+        return "\(value.displayText())°"
     }
 
     private var feelsLikeMessage: String {

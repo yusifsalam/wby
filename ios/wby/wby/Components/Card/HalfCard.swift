@@ -96,7 +96,7 @@ extension HalfCard where AdditionalContent == EmptyView {
             HalfCard(
                 title: "FEELS LIKE",
                 icon: "thermometer.medium",
-                keyValue: "-11°",
+                keyValue: "\u{2212}11°",
                 description: "Wind can make it feel colder than the actual temperature."
             )
             HalfCard(

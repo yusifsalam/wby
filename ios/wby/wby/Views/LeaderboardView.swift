@@ -125,7 +125,7 @@ struct LeaderboardView: View {
                     .foregroundStyle(.primary)
 
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(formattedValue(entry.value, type: entry.type))
+                    Text(formattedValue(entry.value))
                         .font(.system(size: 48, weight: .light))
                         .foregroundStyle(.primary)
                     Text(entry.unit)
@@ -171,15 +171,8 @@ struct LeaderboardView: View {
         }
     }
 
-    private func formattedValue(_ value: Double, type: String) -> String {
-        switch type {
-        case "coldest", "warmest":
-            return String(format: "%.1f°", value)
-        case "windiest":
-            return String(format: "%.1f", value)
-        default:
-            return String(format: "%.1f", value)
-        }
+    private func formattedValue(_ value: Double) -> String {
+        value.displayText(decimals: 1)
     }
 
     private func subtitle(for entry: LeaderboardEntry) -> String {

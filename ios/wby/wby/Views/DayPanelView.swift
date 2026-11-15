@@ -80,6 +80,8 @@ struct DayPanelView: View {
             .font(.caption2)
             .fontWeight(.semibold)
             .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .padding(.bottom, 6)
             ForEach(detail.hours) { hour in
                 hourRow(hour, in: detail, isPast: hour.time < currentSlot, isCurrent: hour.time == currentSlot)
@@ -88,11 +90,11 @@ struct DayPanelView: View {
     }
 
     private static let columnSpacing: CGFloat = 6
-    private static let timeWidth: CGFloat = 26
+    private static let timeWidth: CGFloat = 30
     private static let iconWidth: CGFloat = 22
     private static let tempWidth: CGFloat = 34
     private static let rainWidth: CGFloat = 50
-    private static let chanceWidth: CGFloat = 36
+    private static let chanceWidth: CGFloat = 44
 
     private func hourRow(_ hour: HourlyForecast, in detail: DayDetail, isPast: Bool, isCurrent: Bool) -> some View {
         HStack(spacing: Self.columnSpacing) {

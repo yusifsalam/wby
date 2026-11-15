@@ -271,11 +271,11 @@ struct WeatherPageView: View {
                     .foregroundStyle(primary)
             }
             if let temp = weather.current.resolvedTemperature {
-                Text("\(Int(temp.rounded()))°")
+                Text("\(temp.displayText())°")
                     .font(.system(size: 92, weight: .light))
                     .foregroundStyle(primary)
             } else if let forecastTemp = currentHourForecast(weather)?.temperature {
-                Text("\(Int(forecastTemp.rounded()))°")
+                Text("\(forecastTemp.displayText())°")
                     .font(.system(size: 92, weight: .light))
                     .foregroundStyle(primary)
                 Text("Forecast · no recent observation")
@@ -283,7 +283,7 @@ struct WeatherPageView: View {
                     .foregroundStyle(secondary)
             }
             if let feelsLike = weather.current.resolvedFeelsLike {
-                Text("Feels like \(Int(feelsLike.rounded()))°")
+                Text("Feels like \(feelsLike.displayText())°")
                     .font(.subheadline)
                     .foregroundStyle(secondary)
             }

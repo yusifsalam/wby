@@ -182,7 +182,7 @@ struct LocationsListView: View {
                     }
                     Spacer()
                     if let temp = weather?.current.resolvedTemperature {
-                        Text("\(Int(temp.rounded()))°")
+                        Text("\(temp.displayText())°")
                             .font(.system(size: 52, weight: .light))
                             .foregroundStyle(.white)
                             .offset(y: -4)
@@ -201,7 +201,7 @@ struct LocationsListView: View {
                     if let high = weather?.dailyForecast.first?.high,
                        let low = weather?.dailyForecast.first?.low
                     {
-                        Text("H:\(Int(high.rounded()))°  L:\(Int(low.rounded()))°")
+                        Text("H:\(high.displayText())°  L:\(low.displayText())°")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.85))
                     }
@@ -329,11 +329,21 @@ final class LocationSearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
         }
     }
 
+    private static let finlandNames: [String] = {
+        var names = ["Finland", "Suomi"]
+        for locale in [Locale.current] + Locale.preferredLanguages.map(Locale.init(identifier:)) {
+            if let name = locale.localizedString(forRegionCode: "FI"), !names.contains(name) {
+                names.append(name)
+            }
+        }
+        return names
+    }()
+
     func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
         var seen = Set<String>()
         results = completer.results.compactMap { completion in
             let sub = completion.subtitle
-            guard sub.contains("Finland") || sub.contains("Suomi") else { return nil }
+            guard Self.finlandNames.contains(where: sub.contains) else { return nil }
             let id = "\(completion.title)\n\(sub)"
             guard seen.insert(id).inserted else { return nil }
             return LocationSearchResult(id: id, completion: completion)

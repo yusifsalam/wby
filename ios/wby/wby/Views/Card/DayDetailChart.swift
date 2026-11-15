@@ -39,7 +39,7 @@ struct DayDetailChart: View {
                 HStack(spacing: 0) {
                     temperaturePlot(samples, scale: temperatureScale)
                         .frame(height: 140)
-                    axisLabels(temperatureScale.ticks, scale: temperatureScale) { "\(Int($0.rounded()))°" }
+                    axisLabels(temperatureScale.ticks, scale: temperatureScale) { "\($0.displayText())°" }
                         .frame(width: Self.axisWidth, height: 140)
                 }
                 HStack(spacing: 14) {

@@ -108,7 +108,7 @@ struct DailyForecastCard: View {
 
     private func formatTemp(_ temp: Double?) -> String {
         guard let temp else { return "--" }
-        return "\(Int(temp.rounded()))°"
+        return "\(temp.displayText())°"
     }
 }
 
