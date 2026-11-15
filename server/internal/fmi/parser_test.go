@@ -393,6 +393,11 @@ func TestParseForecastDefaultParamsFixture(t *testing.T) {
 	if day.HourlyMaximumGustMax == nil {
 		t.Error("expected hourly_maximum_gust_max")
 	}
+	if day.PoPAvg == nil || day.PoPMax == nil {
+		t.Error("expected pop_avg and pop_max")
+	} else if *day.PoPMax < *day.PoPAvg {
+		t.Errorf("pop_max %v below pop_avg %v", *day.PoPMax, *day.PoPAvg)
+	}
 	if day.ProbabilityThunderstormAvg == nil {
 		t.Error("expected probability_thunderstorm_avg")
 	}

@@ -154,6 +154,7 @@ type dailyForecastJSON struct {
 	HourlyMaximumGustMax       *float64 `json:"hourly_maximum_gust_max"`
 	HourlyMaximumWindSpeedMax  *float64 `json:"hourly_maximum_wind_speed_max"`
 	PoPAvg                     *float64 `json:"pop_avg"`
+	PoPMax                     *float64 `json:"pop_max"`
 	ProbabilityThunderstormAvg *float64 `json:"probability_thunderstorm_avg"`
 	PotentialPrecipitationForm *float64 `json:"potential_precipitation_form_mode"`
 	PotentialPrecipitationType *float64 `json:"potential_precipitation_type_mode"`
@@ -263,6 +264,7 @@ func (h *Handler) getWeather(w http.ResponseWriter, r *http.Request) {
 			HourlyMaximumGustMax:       f.HourlyMaximumGustMax,
 			HourlyMaximumWindSpeedMax:  f.HourlyMaximumWindSpeedMax,
 			PoPAvg:                     f.PoPAvg,
+			PoPMax:                     f.PoPMax,
 			ProbabilityThunderstormAvg: f.ProbabilityThunderstormAvg,
 			PotentialPrecipitationForm: f.PotentialPrecipitationFormMode,
 			PotentialPrecipitationType: f.PotentialPrecipitationTypeMode,

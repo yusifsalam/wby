@@ -352,6 +352,7 @@ func ParseForecast(data []byte, gridLat, gridLon float64) (weather.ForecastData,
 		f.HourlyMaximumGustMax = maxPtr(vals("hourlymaximumgust"))
 		f.HourlyMaximumWindSpeedMax = maxPtr(vals("hourlymaximumwindspeed"))
 		f.PoPAvg = avgPtr(vals("pop"))
+		f.PoPMax = maxPtr(vals("pop"))
 		f.ProbabilityThunderstormAvg = avgPtr(vals("probabilitythunderstorm"))
 		f.PotentialPrecipitationFormMode = modeRoundedFloatPtr(vals("potentialprecipitationform"))
 		f.PotentialPrecipitationTypeMode = modeRoundedFloatPtr(vals("potentialprecipitationtype"))

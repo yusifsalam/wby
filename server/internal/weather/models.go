@@ -71,6 +71,7 @@ type DailyForecast struct {
 	HourlyMaximumGustMax           *float64
 	HourlyMaximumWindSpeedMax      *float64
 	PoPAvg                         *float64
+	PoPMax                         *float64
 	ProbabilityThunderstormAvg     *float64
 	PotentialPrecipitationFormMode *float64
 	PotentialPrecipitationTypeMode *float64
