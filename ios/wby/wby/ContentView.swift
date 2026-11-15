@@ -1,39 +1,22 @@
 import CoreLocation
 import SwiftUI
 
-private enum PageID: Hashable {
-    case gps
-    case favorite(UUID)
-}
-
-/// Holds per-page scroll offsets, which update on every scroll frame. Keeping
-/// this in an `@Observable` model (rather than `@State` on `ContentView`) means
-/// only the views that read an offset re-evaluate when it changes — the paging
-/// `ScrollView` and its page subtree stay stable during scrolling.
-@MainActor
-@Observable
-private final class PageScrollModel {
-    var offsets: [PageID: CGFloat] = [:]
-}
-
 struct ContentView: View {
     private struct Page: Identifiable, Hashable {
-        let id: PageID
+        let id: WeatherPageID
         let location: WeatherLocation
     }
 
     @State private var locationService = LocationService()
     @State private var weatherService = WeatherService()
     @State private var favoritesStore = FavoritesStore()
-    @State private var currentPageID: PageID = .gps
+    @State private var currentPageID: WeatherPageID = .gps
     @State private var showingLocations = false
     @State private var showingSettings = false
-    @State private var showingMap = false
     @State private var showingLeaderboard = false
-    @State private var pendingPageID: PageID? = nil
+    @State private var pendingPageID: WeatherPageID? = nil
     @State private var pageSheetPresented = false
-    @State private var pageBackgrounds: [PageID: WeatherBackgroundState] = [:]
-    @State private var scrollModel = PageScrollModel()
+    @State private var pager = WeatherPagerModel()
     @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
     private let disableAutoLoad: Bool
     private let initialWeather: WeatherResponse?
@@ -44,12 +27,8 @@ struct ContentView: View {
         }
     }
 
-    private var pageIDs: Set<PageID> {
+    private var pageIDs: Set<WeatherPageID> {
         Set(pages.map(\.id))
-    }
-
-    private var activeBackground: WeatherBackgroundState? {
-        pageBackgrounds[currentPageID]
     }
 
     init(disableAutoLoad: Bool = false, initialWeather: WeatherResponse? = nil) {
@@ -61,11 +40,10 @@ struct ContentView: View {
         NavigationStack {
             ZStack {
                 RootBackgroundView(
-                    state: activeBackground,
                     dynamicEffectsEnabled: dynamicEffectsEnabled,
-                    isCovered: showingMap || showingLeaderboard || showingLocations || showingSettings || pageSheetPresented,
+                    isCovered: showingLeaderboard || showingLocations || showingSettings || pageSheetPresented,
                     currentPageID: currentPageID,
-                    scrollModel: scrollModel
+                    pager: pager
                 )
                 .zIndex(0)
 
@@ -74,17 +52,12 @@ struct ContentView: View {
                         ForEach(pages) { page in
                             WeatherPageView(
                                 location: page.location,
+                                pageID: page.id,
+                                pager: pager,
                                 locationService: locationService,
                                 weatherService: weatherService,
                                 disableAutoLoad: disableAutoLoad,
-                                initialWeather: initialWeather,
-                                onBackgroundUpdate: { state in
-                                    pageBackgrounds[page.id] = state
-                                },
-                                onScrollOffsetChange: { offset in
-                                    scrollModel.offsets[page.id] = offset
-                                },
-                                onOpenMap: { showingMap = true }
+                                initialWeather: initialWeather
                             )
                             .containerRelativeFrame(.horizontal)
                             .id(page.id)
@@ -93,7 +66,7 @@ struct ContentView: View {
                     .scrollTargetLayout()
                 }
                 .scrollTargetBehavior(.paging)
-                .scrollPosition(id: Binding<PageID?>(
+                .scrollPosition(id: Binding<WeatherPageID?>(
                     get: { currentPageID },
                     set: { if let id = $0 { currentPageID = id } }
                 ))
@@ -105,8 +78,8 @@ struct ContentView: View {
                 .zIndex(1)
             }
             .onChange(of: pages.map(\.id)) {
-                pageBackgrounds = pageBackgrounds.filter { pageIDs.contains($0.key) }
-                scrollModel.offsets = scrollModel.offsets.filter { pageIDs.contains($0.key) }
+                pager.backgrounds = pager.backgrounds.filter { pageIDs.contains($0.key) }
+                pager.offsets = pager.offsets.filter { pageIDs.contains($0.key) }
                 if !pageIDs.contains(currentPageID) {
                     currentPageID = .gps
                 }
@@ -140,7 +113,7 @@ struct ContentView: View {
                     SettingsView()
                 }
             }
-            .fullScreenCover(isPresented: $showingMap) {
+            .fullScreenCover(isPresented: $pager.showingMap) {
                 WeatherMapView(
                     locationService: locationService,
                     favoritesStore: favoritesStore,
@@ -173,7 +146,7 @@ struct ContentView: View {
     private var bottomBar: some View {
         GlassEffectContainer(spacing: 20) {
             HStack {
-                circleButton("Map", icon: "map") { showingMap = true }
+                circleButton("Map", icon: "map") { pager.showingMap = true }
 
                 Spacer()
 
@@ -217,28 +190,25 @@ struct ContentView: View {
 }
 
 /// Renders the shared backdrop behind the paging weather views. It owns the
-/// read of the high-frequency scroll offset (via `scrollModel`), so the
-/// scroll-driven sun fade re-evaluates only this view rather than the whole
-/// `ContentView` body.
+/// reads of the pager model (the current page's background, its
+/// high-frequency scroll offset, and whether the map covers the pages), so
+/// those changes re-evaluate only this view rather than `ContentView`.
 private struct RootBackgroundView: View {
-    let state: WeatherBackgroundState?
     let dynamicEffectsEnabled: Bool
     let isCovered: Bool
-    let currentPageID: PageID
-    let scrollModel: PageScrollModel
+    let currentPageID: WeatherPageID
+    let pager: WeatherPagerModel
 
     private var sunFade: Double {
-        let distance = max(0, scrollModel.offsets[currentPageID] ?? 0)
+        let distance = max(0, pager.offsets[currentPageID] ?? 0)
         let fadeEnd: CGFloat = 140
         let fade = 1 - min(distance / fadeEnd, 1)
         return (Double(fade) * 12).rounded() / 12
     }
 
-    private var gradientScene: WeatherScene {
-        state?.scene ?? .clearDay
-    }
-
     var body: some View {
+        let state = pager.backgrounds[currentPageID]
+        let gradientScene = state?.scene ?? .clearDay
         ZStack {
             LinearGradient(
                 colors: gradientScene.gradientColors,
@@ -250,7 +220,7 @@ private struct RootBackgroundView: View {
             .transition(.opacity)
 
             if dynamicEffectsEnabled, let state {
-                WeatherBackgroundView(state: state, sunFade: sunFade, isCovered: isCovered)
+                WeatherBackgroundView(state: state, sunFade: sunFade, isCovered: isCovered || pager.showingMap)
                     .ignoresSafeArea()
                     .transition(.opacity)
             }

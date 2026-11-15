@@ -3,12 +3,11 @@ import SwiftUI
 
 struct WeatherPageView: View {
     let location: WeatherLocation
+    let pageID: WeatherPageID
+    let pager: WeatherPagerModel
     let locationService: LocationService
     let weatherService: WeatherService
     let disableAutoLoad: Bool
-    let onBackgroundUpdate: (WeatherBackgroundState?) -> Void
-    let onScrollOffsetChange: (CGFloat) -> Void
-    let onOpenMap: () -> Void
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -39,22 +38,20 @@ struct WeatherPageView: View {
 
     init(
         location: WeatherLocation,
+        pageID: WeatherPageID,
+        pager: WeatherPagerModel,
         locationService: LocationService,
         weatherService: WeatherService,
         disableAutoLoad: Bool = false,
-        initialWeather: WeatherResponse? = nil,
-        onBackgroundUpdate: @escaping (WeatherBackgroundState?) -> Void = { _ in },
-        onScrollOffsetChange: @escaping (CGFloat) -> Void = { _ in },
-        onOpenMap: @escaping () -> Void = {}
+        initialWeather: WeatherResponse? = nil
     ) {
         self.location = location
+        self.pageID = pageID
+        self.pager = pager
         self.locationService = locationService
         self.weatherService = weatherService
         self.disableAutoLoad = disableAutoLoad
         self._weather = State(initialValue: initialWeather)
-        self.onBackgroundUpdate = onBackgroundUpdate
-        self.onScrollOffsetChange = onScrollOffsetChange
-        self.onOpenMap = onOpenMap
     }
 
     // MARK: - Computed coordinate/name/elevation
@@ -158,7 +155,7 @@ struct WeatherPageView: View {
                         timeZone: weather.resolvedTimeZone,
                         refreshToken: lastUpdated,
                         disableAutoLoad: disableAutoLoad,
-                        onOpenMap: onOpenMap
+                        onOpenMap: { pager.showingMap = true }
                     )
                     HStack(alignment: .top, spacing: 12) {
                         VisibilityCard(current: weather.current)
@@ -216,7 +213,7 @@ struct WeatherPageView: View {
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             geometry.contentOffset.y
         } action: { _, newValue in
-            onScrollOffsetChange(newValue)
+            pager.offsets[pageID] = newValue
         }
         .scrollBounceBehavior(.always)
         .refreshable {
@@ -245,7 +242,7 @@ struct WeatherPageView: View {
             guard phase == .active, !disableAutoLoad, inFlightKey == nil, isStale else { return }
             Task { await refresh(reload: false) }
         }
-        .onChange(of: backgroundState(scene: scene), initial: true) { _, state in onBackgroundUpdate(state) }
+        .onChange(of: backgroundState(scene: scene), initial: true) { _, state in pager.backgrounds[pageID] = state }
         .task {
             guard case .gps = location, !disableAutoLoad else { return }
             locationService.requestAuthorizationIfNeeded()
@@ -579,13 +576,9 @@ enum PreviewData {
 
 #Preview {
     WeatherPageView(
-        location: .favorite(FavoriteLocation(
-            id: UUID(),
-            name: "Helsinki",
-            subtitle: "Finland",
-            latitude: 60.1699,
-            longitude: 24.9384
-        )),
+        location: .favorite(.previewHelsinki),
+        pageID: .favorite(FavoriteLocation.previewHelsinki.id),
+        pager: WeatherPagerModel(),
         locationService: LocationService(),
         weatherService: WeatherService(),
         disableAutoLoad: true,
