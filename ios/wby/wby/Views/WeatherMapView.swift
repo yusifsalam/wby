@@ -11,7 +11,10 @@ struct WeatherMapView: View {
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage(MapLayerKind.storageKey) private var layer: MapLayerKind = .temperature
+    @AppStorage(MapRampStyle.storageKey) private var mapRamp: MapRampStyle = .smooth
     @State private var viewModel: WeatherMapViewModel
+    @State private var safeAreaBottom: CGFloat = 0
+    @State private var scrubberTop: CGFloat = 0
     @Namespace private var glassNamespace
 
     init(
@@ -38,7 +41,7 @@ struct WeatherMapView: View {
 
     var body: some View {
         ZStack {
-            WeatherMapUIKitBridge(viewModel: viewModel)
+            WeatherMapUIKitBridge(viewModel: viewModel, bottomInset: max(0, safeAreaBottom - scrubberTop + 6))
                 .ignoresSafeArea()
 
             if let canvasOverlay = previewConfig?.canvasOverlay {
@@ -69,6 +72,9 @@ struct WeatherMapView: View {
                             if viewModel.selectedLayer == .temperature {
                                 TemperatureLegendView()
                                     .glassEffectID("legend", in: glassNamespace)
+                            } else {
+                                PrecipitationLegendView(ramp: mapRamp)
+                                    .glassEffectID("legend", in: glassNamespace)
                             }
                         }
                         Spacer()
@@ -93,12 +99,14 @@ struct WeatherMapView: View {
                     }
                     Spacer()
                     TimeScrubberView(viewModel: viewModel)
+                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { scrubberTop = $0 }
                         .glassEffectID("scrubber", in: glassNamespace)
                         .padding(.top, 8)
                 }
                 .padding()
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { safeAreaBottom = $0 }
         .task {
             applyLayerFromSettings()
             viewModel.setPreferredCenter(locationService.coordinate)

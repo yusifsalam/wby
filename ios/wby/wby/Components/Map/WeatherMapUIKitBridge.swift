@@ -4,6 +4,7 @@ import UIKit
 
 struct WeatherMapUIKitBridge: UIViewRepresentable {
     let viewModel: WeatherMapViewModel
+    var bottomInset: CGFloat = 0
 
     func makeCoordinator() -> Coordinator { Coordinator(viewModel: viewModel) }
 
@@ -28,7 +29,10 @@ struct WeatherMapUIKitBridge: UIViewRepresentable {
         return mapView
     }
 
-    func updateUIView(_ : MKMapView, context: Context) { }
+    func updateUIView(_ mapView: MKMapView, context: Context) {
+        guard mapView.layoutMargins.bottom != bottomInset else { return }
+        mapView.layoutMargins.bottom = bottomInset
+    }
 
     @MainActor
     final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {

@@ -180,9 +180,11 @@ struct NormalsTemperatureChart: View {
                 let x = xPosition(for: data.todayIndex, count: count, width: width)
                 let yNow = yPosition(for: currentTemp, range: safeRange, min: data.tempMin, height: height)
                 let clampedY = min(max(yNow, 6), max(height - 6, 6))
-                let wantsLeft = x < width * 0.65
+                let labelHalfWidth: CGFloat = 28
+                let maxLabelX = width - 30 - labelHalfWidth
+                let wantsLeft = x < width * 0.65 || x + 30 > maxLabelX
                 let proposedLabelX = wantsLeft ? x - 30 : x + 30
-                let clampedLabelX = min(max(proposedLabelX, 20), width - 20)
+                let clampedLabelX = min(max(proposedLabelX, labelHalfWidth), maxLabelX)
                 let labelY = max(clampedY - 10, 10)
 
                 Circle()

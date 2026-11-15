@@ -156,13 +156,15 @@ struct LeaderboardView: View {
                 stationMap(lat: lat, lon: lon)
             }
         }
-        .frame(height: 180)
+        .frame(minHeight: 180)
+        .fixedSize(horizontal: false, vertical: true)
         .weatherCard()
     }
 
     private func stationMap(lat: Double, lon: Double) -> some View {
         StationMapSnapshot(lat: lat, lon: lon)
-            .frame(width: 150, height: 180)
+            .frame(width: 150)
+            .frame(maxHeight: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
