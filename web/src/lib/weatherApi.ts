@@ -198,7 +198,7 @@ type SignedFetchInput = {
 };
 
 // Performs an HMAC-signed GET against the Go API and returns the raw Response.
-// Used for non-JSON payloads (e.g. map overlay PNGs). JSON callers should use
+// Used where the body is relayed as-is (the map proxy). JSON callers should use
 // signedGet, which parses and checks the status on top of this.
 export async function signedFetch({
   config,

@@ -1,11 +1,11 @@
 import type { LayerSpecification, Map as MapLibreMap } from "maplibre-gl";
 import { FINLAND_RINGS } from "./finland-outline";
-import type { MapLayer, OverlayPngLayer } from "./mapLayers";
+import type { MapLayer } from "./mapLayers";
 
 // Shared map plumbing for the full-page map (pages/map.astro) and the
 // precipitation widget (components/PrecipitationMap.astro): basemap styles and
-// trimming, the fixed overlay extent + URL builder, the Mercator bake, and the
-// frame manifest. Everything here is map-state free; the pages own their map,
+// trimming, the fixed overlay extent, the Mercator bake, and the frame
+// manifest. Everything here is map-state free; the pages own their map,
 // scrubber, and layer state.
 
 export const BASEMAP_STYLES = {
@@ -141,15 +141,6 @@ export async function loadManifest(): Promise<Manifest> {
   }
 }
 
-// The `time` query value for a frame index, or null for the live "now" frame
-// (rendered by omitting the param so the server applies its latest-observation
-// + fallback logic). Snapped to the manifest, so identical instants share a
-// cacheable overlay URL.
-export function frameTimeParam(frames: FrameSet, index: number): string | null {
-  if (index === frames.nowIndex) return null;
-  return frames.times[index] ?? null;
-}
-
 // Scrubber label helpers. Offset from the live frame ("Now", "+30m", "−1h").
 export function formatFrameOffset(frames: FrameSet, index: number): string {
   const steps = index - frames.nowIndex;
@@ -186,14 +177,9 @@ export function formatFrameClock(
 }
 
 // Fixed full-Finland overlay extent (lng/lat), covering FMI's radar/forecast
-// coverage. Hardcoding it — instead of tracking the viewport — makes every
-// overlay URL depend only on (layer, time): identical across pans, users, and
-// sessions, so browser and server caches actually hit and the whole frame
-// window is prefetchable (sataako-fi's fixed-image model). The server renders
-// Mercator-correct — temperature rows interpolate in Mercator-Y and the WMS
-// request is EPSG:3857 — so these lng/lat corners align on the basemap, and
-// data outside Finland masks to transparent. Panning/zoom needs no refetch;
-// MapLibre reprojects the fixed raster on the GPU.
+// coverage. Image sources are seeded with it and empty frames span it; grid
+// frames carry their own corners. Panning/zoom needs no refetch; MapLibre
+// reprojects the fixed raster on the GPU.
 export const FINLAND = { w: 10.2155, s: 56.7513, e: 37.3717, n: 71.2417 };
 export const FINLAND_CORNERS: Corners = [
   [FINLAND.w, FINLAND.n],
@@ -207,25 +193,9 @@ export const mercatorY = (lat: number) =>
 export const inverseMercatorLat = (y: number) =>
   (Math.atan(Math.sinh(y)) * 180) / Math.PI;
 
-// Fixed render size, aspect-correct in Web Mercator and capped at the server's
-// max overlay dimension (1600px), so the overlay isn't stretched.
+// Baked overlay height in pixels; the width follows from the corners so the
+// Mercator canvas isn't stretched.
 export const FINLAND_H = 1600;
-export const FINLAND_W = Math.round(
-  (FINLAND_H * ((FINLAND.e - FINLAND.w) * (Math.PI / 180))) /
-    (mercatorY(FINLAND.n) - mercatorY(FINLAND.s)),
-);
-
-// Server-rendered overlay PNG for `layer` at `time` (null = live frame) over
-// the fixed Finland extent.
-export function fixedFrame(layer: OverlayPngLayer, time: string | null): Frame {
-  const q = new URLSearchParams({
-    bbox: `${FINLAND.w},${FINLAND.s},${FINLAND.e},${FINLAND.n}`,
-    width: String(FINLAND_W),
-    height: String(FINLAND_H),
-  });
-  if (time) q.set("time", time);
-  return { url: `/api/map/${layer}?${q.toString()}`, corners: FINLAND_CORNERS };
-}
 
 export function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -245,18 +215,18 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
 // plain stretch would misregister the field by ~0.2–0.7° of latitude (tens of
 // km south at these latitudes), dragging cool offshore cells over coastal
 // cities; the warp lands isotherms on the right pixels, matching the iOS Metal
-// shader (inverseMercatorLat per fragment). The radar precipitation PNG skips
-// it: the server already renders in Mercator, so it's copied whole.
+// shader (inverseMercatorLat per fragment). Without it the source is copied
+// whole.
 //
 // `clip`: apply the Finland outline (FINLAND_RINGS) as a clip path so the edge
 // lines up with the basemap coastline. Temperature only — it's a land field;
 // rain is real over the sea, so both precipitation layers bake unclipped.
 //
-// Every layer must flow through this bake even when copied verbatim: MapLibre's
+// Every frame must flow through this bake even when copied verbatim: MapLibre's
 // ImageSource.updateImage repaints on its own only for an already-decoded data
-// URL. Handing it a remote URL (the raw /api/map/precipitation PNG) sets the
-// texture but doesn't trigger a render until something else forces one — so a
-// plain layer switch wouldn't show until you scrubbed or hit play.
+// URL. Handing it a remote URL sets the texture but doesn't trigger a render
+// until something else forces one — so a plain layer switch wouldn't show
+// until you scrubbed or hit play.
 export type BakeOptions = { warp?: boolean; clip?: boolean };
 
 export function bakeOverlayImage(

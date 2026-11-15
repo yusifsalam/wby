@@ -1,9 +1,9 @@
 import {
   type Corners,
+  FINLAND_CORNERS,
   type Frame,
   type FrameSet,
-  fixedFrame,
-  frameTimeParam,
+  TRANSPARENT_PNG,
 } from "./mapOverlay";
 
 // Client-side grid rendering shared by the full-page map (pages/map.astro) and
@@ -32,8 +32,8 @@ export function rampColor(stops: RampStops, value: number): RGB {
   return stops[last][1];
 }
 
-// 8-stop temperature ramp, matching the server's rampColorForTemperature
-// (internal/weather/overlay.go) so the grid render agrees with the PNG/iOS.
+// 8-stop temperature ramp, matching the iOS Metal shader
+// (TemperatureShader.metal, rampColor) so the grid render agrees with iOS.
 export const TEMP_STOPS: RampStops = [
   [-40, [80, 30, 130]],
   [-20, [30, 55, 150]],
@@ -59,8 +59,8 @@ export const temperatureSteppedRGBA = (v: number): RGBA =>
   temperatureRGBA((Math.floor(v / TEMP_BAND_WIDTH) + 0.5) * TEMP_BAND_WIDTH);
 
 // Precipitation ramp + alpha for the grids, approximating the FMI WMS radar
-// palette of the PNG frames (see the shared legend) so every precipitation
-// layer reads as one scheme. The alpha treatment follows the iOS Metal shader
+// palette (see the shared legend) so every precipitation layer reads as one
+// scheme. The alpha treatment follows the iOS Metal shader
 // (TemperatureShader.metal, precipitation_grid_fragment): below PRECIP_DRY a
 // cell is transparent, and alpha ramps from 45% at 0.1 mm/h to full at
 // 1 mm/h. Dry cells keep the first stop's RGB so the GPU's bilinear upscale
@@ -182,10 +182,10 @@ export function gridCorners(grid: FieldGrid): Corners {
 
 // Precipitation grids are fetched over the full fixed map canvas (FINLAND,
 // slightly padded — the server downloads GRIB over this same extent,
-// GRIB_BBOX) so they span the same area as the radar PNGs; the response's own
-// corners are used, so a model-domain edge inside this bbox still renders
-// correctly. Width/height are required by the endpoint but unused for the grid
-// payload; keeping them constant keeps the server cache key stable.
+// GRIB_BBOX); the response's own corners are used, so a model-domain edge
+// inside this bbox still renders correctly. Width/height are required by the
+// endpoint but unused for the grid payload; keeping them constant keeps the
+// server cache key stable.
 export const PRECIP_GRID_QUERY = new URLSearchParams({
   bbox: "10,56.5,37.6,71.5",
   width: "600",
@@ -199,15 +199,14 @@ const NOWCAST_FRAME_TTL_MS = 60_000;
 
 // Frame source for the ±1h precipitation layer: past/now frames render the
 // radar observation grid, future frames the extrapolation nowcast grid, and a
-// grid miss falls back to the server PNG. Rasterized frames bake the ramp in,
-// so cache keys carry it.
+// grid miss shows an empty frame. Rasterized frames bake the ramp in, so cache
+// keys carry it.
 export function createRadarFrames(ramp: () => MapRamp) {
   const observedCache = new Map<string, Frame | null>();
   const nowcastCache = new Map<
     string,
     { frame: Frame | null; fetchedAt: number }
   >();
-  const pngPreloads = new Map<string, HTMLImageElement>();
 
   const isPast = (at: string) => Date.parse(at) <= Date.now();
 
@@ -259,9 +258,6 @@ export function createRadarFrames(ramp: () => MapRamp) {
     return frame;
   }
 
-  const pngFrame = (frames: FrameSet, index: number): Frame =>
-    fixedFrame("precipitation", frameTimeParam(frames, index));
-
   async function frameAt(frames: FrameSet, index: number): Promise<Frame> {
     const at = frames.times[index];
     if (at) {
@@ -269,27 +265,17 @@ export function createRadarFrames(ramp: () => MapRamp) {
         const grid = await gridFrame(at);
         if (grid) return grid;
       } catch (err) {
-        console.error("radar grid fetch failed, using PNG", err);
+        console.error("radar grid fetch failed", err);
       }
     }
-    return pngFrame(frames, index);
+    return { url: TRANSPARENT_PNG, corners: FINLAND_CORNERS };
   }
 
-  // Fire-and-forget: warm the grid cache for a frame, preloading the fallback
-  // PNG into the browser HTTP cache on a miss.
+  // Fire-and-forget: warm the grid cache for a frame.
   function prefetch(frames: FrameSet, index: number) {
     const at = frames.times[index];
     if (!at || cached(at, ramp()) !== undefined) return;
-    gridFrame(at)
-      .then((frame) => {
-        if (frame) return;
-        const { url } = pngFrame(frames, index);
-        if (pngPreloads.has(url)) return;
-        const img = new Image();
-        img.src = url;
-        pngPreloads.set(url, img);
-      })
-      .catch(() => {});
+    gridFrame(at).catch(() => {});
   }
 
   return { frameAt, prefetch };

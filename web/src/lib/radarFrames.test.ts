@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { FrameSet } from "./mapOverlay";
+import { FINLAND_CORNERS, type FrameSet, TRANSPARENT_PNG } from "./mapOverlay";
 import {
   createRadarFrames,
   precipitationRGBA,
@@ -81,22 +81,26 @@ describe("createRadarFrames", () => {
   const requested = () =>
     fetchMock.mock.calls.map(([url]) => new URL(String(url), "http://x"));
 
-  it("reads past frames from the observation grid and falls back to the PNG", async () => {
+  const empty = { url: TRANSPARENT_PNG, corners: FINLAND_CORNERS };
+
+  it("reads past frames from the observation grid and shows an empty frame on a miss", async () => {
     const radar = createRadarFrames(() => "smooth");
     const frame = await radar.frameAt(frames, 0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     const [req] = requested();
     expect(req.pathname).toBe("/api/map/precipitation-observed");
     expect(req.searchParams.get("time")).toBe(frames.times[0]);
-    const png = new URL(frame.url, "http://x");
-    expect(png.pathname).toBe("/api/map/precipitation");
-    expect(png.searchParams.get("time")).toBe(frames.times[0]);
+    expect(frame).toEqual(empty);
   });
 
-  it("requests the live PNG without a time for the now frame", async () => {
+  it("reads the now frame from the observation grid at its instant", async () => {
     const radar = createRadarFrames(() => "smooth");
     const frame = await radar.frameAt(frames, frames.nowIndex);
-    expect(requested()[0].pathname).toBe("/api/map/precipitation-observed");
-    expect(new URL(frame.url, "http://x").searchParams.has("time")).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [req] = requested();
+    expect(req.pathname).toBe("/api/map/precipitation-observed");
+    expect(req.searchParams.get("time")).toBe(frames.times[frames.nowIndex]);
+    expect(frame).toEqual(empty);
   });
 
   it("memoizes observation misses per ramp", async () => {
@@ -122,16 +126,28 @@ describe("createRadarFrames", () => {
     expect(requested()[1].pathname).toBe("/api/map/precipitation-nowcast");
   });
 
-  it("falls back to the PNG on an upstream error", async () => {
+  it("shows an empty frame on an upstream error", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     fetchMock.mockImplementation(
       async () => new Response(null, { status: 502 }),
     );
     const radar = createRadarFrames(() => "smooth");
     const frame = await radar.frameAt(frames, 2);
-    expect(new URL(frame.url, "http://x").pathname).toBe(
-      "/api/map/precipitation",
-    );
+    expect(frame).toEqual(empty);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(console.error).toHaveBeenCalled();
+  });
+
+  it("prefetches only the grid on a miss", async () => {
+    const image = vi.fn();
+    vi.stubGlobal("Image", image);
+    const radar = createRadarFrames(() => "smooth");
+    radar.prefetch(frames, 0);
+    await vi.runAllTimersAsync();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(requested()[0].pathname).toBe("/api/map/precipitation-observed");
+    expect(image).not.toHaveBeenCalled();
+    expect(await radar.frameAt(frames, 0)).toEqual(empty);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

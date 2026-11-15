@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  FINLAND,
-  FINLAND_H,
-  FINLAND_W,
   fallbackFrameSet,
-  fixedFrame,
   formatFrameOffset,
-  frameTimeParam,
   normalizeFrameSet,
 } from "./mapOverlay";
 
@@ -53,30 +48,6 @@ describe("normalizeFrameSet", () => {
   it("falls back when fields are missing", () => {
     const set = normalizeFrameSet({ times: ["a"] }, "precipitation");
     expect(set.times).toHaveLength(25);
-  });
-});
-
-describe("frameTimeParam / fixedFrame", () => {
-  const frames = { times: ["t0", "t1", "t2"], nowIndex: 1, stepSeconds: 300 };
-
-  it("omits the time for the live frame", () => {
-    expect(frameTimeParam(frames, 1)).toBeNull();
-    expect(fixedFrame("precipitation", null).url).not.toContain("time=");
-  });
-
-  it("pins the overlay URL to the fixed Finland extent", () => {
-    const { url, corners } = fixedFrame(
-      "precipitation",
-      frameTimeParam(frames, 2),
-    );
-    const q = new URL(url, "http://x").searchParams;
-    expect(q.get("bbox")).toBe(
-      `${FINLAND.w},${FINLAND.s},${FINLAND.e},${FINLAND.n}`,
-    );
-    expect(q.get("width")).toBe(String(FINLAND_W));
-    expect(q.get("height")).toBe(String(FINLAND_H));
-    expect(q.get("time")).toBe("t2");
-    expect(corners[0]).toEqual([FINLAND.w, FINLAND.n]);
   });
 });
 

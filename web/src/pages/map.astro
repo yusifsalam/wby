@@ -120,8 +120,8 @@ const rainSteppedTicks = [
           {tempTicks.map(([metric, imperial]) => <span><UnitText metric={metric} imperial={imperial} /></span>)}
         </div>
       </div>
-      <!-- Shared by both precipitation layers: the 12h grid ramp (PRECIP_STOPS
-           below) mirrors the FMI WMS radar palette of the 1h PNGs. -->
+      <!-- Shared by both precipitation layers: the grid ramp (PRECIP_STOPS in
+           lib/radarFrames) mirrors the FMI WMS radar palette. -->
       <div id="legend-precipitation">
         <p class="mb-1 text-[0.7rem] font-extrabold uppercase tracking-[0.06em] text-muted">Rain <UnitText metric="mm/h" imperial="in/h" /></p>
         <div class="h-2 w-48 rounded" style="background:linear-gradient(to right,#a8e0ff,#3fa0ff,#1436ff,#8b00ff,#ff00aa)"></div>
@@ -176,10 +176,8 @@ const rainSteppedTicks = [
     FINLAND_CORNERS,
     type Frame,
     fallbackManifest,
-    fixedFrame,
     formatFrameClock,
     formatFrameOffset,
-    frameTimeParam,
     loadImage,
     loadManifest,
     type Manifest,
@@ -253,10 +251,6 @@ const rainSteppedTicks = [
   });
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
 
-  // The frame instant for the active scrubber position, or null for the live
-  // "now" frame.
-  const timeParam = () => frameTimeParam(manifest[layer], frameIndex);
-
   // The active color style for every layer, mirrored to ?ramp= like the layer.
   // Ramp and opacity persist across visits (lib/mapSettings); a ?ramp= URL
   // still wins for the ramp so shared links open as intended.
@@ -313,8 +307,8 @@ const rainSteppedTicks = [
 
   // Fetch the GRIB grid JSON for the active frame and render it client-side —
   // for every frame including "now" (the server serves GRIB from the current
-  // hour onward). Uses the frame's real instant (not timeParam, which omits the
-  // time for "now"). Returns null on a GRIB miss so the caller can fall back.
+  // hour onward). Returns null on a GRIB miss so the caller can show an empty
+  // frame.
   async function gridFrame(l: GridLayer): Promise<Frame | null> {
     const at = manifest[l].times[frameIndex];
     if (!at) return null;
@@ -355,20 +349,16 @@ const rainSteppedTicks = [
 
   async function buildFrame(): Promise<Frame> {
     // The grid layers render the dense GRIB grid directly (every frame, now
-    // included); the 12h layer has no PNG fallback, so a miss shows an empty
-    // frame rather than leaving another layer's raster on screen. The ±1h
-    // layer renders past/now frames from the radar observation grid and
-    // future frames from the extrapolation nowcast grid, falling back to the
-    // server PNG on a miss.
+    // included). The ±1h layer renders past/now frames from the radar
+    // observation grid and future frames from the extrapolation nowcast grid.
+    // A miss shows an empty frame rather than leaving another layer's raster
+    // on screen.
     if (layer === "precipitation") {
       return radar.frameAt(manifest.precipitation, frameIndex);
     }
-    const grid = await gridFrame(layer);
-    if (grid) return grid;
-    if (layer === "precipitation12h") {
-      return { url: TRANSPARENT_PNG, corners: FINLAND_CORNERS };
-    }
-    return fixedFrame("temperature", timeParam());
+    return (
+      (await gridFrame(layer)) ?? { url: TRANSPARENT_PNG, corners: FINLAND_CORNERS }
+    );
   }
 
   // A single persistent image source + raster layer, whose texture we swap per
@@ -377,15 +367,14 @@ const rainSteppedTicks = [
   // MapLibre keeps the current texture on screen until the next image decodes, so
   // a swap never dips through to the basemap. updateImage repaints reliably on a
   // URL change in maplibre-gl v5, and it also accepts new coordinates, which the
-  // temperature forecast grid needs (its extent differs from the fixed PNG one).
+  // grid frames need (their extent differs from the fixed Finland one).
   const OVERLAY_SRC = "overlay-src";
   const OVERLAY_LAYER = "overlay-layer";
 
   // Baked (decoded, Mercator-canvas) overlay data URLs, memoised by the source
   // frame url so scrubbing/animation re-render each unique frame once. Grid
-  // data URLs (warped, temperature also clipped) and radar PNG urls (copied
-  // verbatim) all flow through it. Each source url belongs to one layer, so the
-  // bake options are stable per key.
+  // data URLs (warped, temperature also clipped) all flow through it. Each
+  // source url belongs to one layer, so the bake options are stable per key.
   const bakedFrameCache = new Map<string, string>();
 
   async function bakedFrameUrl(
@@ -439,9 +428,8 @@ const rainSteppedTicks = [
     try {
       view = await buildFrame();
       // Grid renders rasterize linear in latitude and need the Mercator warp
-      // (the frame says so itself where a layer mixes grid and PNG frames);
-      // the radar PNG is already Mercator. Temperature is a land field, so clip
-      // it to the Finland outline; rain is real over the sea, so both
+      // (radar grid frames say so themselves). Temperature is a land field, so
+      // clip it to the Finland outline; rain is real over the sea, so both
       // precipitation layers bake unclipped over their full extent.
       imageUrl = await bakedFrameUrl(view.url, view.corners, {
         warp: view.warp ?? layer !== "precipitation",
