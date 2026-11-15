@@ -85,11 +85,12 @@ struct TimeScrubberView: View {
     }
 
     private var timeLabel: some View {
-        VStack(alignment: .trailing, spacing: 1) {
-            Text(absoluteLabel(for: viewModel.selectedTime))
+        let shownTime = viewModel.meta?.dataTime ?? viewModel.selectedTime
+        return VStack(alignment: .trailing, spacing: 1) {
+            Text(absoluteLabel(for: shownTime))
                 .font(.caption.bold())
                 .monospacedDigit()
-            Text(relativeLabel(for: viewModel.selectedTime))
+            Text(relativeLabel(for: shownTime))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()

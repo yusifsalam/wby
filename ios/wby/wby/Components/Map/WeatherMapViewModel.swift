@@ -192,8 +192,10 @@ final class WeatherMapViewModel {
         layer.save()
         // Snap selectedTime back into the new layer's range.
         selectedTime = snapToStep(Date())
+        meta = nil
         applyVisibilityForCurrentState()
         kickOffRefreshForCurrentState()
+        applySelectedTime()
     }
 
     func setFavoriteLocations(_ favorites: [FavoriteLocation]) {

@@ -62,9 +62,10 @@ struct NormalsTemperatureChart: View {
             let safeRange = tempRange > 0 ? tempRange : 1.0
 
             ZStack(alignment: .topLeading) {
-                yAxisGuidesAndLabels(width: width, height: height, safeRange: safeRange)
+                yAxisGuides(width: width, height: height, safeRange: safeRange)
                 filledBand(width: width, height: height, safeRange: safeRange)
                 avgLine(width: width, height: height, safeRange: safeRange)
+                yAxisLabels(width: width, height: height, safeRange: safeRange)
                 todayIndicator(width: width, height: height, safeRange: safeRange)
                 currentTempIndicator(width: width, height: height, safeRange: safeRange)
                 todayWeatherRangeIndicators(width: width, height: height, safeRange: safeRange)
@@ -110,23 +111,30 @@ struct NormalsTemperatureChart: View {
     }
 
     @ViewBuilder
-    private func yAxisGuidesAndLabels(width: CGFloat, height: CGFloat, safeRange: Double) -> some View {
-        let ticks = yAxisTicks(min: data.tempMin, max: data.tempMax)
-        ForEach(ticks, id: \.self) { tick in
-            let y = yPosition(for: tick, range: safeRange, min: data.tempMin, height: height)
-            let clampedY = min(max(y, 8), max(height - 8, 8))
-
+    private func yAxisGuides(width: CGFloat, height: CGFloat, safeRange: Double) -> some View {
+        ForEach(yAxisTicks(min: data.tempMin, max: data.tempMax), id: \.self) { tick in
+            let y = tickY(tick, height: height, safeRange: safeRange)
             Path { path in
-                path.move(to: CGPoint(x: 0, y: clampedY))
-                path.addLine(to: CGPoint(x: width, y: clampedY))
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: width - 28, y: y))
             }
             .stroke(.primary.opacity(0.08), lineWidth: 1)
+        }
+    }
 
+    @ViewBuilder
+    private func yAxisLabels(width: CGFloat, height: CGFloat, safeRange: Double) -> some View {
+        ForEach(yAxisTicks(min: data.tempMin, max: data.tempMax), id: \.self) { tick in
             Text("\(tick.displayText())°")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
-                .position(x: width - 14, y: clampedY)
+                .position(x: width - 14, y: tickY(tick, height: height, safeRange: safeRange))
         }
+    }
+
+    private func tickY(_ tick: Double, height: CGFloat, safeRange: Double) -> CGFloat {
+        let y = yPosition(for: tick, range: safeRange, min: data.tempMin, height: height)
+        return min(max(y, 8), max(height - 8, 8))
     }
 
     private func avgLine(width: CGFloat, height: CGFloat, safeRange: Double) -> some View {
@@ -180,7 +188,7 @@ struct NormalsTemperatureChart: View {
                 let x = xPosition(for: data.todayIndex, count: count, width: width)
                 let yNow = yPosition(for: currentTemp, range: safeRange, min: data.tempMin, height: height)
                 let clampedY = min(max(yNow, 6), max(height - 6, 6))
-                let labelHalfWidth: CGFloat = 28
+                let labelHalfWidth: CGFloat = 32
                 let maxLabelX = width - 30 - labelHalfWidth
                 let wantsLeft = x < width * 0.65 || x + 30 > maxLabelX
                 let proposedLabelX = wantsLeft ? x - 30 : x + 30
@@ -192,7 +200,7 @@ struct NormalsTemperatureChart: View {
                     .frame(width: 7, height: 7)
                     .position(x: x, y: clampedY)
 
-                Text("Now \(currentTemp.displayText())°")
+                Text("Now \(currentTemp.displayText(decimals: 1))°")
                     .font(.caption2)
                     .fontWeight(.semibold)
                     .foregroundStyle(.orange.opacity(0.95))

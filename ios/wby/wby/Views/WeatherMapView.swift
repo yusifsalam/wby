@@ -5,7 +5,6 @@ import UIKit
 struct WeatherMapView: View {
     let locationService: LocationService
     let favoritesStore: FavoritesStore
-    private let overlayTimeZone = TimeZone(identifier: "Europe/Helsinki")!
     private let disableAutoLoad: Bool
     private let previewConfig: PreviewConfig?
 
@@ -80,20 +79,11 @@ struct WeatherMapView: View {
                         Spacer()
                         VStack(alignment: .trailing, spacing: 10) {
                             layerMenu
-                            if let meta = viewModel.meta {
-                                VStack(alignment: .trailing, spacing: 4) {
-                                    if let min = meta.minTemp, let max = meta.maxTemp {
-                                        Text("\(min.displayText())° ... \(max.displayText())°")
-                                            .font(.caption2.bold())
-                                    }
-                                    if let dataTime = meta.dataTime {
-                                        Text(formatOverlayDataTime(dataTime))
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .padding(10)
-                                .glassEffect(in: RoundedRectangle(cornerRadius: 10))
+                            if let min = viewModel.meta?.minTemp, let max = viewModel.meta?.maxTemp {
+                                Text("\(min.displayText())° ... \(max.displayText())°")
+                                    .font(.caption2.bold())
+                                    .padding(10)
+                                    .glassEffect(in: RoundedRectangle(cornerRadius: 10))
                             }
                         }
                     }
@@ -124,14 +114,6 @@ struct WeatherMapView: View {
         .onChange(of: favoritesStore.favorites) {
             viewModel.setFavoriteLocations(favoritesStore.favorites)
         }
-    }
-
-    private func formatOverlayDataTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        formatter.timeZone = overlayTimeZone
-        return formatter.string(from: date)
     }
 
     private func applyLayerFromSettings() {
