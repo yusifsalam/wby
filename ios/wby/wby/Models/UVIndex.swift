@@ -53,10 +53,20 @@ enum UVIndex {
 
     /// Points falling on the local calendar day `offsetDays` after `now`.
     static func dayPoints(_ points: [UVPoint], timeZone: TimeZone, now: Date = Date(), offsetDays: Int = 0) -> [UVPoint] {
+        guard let target = calendar(timeZone).date(byAdding: .day, value: offsetDays, to: now) else { return [] }
+        return dayPoints(points, timeZone: timeZone, day: target)
+    }
+
+    /// Points falling on the local calendar day containing `day`.
+    static func dayPoints(_ points: [UVPoint], timeZone: TimeZone, day: Date) -> [UVPoint] {
+        let calendar = calendar(timeZone)
+        return points.filter { calendar.isDate($0.time, inSameDayAs: day) }
+    }
+
+    private static func calendar(_ timeZone: TimeZone) -> Calendar {
         var calendar = Calendar.current
         calendar.timeZone = timeZone
-        guard let target = calendar.date(byAdding: .day, value: offsetDays, to: now) else { return [] }
-        return points.filter { calendar.isDate($0.time, inSameDayAs: target) }
+        return calendar
     }
 
     struct DayBar: Identifiable {
@@ -69,16 +79,16 @@ enum UVIndex {
         var id: Int { hour }
     }
 
-    /// The 24 hourly slots of today in the local time zone. Hours the forecast
-    /// does not cover have a nil value.
-    static func dayBars(_ points: [UVPoint], timeZone: TimeZone, now: Date = Date()) -> [DayBar] {
-        var calendar = Calendar.current
-        calendar.timeZone = timeZone
-        let currentHour = calendar.component(.hour, from: now)
+    /// The 24 hourly slots of the local day containing `day`. Hours the
+    /// forecast does not cover have a nil value; past and current only apply
+    /// to today.
+    static func dayBars(_ points: [UVPoint], timeZone: TimeZone, day: Date, now: Date = Date()) -> [DayBar] {
+        let calendar = calendar(timeZone)
+        let currentHour = calendar.isDate(day, inSameDayAs: now) ? calendar.component(.hour, from: now) : -1
         var bars = (0..<24).map { hour in
             DayBar(hour: hour, past: hour < currentHour, current: hour == currentHour)
         }
-        for point in dayPoints(points, timeZone: timeZone, now: now) where point.uv.isFinite {
+        for point in dayPoints(points, timeZone: timeZone, day: day) where point.uv.isFinite {
             let hour = calendar.component(.hour, from: point.time)
             bars[hour].time = point.time
             bars[hour].uv = point.uv

@@ -160,7 +160,8 @@ struct WeatherPageView: View {
                             radiationGlobal: weather.current.resolvedRadiationGlobal
                                 ?? dailyResolvedRadiationGlobal(weather.dailyForecast),
                             uvForecast: weather.uvForecast,
-                            timeZone: weather.resolvedTimeZone
+                            timeZone: weather.resolvedTimeZone,
+                            days: weather.dailyForecast
                         )
                     }
                     WindCard(

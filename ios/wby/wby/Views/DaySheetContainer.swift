@@ -7,7 +7,25 @@ struct DaySheetContainer<Content: View>: View {
     let details: [DayDetail]
     let isLoadingHours: Bool
     @Binding var selection: String
-    @ViewBuilder let content: (DayDetail) -> Content
+    let isAvailable: (DayDetail) -> Bool
+    let unavailableMessage: String
+    let content: (DayDetail) -> Content
+
+    init(
+        details: [DayDetail],
+        isLoadingHours: Bool,
+        selection: Binding<String>,
+        isAvailable: @escaping (DayDetail) -> Bool = { $0.hours.count >= 2 },
+        unavailableMessage: String = "Hourly detail isn't available this far ahead.",
+        @ViewBuilder content: @escaping (DayDetail) -> Content
+    ) {
+        self.details = details
+        self.isLoadingHours = isLoadingHours
+        self._selection = selection
+        self.isAvailable = isAvailable
+        self.unavailableMessage = unavailableMessage
+        self.content = content
+    }
 
     private var index: Int {
         details.firstIndex { $0.id == selection } ?? 0
@@ -21,14 +39,14 @@ struct DaySheetContainer<Content: View>: View {
                     let detail = details[index]
                     dateHeader(detail)
                     Divider()
-                    if detail.hours.count >= 2 {
+                    if isAvailable(detail) {
                         content(detail)
                     } else if isLoadingHours {
                         ProgressView("Loading hours…")
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 24)
                     } else {
-                        Text("Hourly detail isn't available this far ahead.")
+                        Text(unavailableMessage)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }

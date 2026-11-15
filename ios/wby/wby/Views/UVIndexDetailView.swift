@@ -1,86 +1,144 @@
 import SwiftUI
 
-/// Today's hourly UV index as a histogram in local time, headlined by the
-/// current hour's value and the rest of the day's outlook.
+/// The hourly UV index as a histogram per local day, with a day strip for
+/// switching days. FMI's UV forecast covers today and tomorrow only.
 struct UVIndexDetailView: View {
+    let details: [DayDetail]
     let points: [UVPoint]
     let timeZone: TimeZone
 
-    private static let hourTicks = stride(from: 0, to: 24, by: 3).map { $0 }
-    private static let axisWidth: CGFloat = 24
+    @State private var selection: String
 
-    private var now: Date { Date() }
-    private var today: [UVPoint] { UVIndex.dayPoints(points, timeZone: timeZone, now: now) }
-    private var bars: [UVIndex.DayBar] { UVIndex.dayBars(points, timeZone: timeZone, now: now) }
-    private var peak: UVIndex.Peak? { UVIndex.peak(today) }
-    private var peakTomorrow: UVIndex.Peak? { UVIndex.peak(UVIndex.dayPoints(points, timeZone: timeZone, now: now, offsetDays: 1)) }
+    private static let axisWidth: CGFloat = 36
 
-    /// Hours the forecast misses (the first local hours before FMI's 00:00
-    /// UTC start) count as 0, like the bars.
-    private var current: Double {
-        bars.first { $0.current }?.uv ?? 0
-    }
-
-    private var outlook: String {
-        let remaining = today.filter { $0.time >= now.addingTimeInterval(-3600) }
-        if let remainingPeak = UVIndex.peak(remaining), remainingPeak.value > current {
-            return "Rising to \(Int(remainingPeak.value.rounded())) · \(UVIndex.level(for: remainingPeak.value)) at \(Self.timeLabel(remainingPeak.time, timeZone: timeZone))"
-        }
-        guard let peak, peak.value > 0 else { return "Low levels all day" }
-        return current == 0 ? "Low levels for the rest of the day" : "Highest for the rest of the day"
+    init(details: [DayDetail], points: [UVPoint], timeZone: TimeZone) {
+        self.details = details
+        self.points = points
+        self.timeZone = timeZone
+        self._selection = State(initialValue: DayDetail.initialSelection(in: details))
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                headline
-                    .weatherCard()
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Today, by hour")
+        DaySheetContainer(
+            details: details,
+            isLoadingHours: false,
+            selection: $selection,
+            isAvailable: { !dayPoints($0).isEmpty },
+            unavailableMessage: "FMI's UV forecast covers only today and tomorrow."
+        ) { detail in
+            VStack(alignment: .leading, spacing: 12) {
+                headline(detail)
+                chart(bars(detail))
+            }
+            if let summary = summary(detail) {
+                DetailSection(title: "Daily Summary") {
+                    Text(summary)
                         .font(.subheadline)
-                        .fontWeight(.medium)
-                    chart
                 }
-                .weatherCard()
-                Text("Hourly UV index forecast from FMI for the local day. Bars show each hour's value; hours the forecast doesn't cover count as 0.")
-                    .font(.caption)
+            }
+            DetailSection(title: "About the UV Index") {
+                Text("The UV index measures the strength of the sun's ultraviolet radiation on the World Health Organization's scale. From 3 (Moderate) up, the WHO recommends shade around midday, covering clothing, a hat, and sunscreen. In Finland it seldom goes above 6 and stays low from October to March. The forecast is FMI's; hours it doesn't cover count as 0.")
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            .padding()
         }
         .navigationTitle("UV Index")
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    // MARK: - Day data
+
+    private func dayPoints(_ detail: DayDetail) -> [UVPoint] {
+        guard let date = detail.date else { return [] }
+        return UVIndex.dayPoints(points, timeZone: timeZone, day: date)
+    }
+
+    private func bars(_ detail: DayDetail) -> [UVIndex.DayBar] {
+        guard let date = detail.date else { return [] }
+        return UVIndex.dayBars(points, timeZone: timeZone, day: date)
+    }
+
     // MARK: - Headline
 
-    private var headline: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label("UV INDEX", systemImage: "sun.max")
-                    .font(.caption)
+    private struct HeadlineValues {
+        let value: Double
+        let caption: String
+        var time: String?
+    }
+
+    private func headline(_ detail: DayDetail) -> some View {
+        let values = headlineValues(detail)
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(Int(values.value.rounded()))")
+                    .font(.system(size: 34, weight: .semibold))
+                    .monospacedDigit()
+                Text(UVIndex.level(for: values.value))
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("Now, \(Self.timeLabel(now, timeZone: timeZone))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if let time = values.time {
+                    Text(time)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
             }
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(Int(current.rounded()))")
-                    .font(.system(size: 44, weight: .bold))
-                Text(UVIndex.level(for: current))
-                    .font(.title3)
-                    .fontWeight(.semibold)
-            }
-            Text(outlook)
+            Text(values.caption)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            if let peakTomorrow {
-                Text("Tomorrow up to \(Int(peakTomorrow.value.rounded())) · \(UVIndex.level(for: peakTomorrow.value))")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
         }
+    }
+
+    private func headlineValues(_ detail: DayDetail) -> HeadlineValues {
+        let day = dayPoints(detail)
+        let peak = UVIndex.peak(day)
+        guard detail.isToday else {
+            guard let peak, peak.value >= 0.5 else {
+                return HeadlineValues(value: peak?.value ?? 0, caption: "Low levels all day")
+            }
+            return HeadlineValues(
+                value: peak.value,
+                caption: "Peak, around \(Self.timeLabel(peak.time, timeZone: timeZone))"
+            )
+        }
+
+        let now = Date()
+        // Hours the forecast misses (the first local hours before FMI's 00:00
+        // UTC start) count as 0, like the bars.
+        let current = bars(detail).first { $0.current }?.uv ?? 0
+        let remaining = day.filter { $0.time >= now.addingTimeInterval(-3600) }
+        let outlook: String
+        if let remainingPeak = UVIndex.peak(remaining), remainingPeak.value > current {
+            outlook = "Rising to \(Int(remainingPeak.value.rounded())) · \(UVIndex.level(for: remainingPeak.value)) at \(Self.timeLabel(remainingPeak.time, timeZone: timeZone))"
+        } else if let peak, peak.value > 0 {
+            outlook = current == 0 ? "Low levels for the rest of the day" : "Highest for the rest of the day"
+        } else {
+            outlook = "Low levels all day"
+        }
+        return HeadlineValues(
+            value: current,
+            caption: outlook,
+            time: "Now, \(Self.timeLabel(now, timeZone: timeZone))"
+        )
+    }
+
+    // MARK: - Summary
+
+    private func summary(_ detail: DayDetail) -> String? {
+        let day = dayPoints(detail).filter { $0.uv.isFinite }
+        guard let peak = UVIndex.peak(day) else { return nil }
+        guard peak.value >= 0.5 else {
+            return "\(detail.summaryLead), the UV index stays at 0."
+        }
+        var text = "\(detail.summaryLead), the UV index peaks at \(Int(peak.value.rounded())) (\(UVIndex.level(for: peak.value).lowercased())) around \(Self.timeLabel(peak.time, timeZone: timeZone))."
+        let protected = day.filter { $0.uv >= 3 }
+        if let first = protected.first, let last = protected.last {
+            text += " Use sun protection from \(Self.timeLabel(first.time, timeZone: timeZone)) to \(Self.timeLabel(last.time.addingTimeInterval(3600), timeZone: timeZone))."
+        } else {
+            text += " No sun protection is needed."
+        }
+        return text
     }
 
     // MARK: - Chart
@@ -89,22 +147,22 @@ struct UVIndexDetailView: View {
         UVIndex.bands.map { min($0.limit, UVIndex.scaleMax) }
     }
 
-    private var chart: some View {
+    private func chart(_ bars: [UVIndex.DayBar]) -> some View {
         VStack(spacing: 6) {
             HStack(spacing: 0) {
-                plot
+                plot(bars)
                     .frame(height: 180)
                 scaleAxis
                     .frame(width: Self.axisWidth, height: 180)
             }
             HStack(spacing: 0) {
-                hourAxis
+                HourAxis()
                 Color.clear.frame(width: Self.axisWidth)
             }
         }
     }
 
-    private var plot: some View {
+    private func plot(_ bars: [UVIndex.DayBar]) -> some View {
         GeometryReader { geo in
             let width = geo.size.width
             let height = geo.size.height
@@ -163,23 +221,11 @@ struct UVIndexDetailView: View {
                 let major = value == 0 || boundaries.contains(Double(value))
                 let y = geo.size.height * (1 - UVIndex.barFraction(Double(value)))
                 Text("\(value)")
-                    .font(.system(size: 9))
+                    .font(.caption2)
                     .foregroundStyle(major ? .secondary : .quaternary)
                     .position(x: geo.size.width / 2 + 4, y: min(max(y, 5), geo.size.height - 5))
             }
         }
-    }
-
-    private var hourAxis: some View {
-        GeometryReader { geo in
-            ForEach(Self.hourTicks, id: \.self) { hour in
-                Text(String(format: "%02d", hour))
-                    .font(.system(size: 9))
-                    .foregroundStyle(hour % 6 == 0 ? .secondary : .tertiary)
-                    .position(x: (CGFloat(hour) + 0.5) / 24 * geo.size.width, y: 6)
-            }
-        }
-        .frame(height: 12)
     }
 
     private static func timeLabel(_ date: Date, timeZone: TimeZone) -> String {
@@ -198,6 +244,10 @@ struct UVIndexDetailView: View {
 
 #Preview {
     NavigationStack {
-        UVIndexDetailView(points: PreviewData.makeUVForecast(), timeZone: TimeZone(identifier: "Europe/Helsinki")!)
+        UVIndexDetailView(
+            details: DayDetail.build(days: PreviewData.makeDaily(), hours: [], timeZone: TimeZone(identifier: "Europe/Helsinki")!),
+            points: PreviewData.makeUVForecast(),
+            timeZone: TimeZone(identifier: "Europe/Helsinki")!
+        )
     }
 }

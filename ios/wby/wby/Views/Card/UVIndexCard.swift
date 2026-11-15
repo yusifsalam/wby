@@ -5,6 +5,7 @@ struct UVIndexCard: View {
     let radiationGlobal: Double?
     var uvForecast: [UVPoint] = []
     var timeZone: TimeZone = TimeZone(identifier: "Europe/Helsinki")!
+    var days: [DailyForecast] = []
 
     @State private var showingDetail = false
 
@@ -21,7 +22,7 @@ struct UVIndexCard: View {
     }
 
     private var hasDetail: Bool {
-        UVIndex.peak(UVIndex.dayPoints(uvForecast, timeZone: timeZone)) != nil
+        !days.isEmpty && UVIndex.peak(UVIndex.dayPoints(uvForecast, timeZone: timeZone)) != nil
     }
 
     var body: some View {
@@ -40,7 +41,11 @@ struct UVIndexCard: View {
             .coversWeatherBackground(showingDetail)
             .sheet(isPresented: $showingDetail) {
                 NavigationStack {
-                    UVIndexDetailView(points: uvForecast, timeZone: timeZone)
+                    UVIndexDetailView(
+                        details: DayDetail.build(days: days, hours: [], timeZone: timeZone),
+                        points: uvForecast,
+                        timeZone: timeZone
+                    )
                 }
             }
         } else {
@@ -134,7 +139,7 @@ struct UVIndexCard: View {
 #Preview {
     ZStack {
         Color.blue.opacity(0.4).ignoresSafeArea()
-        UVIndexCard(uvIndex: nil, radiationGlobal: 245, uvForecast: PreviewData.makeUVForecast())
+        UVIndexCard(uvIndex: nil, radiationGlobal: 245, uvForecast: PreviewData.makeUVForecast(), days: PreviewData.makeDaily())
             .padding()
     }
 }
