@@ -238,6 +238,10 @@ struct WeatherPageView: View {
                 .task { await loadHourlyWindow(coord: coordinate) }
             }
         }
+        .onScrollVisibilityChange(threshold: 0.5) { visible in
+            guard visible, !disableAutoLoad, weather == nil, errorMessage != nil, inFlightKey == nil else { return }
+            Task { await refresh(reload: false) }
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, !disableAutoLoad, inFlightKey == nil, isStale else { return }
             Task { await refresh(reload: false) }
@@ -343,7 +347,7 @@ struct WeatherPageView: View {
     private func dailyForecastSection(_ forecasts: [DailyForecast], note: String?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Label("\(max(0, forecasts.count - 1))-DAY FORECAST", systemImage: "calendar")
+                Label("\(forecasts.count)-DAY FORECAST", systemImage: "calendar")
                 Spacer()
                 if let note {
                     Text(note)

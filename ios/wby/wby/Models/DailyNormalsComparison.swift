@@ -29,7 +29,7 @@ struct DailyNormalsComparison {
 
     func nowDiff(step: Double) -> Double? {
         guard let current = currentTemp, let normal = normals.today.tempNowNormal else { return nil }
-        return Self.rounded(current - normal, step: step)
+        return Self.rounded(Self.rounded(current, step: step) - Self.rounded(normal, step: step), step: step)
     }
 
     // MARK: - Stats
@@ -225,10 +225,7 @@ struct DailyNormalsComparison {
     }
 
     static func formatNumber(_ value: Double) -> String {
-        if value == value.rounded() {
-            return "\(Int(value))"
-        }
-        return String(format: "%.1f", value)
+        value.displayText(decimals: value == value.rounded() ? 0 : 1)
     }
 }
 

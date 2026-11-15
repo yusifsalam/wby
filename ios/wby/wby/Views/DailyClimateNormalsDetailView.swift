@@ -20,7 +20,7 @@ struct DailyClimateNormalsDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                DailyNormalsHeadline(comparison: comparison, decimals: 1)
+                DailyNormalsHeadline(comparison: comparison)
 
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {

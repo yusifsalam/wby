@@ -48,10 +48,22 @@ struct LeaderboardView: View {
         _response = State(initialValue: initialResponse)
     }
 
+    private var scene: WeatherScene {
+        let isNight = SunriseCard.isNight(
+            coordinate: locationService.coordinate ?? Self.fallbackCoordinate,
+            date: .now,
+            timeZone: TimeZone(identifier: "Europe/Helsinki")!,
+            elevationMeters: 0
+        )
+        return isNight ? .clearNight : .clearDay
+    }
+
     var body: some View {
+        let scene = scene
+        let foreground: Color = scene.prefersLightForeground ? .white : .primary
         ZStack {
             LinearGradient(
-                colors: WeatherScene.clearDay.gradientColors,
+                colors: scene.gradientColors,
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -65,8 +77,8 @@ struct LeaderboardView: View {
                         }
                     } else if isLoading {
                         ProgressView("Loading leaderboard...")
-                            .tint(.primary)
-                            .foregroundStyle(.primary)
+                            .tint(foreground)
+                            .foregroundStyle(foreground)
                             .padding(.top, 100)
                     } else {
                         ContentUnavailableView(
@@ -74,6 +86,7 @@ struct LeaderboardView: View {
                             systemImage: "chart.bar",
                             description: Text(errorMessage ?? "Pull down to refresh")
                         )
+                        .foregroundStyle(foreground)
                     }
                 }
                 .padding()
