@@ -10,42 +10,30 @@ struct PrecipitationCard: View {
             icon: "drop.fill",
             keyValue: todayAmountText,
             keyValueUnit: "mm",
-            subtitle: todaySummaryText,
+            subtitle: "Today",
             description: nextMessage
         )
     }
 
     private var todayAmountText: String {
-        let mm = precipitationAmount(for: forecasts.first) ?? 0
+        Self.amountText(precipitationAmount(for: forecasts.first) ?? 0)
+    }
+
+    private var nextMessage: String {
+        let upcoming = forecasts.dropFirst()
+        guard let next = upcoming.first(where: { (precipitationAmount(for: $0) ?? 0) >= 0.1 }),
+              let mm = precipitationAmount(for: next)
+        else {
+            return upcoming.isEmpty ? "None expected." : "None expected in the next \(upcoming.count) days."
+        }
+        return "\(Self.amountText(mm)) mm of \(precipitationKind(for: next)) expected \(dayText(next.date))."
+    }
+
+    private static func amountText(_ mm: Double) -> String {
         if abs(mm.rounded() - mm) < 0.05 {
             return "\(Int(mm.rounded()))"
         }
         return String(format: "%.1f", mm)
-    }
-
-    private var todaySummaryText: String {
-        guard let pop = forecasts.first?.rainChance else {
-            return "Today"
-        }
-        return "\(Int(pop.rounded()))% chance"
-    }
-
-    private var nextMessage: String {
-        guard let next = forecasts.dropFirst().first(where: { (precipitationAmount(for: $0) ?? 0) >= 0.3 || ($0.popAvg ?? 0) >= 35 }) else {
-            return "No significant precipitation expected in the next days."
-        }
-        let kind = precipitationKind(for: next)
-        let typeNote = precipitationTypeText(for: next)
-        if let pop = next.rainChance {
-            if let typeNote {
-                return "Next \(kind) expected \(displayDate(next.date)) (\(Int(pop.rounded()))% chance, \(typeNote))."
-            }
-            return "Next \(kind) expected \(displayDate(next.date)) (\(Int(pop.rounded()))% chance)."
-        }
-        if let typeNote {
-            return "Next \(kind) expected \(displayDate(next.date)) (\(typeNote))."
-        }
-        return "Next \(kind) expected \(displayDate(next.date))."
     }
 
     private func precipitationAmount(for forecast: DailyForecast?) -> Double? {
@@ -72,25 +60,25 @@ struct PrecipitationCard: View {
         return precipitationKindFromSmartSymbol(forecast.symbol)
     }
 
-    private func precipitationTypeText(for forecast: DailyForecast) -> String? {
-        guard let typeCode = forecast.precipitationTypeMode ?? forecast.potentialPrecipitationTypeMode else {
-            return nil
-        }
-        // FMI/SmartMet code table:
-        // 0 = none, 1 = large-scale, 2 = convective
-        switch Int(typeCode.rounded()) {
-        case 1: return "large-scale"
-        case 2: return "convective"
-        default: return nil
-        }
-    }
-
-    private func displayDate(_ raw: String) -> String {
+    private func dayText(_ raw: String) -> String {
         guard let date = APIDay.date(raw, in: timeZone) else { return raw }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: .now), to: date).day ?? 0
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.calendar = calendar
         formatter.timeZone = timeZone
-        return formatter.string(from: date)
+        switch days {
+        case 1:
+            return "tomorrow"
+        case 2...6:
+            formatter.dateFormat = "EEEE"
+            return formatter.string(from: date)
+        default:
+            formatter.dateFormat = "MMM d"
+            return "on \(formatter.string(from: date))"
+        }
     }
 
     private func precipitationKindFromSmartSymbol(_ rawCode: String?) -> String {
