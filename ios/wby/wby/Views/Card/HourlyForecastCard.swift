@@ -7,6 +7,7 @@ struct HourlyForecastCard: View {
     var coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384)
     var elevationMeters: Double = 0
     var note: String?
+    var current: CurrentConditions?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -34,6 +35,7 @@ struct HourlyForecastCard: View {
 
     @ViewBuilder
     private func hourCell(_ hour: HourlyForecast) -> some View {
+        let observed = isNow(hour.time) ? current : nil
         VStack(spacing: 8) {
             Text(hourLabel(hour.time))
                 .font(.caption.weight(.semibold))
@@ -49,29 +51,33 @@ struct HourlyForecastCard: View {
                 .frame(height: 20)
                 .symbolRenderingMode(.multicolor)
 
-            Text(formatTemp(hour.temperature))
+            Text(formatTemp(observed?.resolvedTemperature ?? hour.temperature))
                 .font(.headline)
                 .foregroundStyle(.primary)
 
-            Text(formatWind(hour.windSpeed))
+            Text(formatWind(observed?.resolvedWindSpeed ?? hour.windSpeed))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-            Text(formatPrecip(hour.precipitation1h))
+            Text(formatPrecip(observed?.resolvedPrecipitation1h ?? hour.precipitation1h))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-            Text(formatHumidity(hour.humidity))
+            Text(formatHumidity(observed?.resolvedHumidity ?? hour.humidity))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
         .frame(minWidth: 48)
     }
 
-    private func hourLabel(_ date: Date) -> String {
+    private func isNow(_ date: Date) -> Bool {
         var calendar = Calendar.current
         calendar.timeZone = timeZone
-        if calendar.isDate(date, equalTo: Date(), toGranularity: .hour) {
+        return calendar.isDate(date, equalTo: Date(), toGranularity: .hour)
+    }
+
+    private func hourLabel(_ date: Date) -> String {
+        if isNow(date) {
             return "Now"
         }
         let formatter = Self.hourFormatter

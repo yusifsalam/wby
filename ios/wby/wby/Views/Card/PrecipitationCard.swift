@@ -24,7 +24,7 @@ struct PrecipitationCard: View {
     }
 
     private var todaySummaryText: String {
-        guard let pop = forecasts.first?.popAvg else {
+        guard let pop = forecasts.first?.rainChance else {
             return "Today"
         }
         return "\(Int(pop.rounded()))% chance"
@@ -36,7 +36,7 @@ struct PrecipitationCard: View {
         }
         let kind = precipitationKind(for: next)
         let typeNote = precipitationTypeText(for: next)
-        if let pop = next.popAvg {
+        if let pop = next.rainChance {
             if let typeNote {
                 return "Next \(kind) expected \(displayDate(next.date)) (\(Int(pop.rounded()))% chance, \(typeNote))."
             }

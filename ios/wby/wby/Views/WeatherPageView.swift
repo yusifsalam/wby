@@ -123,7 +123,8 @@ struct WeatherPageView: View {
                             timeZone: weather.resolvedTimeZone,
                             coordinate: coordinate,
                             elevationMeters: elevationMeters ?? 0,
-                            note: forecastNote(weather)
+                            note: forecastNote(weather),
+                            current: weather.current
                         )
                     }
                     CurrentConditionsCard(current: weather.current)

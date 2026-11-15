@@ -250,6 +250,8 @@ struct CurrentConditions: Codable {
 }
 
 struct DailyForecast: Codable, Identifiable {
+    var rainChance: Double? { popMax ?? popAvg }
+
     let date: String
     let high: Double?
     let low: Double?
@@ -277,6 +279,7 @@ struct DailyForecast: Codable, Identifiable {
     let hourlyMaximumGustMax: Double?
     let hourlyMaximumWindSpeedMax: Double?
     let popAvg: Double?
+    let popMax: Double?
     let probabilityThunderstormAvg: Double?
     let potentialPrecipitationFormMode: Double?
     let potentialPrecipitationTypeMode: Double?
@@ -319,6 +322,7 @@ struct DailyForecast: Codable, Identifiable {
         hourlyMaximumGustMax: Double? = nil,
         hourlyMaximumWindSpeedMax: Double? = nil,
         popAvg: Double? = nil,
+        popMax: Double? = nil,
         probabilityThunderstormAvg: Double? = nil,
         potentialPrecipitationFormMode: Double? = nil,
         potentialPrecipitationTypeMode: Double? = nil,
@@ -360,6 +364,7 @@ struct DailyForecast: Codable, Identifiable {
         self.hourlyMaximumGustMax = hourlyMaximumGustMax
         self.hourlyMaximumWindSpeedMax = hourlyMaximumWindSpeedMax
         self.popAvg = popAvg
+        self.popMax = popMax
         self.probabilityThunderstormAvg = probabilityThunderstormAvg
         self.potentialPrecipitationFormMode = potentialPrecipitationFormMode
         self.potentialPrecipitationTypeMode = potentialPrecipitationTypeMode
@@ -408,6 +413,7 @@ struct DailyForecast: Codable, Identifiable {
         case hourlyMaximumGustMax = "hourly_maximum_gust_max"
         case hourlyMaximumWindSpeedMax = "hourly_maximum_wind_speed_max"
         case popAvg = "pop_avg"
+        case popMax = "pop_max"
         case probabilityThunderstormAvg = "probability_thunderstorm_avg"
         case potentialPrecipitationFormMode = "potential_precipitation_form_mode"
         case potentialPrecipitationTypeMode = "potential_precipitation_type_mode"
