@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("dynamicEffectsEnabled") private var dynamicEffectsEnabled = true
-    @AppStorage(OverlayMode.storageKey) private var overlayMode: OverlayMode = .metal
     @AppStorage(MapRampStyle.storageKey) private var mapRamp: MapRampStyle = .smooth
     @State private var showingPurgeConfirmation = false
     @State private var cachePurged = false
@@ -16,7 +15,6 @@ struct SettingsView: View {
             }
 
             Section {
-                Toggle("Use Metal Renderer", isOn: $overlayMode.usesMetal)
                 Picker("Map Colors", selection: $mapRamp) {
                     ForEach(MapRampStyle.allCases, id: \.self) { style in
                         Text(style.displayName).tag(style)
@@ -25,7 +23,7 @@ struct SettingsView: View {
             } header: {
                 Text("Map weather overlay")
             } footer: {
-                Text("When off, the app uses the PNG overlay backend. Stepped colors band temperature every 2 °C and match the radar classes FMI uses for rain.")
+                Text("Stepped colors band temperature every 2 °C and match the radar classes FMI uses for rain.")
             }
 
             Section {

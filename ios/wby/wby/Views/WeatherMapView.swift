@@ -10,7 +10,6 @@ struct WeatherMapView: View {
     private let previewConfig: PreviewConfig?
 
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(OverlayMode.storageKey) private var overlayMode: OverlayMode = .metal
     @AppStorage(MapLayerKind.storageKey) private var layer: MapLayerKind = .temperature
     @State private var viewModel: WeatherMapViewModel
     @Namespace private var glassNamespace
@@ -93,33 +92,20 @@ struct WeatherMapView: View {
                         }
                     }
                     Spacer()
-                    if viewModel.selectedLayer == .temperature {
-                        HStack {
-                            overlayBackendIndicator
-                                .glassEffectID("backend", in: glassNamespace)
-                            Spacer()
-                        }
-                    }
-                    if viewModel.isScrubberVisible {
-                        TimeScrubberView(viewModel: viewModel)
-                            .glassEffectID("scrubber", in: glassNamespace)
-                            .padding(.top, 8)
-                    }
+                    TimeScrubberView(viewModel: viewModel)
+                        .glassEffectID("scrubber", in: glassNamespace)
+                        .padding(.top, 8)
                 }
                 .padding()
             }
         }
         .task {
             applyLayerFromSettings()
-            applyOverlayModeFromSettings()
             viewModel.setPreferredCenter(locationService.coordinate)
             viewModel.setFavoriteLocations(favoritesStore.favorites)
             if !disableAutoLoad {
                 _ = await locationService.requestFreshLocation()
             }
-        }
-        .onChange(of: overlayMode) {
-            applyOverlayModeFromSettings()
         }
         .onChange(of: layer) {
             applyLayerFromSettings()
@@ -140,22 +126,11 @@ struct WeatherMapView: View {
         return formatter.string(from: date)
     }
 
-    private func applyOverlayModeFromSettings() {
-        withAnimation {
-            viewModel.setOverlayMode(overlayMode)
-        }
-        if viewModel.isScrubberVisible {
-            viewModel.prefetchTimeline()
-        }
-    }
-
     private func applyLayerFromSettings() {
         withAnimation {
             viewModel.setSelectedLayer(layer)
         }
-        if viewModel.isScrubberVisible {
-            viewModel.prefetchTimeline()
-        }
+        viewModel.prefetchTimeline()
     }
 
     private var layerMenu: some View {
@@ -176,23 +151,6 @@ struct WeatherMapView: View {
         .buttonBorderShape(.circle)
         .controlSize(.large)
         .tint(.primary)
-    }
-
-    private var overlayBackendIndicator: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(viewModel.overlayMode == .metal ? Color.teal : Color.blue)
-                .frame(width: 6, height: 6)
-            Text("Overlay \(viewModel.overlayMode.displayName)")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .glassEffect(in: Capsule())
-        .allowsHitTesting(false)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Overlay backend \(viewModel.overlayMode.displayName)")
     }
 
     struct PreviewConfig {

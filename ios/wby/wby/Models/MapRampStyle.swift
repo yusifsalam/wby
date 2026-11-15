@@ -2,7 +2,7 @@ import Foundation
 
 /// Color style for the Metal map overlays: the app's smooth gradients, or
 /// stepped bands — 2 °C temperature bands, and for rain the radar classes
-/// matching FMI's WMS tiles. Applies to every map layer.
+/// FMI uses. Applies to every map layer.
 enum MapRampStyle: String, CaseIterable {
     case smooth
     case stepped

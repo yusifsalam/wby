@@ -79,62 +79,8 @@ actor WeatherService {
         return f.string(from: date)
     }
 
-    func fetchTemperatureOverlay(bbox: MapBBox, width: Int, height: Int) async throws -> TemperatureOverlayImage {
-        let (data, httpResponse) = try await performRequest(
-            path: "v1/map/temperature",
-            queryItems: [
-                URLQueryItem(name: "bbox", value: bbox.queryValue),
-                URLQueryItem(name: "width", value: String(width)),
-                URLQueryItem(name: "height", value: String(height)),
-            ]
-        )
-
-        let dataTime = httpResponse.value(forHTTPHeaderField: "X-Data-Time").flatMap(Self.parseDate)
-        let minTemp = httpResponse.value(forHTTPHeaderField: "X-Temp-Min").flatMap(Double.init)
-        let maxTemp = httpResponse.value(forHTTPHeaderField: "X-Temp-Max").flatMap(Double.init)
-
-        return TemperatureOverlayImage(
-            imageData: data,
-            bbox: bbox,
-            dataTime: dataTime,
-            minTemp: minTemp,
-            maxTemp: maxTemp
-        )
-    }
-
-    func fetchPrecipitationOverlay(
-        bbox: MapBBox,
-        width: Int,
-        height: Int,
-        time: Date?
-    ) async throws -> PrecipitationOverlayImage {
-        var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "bbox", value: bbox.queryValue),
-            URLQueryItem(name: "width", value: String(width)),
-            URLQueryItem(name: "height", value: String(height)),
-        ]
-        if let time {
-            queryItems.append(URLQueryItem(name: "time", value: Self.iso8601String(time)))
-        }
-        let (data, httpResponse) = try await performRequest(
-            path: "v1/map/precipitation",
-            queryItems: queryItems
-        )
-
-        let dataTime = httpResponse.value(forHTTPHeaderField: "X-Data-Time").flatMap(Self.parseDate)
-        let layer = httpResponse.value(forHTTPHeaderField: "X-Layer")
-
-        return PrecipitationOverlayImage(
-            imageData: data,
-            bbox: bbox,
-            dataTime: dataTime,
-            layer: layer
-        )
-    }
-
-    /// Harmonie precipitation-rate forecast raster (hourly, mm/h). Unlike the
-    /// 5-min WMS nowcast above, this returns the grid for client-side texture
-    /// rendering, mirroring the temperature forecast grid.
+    /// Harmonie precipitation-rate forecast raster (hourly, mm/h), returned as
+    /// a grid for client-side texture rendering like the temperature grid.
     func fetchPrecipitationForecastGrid(
         bbox: MapBBox,
         width: Int,
@@ -352,11 +298,6 @@ actor WeatherService {
             return text
         }
         return nil
-    }
-
-    private static func parseDate(_ value: String) -> Date? {
-        let iso = ISO8601DateFormatter()
-        return iso.date(from: value)
     }
 
     private static func resolveBaseURL() -> URL? {

@@ -37,18 +37,3 @@ nonisolated struct MapBBox: Equatable, Hashable {
         return value
     }
 }
-
-struct TemperatureOverlayImage: Equatable {
-    let imageData: Data
-    let bbox: MapBBox
-    let dataTime: Date?
-    let minTemp: Double?
-    let maxTemp: Double?
-}
-
-struct PrecipitationOverlayImage: Equatable {
-    let imageData: Data
-    let bbox: MapBBox
-    let dataTime: Date?
-    let layer: String?
-}
