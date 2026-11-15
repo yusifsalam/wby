@@ -53,7 +53,7 @@ func run(logger *slog.Logger) error {
 	}
 	slog.Info("configuration loaded", "config", cfg)
 	if cfg.FMIAPIKey == "" {
-		slog.Warn("FMI_API_KEY is not set: UV forecasts and WMS precipitation tiles are disabled")
+		slog.Warn("FMI_API_KEY is not set: UV forecasts are disabled")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -65,11 +65,9 @@ func run(logger *slog.Logger) error {
 	}
 	defer db.Close()
 
-	fmiClient := fmi.NewClientWithWMS(cfg.FMIBaseURL, cfg.FMIAPIKey, cfg.FMITimeseriesURL, cfg.FMIWMSBaseURL, cfg.FMIDownloadURL)
+	fmiClient := fmi.NewClientWithDownload(cfg.FMIBaseURL, cfg.FMIAPIKey, cfg.FMITimeseriesURL, cfg.FMIDownloadURL)
 
 	svc := weather.NewService(db, fmiClient, cfg.ForecastCacheTTL)
-	svc.SetPrecipitationLayers(cfg.FMIPrecipObsLayer, cfg.FMIPrecipFcstLayer)
-	svc.SetPrecipitationStyle(cfg.FMIPrecipStyle)
 	svc.SetGribTemperatureSource(grib.New(cfg.GribsvcURL, cfg.GribFilename, cfg.GribTempParam, cfg.GribStep))
 	svc.SetGribPrecipitationSource(grib.NewPrecipitation(cfg.GribsvcURL, cfg.GribFilename, cfg.GribPrecipParam, cfg.GribPrecipStep))
 	svc.SetGribFile(filepath.Join(cfg.GRIBDataDir, cfg.GribFilename))

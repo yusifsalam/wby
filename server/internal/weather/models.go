@@ -229,13 +229,6 @@ func widen(v float32) float64 {
 	return f
 }
 
-type TemperatureOverlay struct {
-	PNG      []byte
-	DataTime time.Time
-	MinTemp  float64
-	MaxTemp  float64
-}
-
 type TemperatureSamplesResponse struct {
 	DataTime time.Time
 	MinTemp  float64

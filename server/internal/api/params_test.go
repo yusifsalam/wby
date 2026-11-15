@@ -46,7 +46,7 @@ func TestParseLatLonAcceptsValidCoordinates(t *testing.T) {
 }
 
 func TestParseMapTemperatureRequestRejectsNaNBBox(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/v1/map/temperature?bbox=NaN,59,32,71&width=256&height=256", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/map/precipitation/forecast?bbox=NaN,59,32,71&width=256&height=256", nil)
 	if _, err := parseMapTemperatureRequest(req); err == nil {
 		t.Fatal("expected an error for a NaN bbox edge")
 	}

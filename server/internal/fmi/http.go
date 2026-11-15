@@ -15,7 +15,6 @@ import (
 const (
 	maxWFSBody     = 128 << 20
 	maxUVBody      = 1 << 20
-	maxTileBody    = 32 << 20
 	errorBodyLimit = 2048
 )
 

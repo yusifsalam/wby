@@ -62,12 +62,6 @@ type ForecastFetcher interface {
 	FetchUVForecast(ctx context.Context, lat, lon float64, start time.Time) ([]UVDataPoint, error)
 }
 
-// WMSTileFetcher fetches a single rasterized WMS tile from FMI. The Service
-// uses it for the precipitation overlay; it is optional.
-type WMSTileFetcher interface {
-	FetchWMSTile(ctx context.Context, req WMSTileRequest) ([]byte, error)
-}
-
 // GribTemperatureSource reads a gridded temperature field (as a Celsius
 // FieldGrid) over a bbox from the gribsvc service, for the forecast temperature
 // overlay. A non-zero `at` requests that hour. A nil grid with a nil error is a
@@ -90,36 +84,14 @@ type GribPrecipitationSource interface {
 	GridSeries(ctx context.Context, minLon, minLat, maxLon, maxLat float64, times []time.Time) ([]*FieldGrid, error)
 }
 
-// WMSTileRequest is the request shape passed to a WMSTileFetcher.
-//
-// BBox is in lon/lat degrees (WGS84). The fetcher is responsible for
-// projecting to whatever CRS the layer requires.
-type WMSTileRequest struct {
-	Layer  string
-	Style  string
-	Time   time.Time
-	MinLon float64
-	MinLat float64
-	MaxLon float64
-	MaxLat float64
-	Width  int
-	Height int
-}
-
 type Service struct {
 	store            WeatherStore
 	fmi              ForecastFetcher
-	wms              WMSTileFetcher
 	forecastCache    *Cache[[]DailyForecast]
 	timezoneCache    *Cache[string]
 	hourlyCache      *Cache[[]HourlyForecast]
 	uvCache          *Cache[[]UVDataPoint]
-	precipCache      *Cache[*PrecipitationOverlay]
 	leaderboardCache *Cache[[]LeaderboardEntry]
-
-	precipObsLayer  string
-	precipFcstLayer string
-	precipStyle     string
 
 	gribTemp      GribTemperatureSource
 	gribGridCache *Cache[*FieldGrid]
@@ -136,7 +108,6 @@ type Service struct {
 	forecastFlight flightGroup[forecastResult]
 	hourlyFlight   flightGroup[[]HourlyForecast]
 	uvFlight       flightGroup[[]UVDataPoint]
-	precipFlight   flightGroup[*PrecipitationOverlay]
 
 	precipToDateFlight flightGroup[*PrecipitationObservations]
 
@@ -165,13 +136,11 @@ func unixNanoTime(ns int64) time.Time {
 	return time.Unix(0, ns)
 }
 
-// Caps on the request-keyed caches. A grid cell's hourly forecast is the
-// largest entry at roughly 100 KB; a precipitation tile is a PNG of up to
-// 1600x1600 pixels.
-const (
-	maxCachedCells = 1000
-	maxCachedTiles = 128
-)
+// maxCachedCells caps the request-keyed caches. A grid cell's hourly forecast
+// is the largest entry at roughly 100 KB.
+const maxCachedCells = 1000
+
+const overlayMinSamples = 3
 
 // persistTimeout bounds a write that outlives the request that caused it.
 const persistTimeout = 10 * time.Second
@@ -186,19 +155,16 @@ type forecastResult struct {
 }
 
 func NewService(store WeatherStore, fmiClient ForecastFetcher, forecastCacheTTL time.Duration) *Service {
-	wms, _ := fmiClient.(WMSTileFetcher)
 	precipHistory, _ := fmiClient.(PrecipitationHistoryFetcher)
 	return &Service{
 		store:             store,
 		fmi:               fmiClient,
-		wms:               wms,
 		precipHistory:     precipHistory,
 		precipToDateCache: NewCache[*PrecipitationObservations](time.Hour).Limit(maxCachedCells / 2),
 		forecastCache:     NewCache[[]DailyForecast](forecastCacheTTL).Limit(maxCachedCells),
 		timezoneCache:     NewCache[string](forecastCacheTTL).Limit(maxCachedCells),
 		hourlyCache:       NewCache[[]HourlyForecast](forecastCacheTTL).Limit(maxCachedCells),
 		uvCache:           NewCache[[]UVDataPoint](forecastCacheTTL).Limit(maxCachedCells),
-		precipCache:       NewCache[*PrecipitationOverlay](30 * time.Minute).Limit(maxCachedTiles),
 		leaderboardCache:  NewCache[[]LeaderboardEntry](5 * time.Minute).Limit(maxCachedCells / 2),
 		gribGridCache:     NewCache[*FieldGrid](0),
 		gribPrecipCache:   NewCache[*PrecipitationForecastGrid](0),
@@ -224,19 +190,6 @@ func (s *Service) SetGribPrecipitationSource(src GribPrecipitationSource) {
 // precipitation sources read, so warming can tell how old it is.
 func (s *Service) SetGribFile(path string) {
 	s.gribFile = path
-}
-
-// SetPrecipitationLayers configures the WMS layer names used for the
-// precipitation overlay. Both can be empty to disable the feature.
-func (s *Service) SetPrecipitationLayers(observationLayer, forecastLayer string) {
-	s.precipObsLayer = observationLayer
-	s.precipFcstLayer = forecastLayer
-}
-
-// SetPrecipitationStyle configures the WMS style passed with each
-// precipitation tile request (e.g. "Mobile_dark"). Empty means default.
-func (s *Service) SetPrecipitationStyle(style string) {
-	s.precipStyle = style
 }
 
 func (s *Service) GetWeather(ctx context.Context, lat, lon float64) (*WeatherResponse, error) {
@@ -491,26 +444,6 @@ const warmSeriesChunkHours = 12
 // radarGridCacheTTL bounds the radar and nowcast frame caches, which gain a key
 // every 5 minutes. GRIB grid caches never expire; the warm pass prunes them.
 const radarGridCacheTTL = 75 * time.Minute
-
-func (s *Service) GetTemperatureOverlay(ctx context.Context, req MapOverlayRequest) (*TemperatureOverlay, error) {
-	// Add a small margin so the interpolation near viewport edges has enough support points.
-	const marginDeg = 0.2
-	minLon := req.MinLon - marginDeg
-	minLat := req.MinLat - marginDeg
-	maxLon := req.MaxLon + marginDeg
-	maxLat := req.MaxLat + marginDeg
-
-	samples, err := s.store.GetLatestTemperatureSamplesInBBox(ctx, minLon, minLat, maxLon, maxLat, 350)
-	if err != nil {
-		return nil, fmt.Errorf("temperature samples: %w", err)
-	}
-
-	overlay, err := RenderTemperatureOverlay(ctx, req, samples)
-	if err != nil {
-		return nil, fmt.Errorf("render overlay: %w", err)
-	}
-	return overlay, nil
-}
 
 func (s *Service) getForecast(ctx context.Context, gridLat, gridLon float64) ([]DailyForecast, string, error) {
 	cacheKey := fmt.Sprintf("%.2f,%.2f", gridLat, gridLon)

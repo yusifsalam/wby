@@ -2,12 +2,10 @@ package api
 
 import (
 	"fmt"
-	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 	"wby/internal/weather"
 )
 
@@ -15,32 +13,6 @@ const (
 	minOverlayDim = 64
 	maxOverlayDim = 1600
 )
-
-func (h *Handler) getTemperatureOverlay(w http.ResponseWriter, r *http.Request) {
-	req, err := parseMapTemperatureRequest(r)
-	if err != nil {
-		writeJSONError(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	overlay, err := h.service.GetTemperatureOverlay(r.Context(), req)
-	if err != nil {
-		if isClientCanceled(r, err) {
-			return
-		}
-		slog.Error("get temperature overlay failed", "err", err, "bbox", fmt.Sprintf("%f,%f,%f,%f", req.MinLon, req.MinLat, req.MaxLon, req.MaxLat))
-		writeJSONError(w, "overlay unavailable", upstreamStatus(err))
-		return
-	}
-
-	w.Header().Set("Content-Type", "image/png")
-	w.Header().Set("Cache-Control", "public, max-age=120")
-	w.Header().Set("X-Data-Time", overlay.DataTime.UTC().Format(time.RFC3339))
-	w.Header().Set("X-Temp-Min", strconv.FormatFloat(overlay.MinTemp, 'f', 2, 64))
-	w.Header().Set("X-Temp-Max", strconv.FormatFloat(overlay.MaxTemp, 'f', 2, 64))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(overlay.PNG)
-}
 
 func parseMapTemperatureRequest(r *http.Request) (weather.MapOverlayRequest, error) {
 	bboxRaw := strings.TrimSpace(r.URL.Query().Get("bbox"))

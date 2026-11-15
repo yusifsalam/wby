@@ -10,7 +10,7 @@ Weather app with:
 
 - `server/cmd/server/`: API entrypoint
 - `server/cmd/import-normals/`: one-off climate normals importer
-- `server/internal/api/`: HTTP handlers (`/v1/weather`, `/v1/map/temperature`, `/v1/climate-normals`, `/v1/leaderboard`, `/health`)
+- `server/internal/api/`: HTTP handlers (`/v1/weather`, `/v1/map/*`, `/v1/climate-normals`, `/v1/leaderboard`, `/health`)
 - `server/internal/config/`: environment configuration loading/parsing
 - `server/internal/fetcher/`: background station/observation ingestion loop
 - `server/internal/fmi/`: FMI WFS client/parsers + XML fixtures, Timeseries UV client
@@ -149,7 +149,7 @@ cp ios/wby/config/Keys.Release.example.plist ios/wby/config/Keys.Release.plist
 
 Available routes:
 - `GET /v1/weather?lat=<float>&lon=<float>`
-- `GET /v1/map/temperature?bbox=<minLon,minLat,maxLon,maxLat>&width=<int>&height=<int>` (PNG)
+- `GET /v1/map/temperature/samples?at=<RFC3339 optional>`
 - `GET /v1/climate-normals?lat=<float>&lon=<float>&current_temp=<float optional>`
 - `GET /v1/leaderboard?lat=<float>&lon=<float>&timeframe=now`
 

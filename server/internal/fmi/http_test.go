@@ -9,8 +9,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"wby/internal/weather"
 )
 
 const testAPIKey = "sekrit-api-key"
@@ -22,29 +20,21 @@ func fastRetries(t *testing.T) {
 	t.Cleanup(func() { retryBackoff = saved })
 }
 
-func wmsTileRequest() weather.WMSTileRequest {
-	return weather.WMSTileRequest{Layer: "obs", Time: time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC),
-		MinLon: 19, MinLat: 59, MaxLon: 32, MaxLat: 71, Width: 64, Height: 64}
-}
-
 func TestTransportErrorsDoNotCarryTheAPIKey(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	unreachable := srv.URL
 	srv.Close()
-	c := NewClientWithWMS(unreachable, testAPIKey, unreachable, unreachable, unreachable)
+	c := NewClientWithDownload(unreachable, testAPIKey, unreachable, unreachable)
 
-	_, uvErr := c.FetchUVForecast(context.Background(), 60.17, 24.94, time.Now())
-	_, wmsErr := c.FetchWMSTile(context.Background(), wmsTileRequest())
-	for name, err := range map[string]error{"UV": uvErr, "WMS": wmsErr} {
-		if err == nil {
-			t.Fatalf("%s: expected a transport error", name)
-		}
-		if strings.Contains(err.Error(), testAPIKey) {
-			t.Errorf("%s error carries the API key: %v", name, err)
-		}
-		if !strings.Contains(err.Error(), "REDACTED") {
-			t.Errorf("%s error should show where the key was removed: %v", name, err)
-		}
+	_, err := c.FetchUVForecast(context.Background(), 60.17, 24.94, time.Now())
+	if err == nil {
+		t.Fatal("expected a transport error")
+	}
+	if strings.Contains(err.Error(), testAPIKey) {
+		t.Errorf("error carries the API key: %v", err)
+	}
+	if !strings.Contains(err.Error(), "REDACTED") {
+		t.Errorf("error should show where the key was removed: %v", err)
 	}
 }
 
@@ -53,7 +43,7 @@ func TestStatusErrorIsTypedAndRedacted(t *testing.T) {
 		http.Error(w, "forbidden: "+r.URL.Path, http.StatusForbidden)
 	}))
 	defer srv.Close()
-	c := NewClientWithWMS(srv.URL, testAPIKey, srv.URL, srv.URL, srv.URL)
+	c := NewClientWithDownload(srv.URL, testAPIKey, srv.URL, srv.URL)
 
 	_, err := c.FetchUVForecast(context.Background(), 60.17, 24.94, time.Now())
 	var status *StatusError
@@ -138,29 +128,6 @@ func TestGetBodyRejectsOversizedResponses(t *testing.T) {
 	body, err := c.getBody(context.Background(), "FMI", srv.URL, 100)
 	if err != nil || len(body) != 100 {
 		t.Errorf("getBody = %d bytes, %v; want 100, nil", len(body), err)
-	}
-}
-
-func TestFetchWMSTileAcceptsOnlyPNG(t *testing.T) {
-	body := []byte(`<?xml version="1.0"?><ServiceExceptionReport><ServiceException>` + testAPIKey + `</ServiceException></ServiceExceptionReport>`)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(body)
-	}))
-	defer srv.Close()
-	c := NewClientWithWMS(srv.URL, testAPIKey, srv.URL, srv.URL, srv.URL)
-
-	_, err := c.FetchWMSTile(context.Background(), wmsTileRequest())
-	if err == nil {
-		t.Fatal("a 200 answer that is not a PNG was accepted as a tile")
-	}
-	if strings.Contains(err.Error(), testAPIKey) {
-		t.Errorf("error carries the API key: %v", err)
-	}
-
-	body = append([]byte("\x89PNG\r\n\x1a\n"), "pixels"...)
-	tile, err := c.FetchWMSTile(context.Background(), wmsTileRequest())
-	if err != nil || len(tile) != len(body) {
-		t.Fatalf("FetchWMSTile = %d bytes, %v; want the PNG", len(tile), err)
 	}
 }
 

@@ -149,19 +149,11 @@ func (s weatherServiceStub) GetWeather(ctx context.Context, lat, lon float64) (*
 	return &weather.WeatherResponse{}, nil
 }
 
-func (s weatherServiceStub) GetTemperatureOverlay(ctx context.Context, req weather.MapOverlayRequest) (*weather.TemperatureOverlay, error) {
-	panic("not used in this test")
-}
-
 func (s weatherServiceStub) GetTemperatureSamples(ctx context.Context) (*weather.TemperatureSamplesResponse, error) {
 	panic("not used in this test")
 }
 
 func (s weatherServiceStub) GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*weather.TemperatureSamplesResponse, error) {
-	panic("not used in this test")
-}
-
-func (s weatherServiceStub) GetPrecipitationOverlay(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationOverlay, error) {
 	panic("not used in this test")
 }
 

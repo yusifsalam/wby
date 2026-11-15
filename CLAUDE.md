@@ -172,7 +172,7 @@ parses them next to the GRIBs. After new frames land the server POSTs gribsvc
 `nowcast_rr_*` frames out to +75min in the same encoding.
 `/v1/map/precipitation/observed` serves past scrubber frames and
 `/v1/map/precipitation/nowcast` future ones; clients render both client-side
-like the 12h forecast, falling back to the API-key WMS tiles only on a miss.
+like the 12h forecast.
 
 ### Timeseries (data.fmi.fi)
 

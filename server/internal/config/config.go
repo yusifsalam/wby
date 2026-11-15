@@ -18,10 +18,6 @@ type Config struct {
 	FMIBaseURL             string
 	FMIAPIKey              string
 	FMITimeseriesURL       string
-	FMIWMSBaseURL          string
-	FMIPrecipObsLayer      string
-	FMIPrecipFcstLayer     string
-	FMIPrecipStyle         string
 	ClientSecrets          map[string]string
 	RequestSignatureMaxAge time.Duration
 	RequestTimeout         time.Duration
@@ -63,10 +59,6 @@ func Load() (Config, error) {
 		FMIBaseURL:             l.url("FMI_BASE_URL", "https://opendata.fmi.fi/wfs"),
 		FMIAPIKey:              getEnv("FMI_API_KEY", ""),
 		FMITimeseriesURL:       l.url("FMI_TIMESERIES_URL", "https://data.fmi.fi"),
-		FMIWMSBaseURL:          l.url("FMI_WMS_BASE_URL", "https://data.fmi.fi"),
-		FMIPrecipObsLayer:      getEnv("FMI_PRECIP_OBS_LAYER", "weatherapp:finland:precipitationObservations5min"),
-		FMIPrecipFcstLayer:     getEnv("FMI_PRECIP_FCST_LAYER", "weatherapp:finland:precipitationForecast5min"),
-		FMIPrecipStyle:         getEnv("FMI_PRECIP_STYLE", "Mobile_dark"),
 		ClientSecrets:          l.clientSecrets("CLIENT_SECRETS"),
 		RequestSignatureMaxAge: time.Duration(l.positiveInt("REQUEST_SIGNATURE_MAX_AGE_SECONDS", 300)) * time.Second,
 		RequestTimeout:         time.Duration(l.positiveInt("REQUEST_TIMEOUT_SECONDS", 12)) * time.Second,
@@ -85,7 +77,7 @@ func Load() (Config, error) {
 		GribStep:        l.positiveInt("GRIB_STEP", 2),
 		GribPrecipStep:  l.positiveInt("GRIB_PRECIP_STEP", 2),
 		// Slightly padded past the fixed map render extent (FINLAND in the web
-		// client) so GRIB overlays span the same canvas as the radar PNGs.
+		// client).
 		GribBBox:        l.bbox("GRIB_BBOX", "10,56.5,37.6,71.5"),
 		GribInterval:    time.Duration(l.positiveInt("GRIB_INTERVAL_MINUTES", 60)) * time.Minute,
 		GribFetchEnable: l.boolean("GRIB_FETCH_ENABLE"),
@@ -93,9 +85,8 @@ func Load() (Config, error) {
 		// Keyless radar rain-rate composites from FMI's open WMS, fetched as
 		// EPSG:4326 GeoTIFF data grids (not styled tiles). The bbox matches the
 		// radar network's useful coverage; width/height set the stored raster
-		// resolution (~1.3km, close to the 1km radar native so the grid render
-		// matches the sharpness of FMI's own PNGs), RADAR_GRID_STEP the
-		// extraction stride on top.
+		// resolution (~1.3km, close to the 1km radar native), RADAR_GRID_STEP
+		// the extraction stride on top.
 		RadarWMSURL:      l.url("RADAR_WMS_URL", "https://openwms.fmi.fi/geoserver/Radar/wms"),
 		RadarLayer:       getEnv("RADAR_LAYER", "Radar:suomi_rr_eureffin"),
 		RadarBBox:        l.bbox("RADAR_BBOX", "19,59,32,71.5"),

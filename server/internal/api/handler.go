@@ -16,10 +16,8 @@ import (
 type WeatherService interface {
 	GetWeather(ctx context.Context, lat, lon float64) (*weather.WeatherResponse, error)
 	GetHourlyForecast(ctx context.Context, lat, lon float64) (*weather.HourlyForecastResponse, error)
-	GetTemperatureOverlay(ctx context.Context, req weather.MapOverlayRequest) (*weather.TemperatureOverlay, error)
 	GetTemperatureSamples(ctx context.Context) (*weather.TemperatureSamplesResponse, error)
 	GetTemperatureSamplesAt(ctx context.Context, at time.Time) (*weather.TemperatureSamplesResponse, error)
-	GetPrecipitationOverlay(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationOverlay, error)
 	GetPrecipitationForecastGrid(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationForecastGrid, error)
 	GetPrecipitationObservationGrid(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationForecastGrid, error)
 	GetPrecipitationNowcastGrid(ctx context.Context, req weather.PrecipitationOverlayRequest) (*weather.PrecipitationForecastGrid, error)
@@ -40,9 +38,7 @@ func NewHandler(service WeatherService) *Handler {
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/weather", h.getWeather)
 	mux.HandleFunc("GET /v1/weather/hourly", h.getHourlyForecast)
-	mux.HandleFunc("GET /v1/map/temperature", h.getTemperatureOverlay)
 	mux.HandleFunc("GET /v1/map/temperature/samples", h.getTemperatureSamples)
-	mux.HandleFunc("GET /v1/map/precipitation", h.getPrecipitationOverlay)
 	mux.HandleFunc("GET /v1/map/precipitation/forecast", h.getPrecipitationForecastGrid)
 	mux.HandleFunc("GET /v1/map/precipitation/observed", h.getPrecipitationObservedGrid)
 	mux.HandleFunc("GET /v1/map/precipitation/nowcast", h.getPrecipitationNowcastGrid)

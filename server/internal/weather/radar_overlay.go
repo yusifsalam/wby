@@ -40,8 +40,8 @@ type RadarPrecipitationSource interface {
 }
 
 // SetRadarPrecipitationSource configures the keyless radar-composite source for
-// the precipitation observation grid. A nil source (the default) keeps the
-// observation overlay on the WMS tile path.
+// the precipitation observation grid. A nil source (the default) disables the
+// observation and nowcast grids.
 func (s *Service) SetRadarPrecipitationSource(src RadarPrecipitationSource) {
 	s.radarPrecip = src
 }
@@ -54,7 +54,7 @@ func (s *Service) SetRadarPrecipitationSource(src RadarPrecipitationSource) {
 // per-frame cache populated by WarmRadarGrids after each radar fetch; a request
 // never reads gribsvc itself. Returns ErrPrecipitationDisabled when the source
 // is unconfigured or no cached frame within tolerance exists, so the handler
-// can answer 404 and the client falls back.
+// can answer 404.
 func (s *Service) GetPrecipitationObservationGrid(ctx context.Context, req PrecipitationOverlayRequest) (*PrecipitationForecastGrid, error) {
 	if s.radarPrecip == nil {
 		return nil, ErrPrecipitationDisabled
