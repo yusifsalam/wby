@@ -20,6 +20,7 @@ struct WeatherPageView: View {
     @State private var errorMessage: String?
     @State private var selectedDay: DailyForecast?
     @State private var hourlyWindow: [HourlyForecast]?
+    @State private var showingFeelsLike = false
 
     private static let forecastStaleAfter: TimeInterval = 6 * 3600
 
@@ -142,7 +143,10 @@ struct WeatherPageView: View {
                     CurrentConditionsCard(current: weather.current)
                     dailyForecastSection(weather.dailyForecast, note: forecastNote(weather))
                     HStack(alignment: .top, spacing: 12) {
-                        FeelsLikeCard(current: weather.current)
+                        FeelsLikeCard(
+                            current: weather.current,
+                            onOpen: weather.hourlyForecast.isEmpty ? nil : { showingFeelsLike = true }
+                        )
                         UVIndexCard(
                             uvIndex: weather.hourlyForecast.compactMap(\.uvCumulated).first
                                 ?? weather.dailyForecast.compactMap(\.uvIndexAvg).first,
@@ -232,7 +236,7 @@ struct WeatherPageView: View {
         .refreshable {
             await Task { await refresh(reload: true) }.value
         }
-        .coversWeatherBackground(selectedDay != nil)
+        .coversWeatherBackground(selectedDay != nil || showingFeelsLike)
         .sheet(item: $selectedDay) { day in
             if let weather, let coordinate {
                 NavigationStack {
@@ -243,6 +247,24 @@ struct WeatherPageView: View {
                             timeZone: weather.resolvedTimeZone
                         ),
                         initialDate: day.date,
+                        isLoadingHours: hourlyWindow == nil,
+                        coordinate: coordinate,
+                        elevationMeters: elevationMeters ?? 0
+                    )
+                }
+                .task { await loadHourlyWindow(coord: coordinate) }
+            }
+        }
+        .sheet(isPresented: $showingFeelsLike) {
+            if let weather, let coordinate {
+                NavigationStack {
+                    FeelsLikeDetailView(
+                        details: DayDetail.build(
+                            days: weather.dailyForecast,
+                            hours: hourlyWindow ?? weather.hourlyForecast,
+                            timeZone: weather.resolvedTimeZone
+                        ),
+                        current: weather.current,
                         isLoadingHours: hourlyWindow == nil,
                         coordinate: coordinate,
                         elevationMeters: elevationMeters ?? 0

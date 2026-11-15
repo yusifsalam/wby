@@ -67,65 +67,27 @@ struct DayDetailChart: View {
 
     // MARK: - Scales
 
-    private struct Scale {
-        let min: Double
-        let max: Double
-        let ticks: [Double]
-
-        func y(_ value: Double, height: CGFloat) -> CGFloat {
-            let range = Swift.max(max - min, 0.001)
-            return height * (1 - CGFloat((value - min) / range))
-        }
-    }
-
-    private func temperatureScale(_ samples: [Sample]) -> Scale? {
+    private func temperatureScale(_ samples: [Sample]) -> ChartScale? {
         let temps = samples.compactMap(\.temperature)
         guard temps.count >= 2 else { return nil }
         let values = temps + samples.compactMap(\.feelsLike)
         let min = floor(values.min()!) - 1
         let max = ceil(values.max()!) + 1
-        let step = Self.niceStep((max - min) / 4)
-        return Scale(min: min, max: max, ticks: Self.ticks(from: min, to: max, step: step))
+        let step = ChartScale.niceStep((max - min) / 4)
+        return ChartScale(min: min, max: max, ticks: ChartScale.ticks(from: min, to: max, step: step))
     }
 
     /// Always renders, so a dry day reads as an empty 0–1 mm plot.
-    private func precipitationScale(_ samples: [Sample]) -> Scale {
+    private func precipitationScale(_ samples: [Sample]) -> ChartScale {
         let peak = samples.map(\.precipitation).max() ?? 0
-        let step = Self.niceStep(Swift.max(peak, 1) / 2)
+        let step = ChartScale.niceStep(Swift.max(peak, 1) / 2)
         let max = Swift.max(1, ceil(peak / step) * step)
-        return Scale(min: 0, max: max, ticks: Self.ticks(from: step, to: max, step: step))
-    }
-
-    private static func ticks(from min: Double, to max: Double, step: Double) -> [Double] {
-        var ticks: [Double] = []
-        var value = ceil(min / step) * step
-        while value <= max + step * 0.01 {
-            ticks.append(value)
-            value += step
-        }
-        return ticks
-    }
-
-    private static func niceStep(_ value: Double) -> Double {
-        guard value > 0 else { return 1 }
-        let exponent = floor(log10(value))
-        let fraction = value / pow(10, exponent)
-        let niceFraction: Double
-        if fraction <= 1 {
-            niceFraction = 1
-        } else if fraction <= 2 {
-            niceFraction = 2
-        } else if fraction <= 5 {
-            niceFraction = 5
-        } else {
-            niceFraction = 10
-        }
-        return niceFraction * pow(10, exponent)
+        return ChartScale(min: 0, max: max, ticks: ChartScale.ticks(from: step, to: max, step: step))
     }
 
     // MARK: - Plots
 
-    private func temperaturePlot(_ samples: [Sample], scale: Scale) -> some View {
+    private func temperaturePlot(_ samples: [Sample], scale: ChartScale) -> some View {
         GeometryReader { geo in
             let width = geo.size.width
             let height = geo.size.height
@@ -140,7 +102,7 @@ struct DayDetailChart: View {
         }
     }
 
-    private func precipitationPlot(_ samples: [Sample], scale: Scale) -> some View {
+    private func precipitationPlot(_ samples: [Sample], scale: ChartScale) -> some View {
         GeometryReader { geo in
             let width = geo.size.width
             let height = geo.size.height
@@ -161,7 +123,7 @@ struct DayDetailChart: View {
         }
     }
 
-    private func line(_ samples: [Sample], pick: KeyPath<Sample, Double?>, scale: Scale, width: CGFloat, height: CGFloat) -> Path {
+    private func line(_ samples: [Sample], pick: KeyPath<Sample, Double?>, scale: ChartScale, width: CGFloat, height: CGFloat) -> Path {
         Path { path in
             var started = false
             for sample in samples {
@@ -177,7 +139,7 @@ struct DayDetailChart: View {
         }
     }
 
-    private func gridlines(_ ticks: [Double], scale: Scale, width: CGFloat, height: CGFloat) -> some View {
+    private func gridlines(_ ticks: [Double], scale: ChartScale, width: CGFloat, height: CGFloat) -> some View {
         Path { path in
             for tick in ticks {
                 let y = scale.y(tick, height: height)
@@ -198,7 +160,7 @@ struct DayDetailChart: View {
         }
     }
 
-    private func axisLabels(_ ticks: [Double], scale: Scale, format: @escaping (Double) -> String) -> some View {
+    private func axisLabels(_ ticks: [Double], scale: ChartScale, format: @escaping (Double) -> String) -> some View {
         GeometryReader { geo in
             ForEach(ticks, id: \.self) { tick in
                 let y = scale.y(tick, height: geo.size.height)

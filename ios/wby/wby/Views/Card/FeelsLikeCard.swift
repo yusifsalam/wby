@@ -2,8 +2,25 @@ import SwiftUI
 
 struct FeelsLikeCard: View {
     let current: CurrentConditions
+    var onOpen: (() -> Void)?
 
     var body: some View {
+        if let onOpen {
+            Button(action: onOpen) {
+                card.overlay(alignment: .topTrailing) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(16)
+                }
+            }
+            .buttonStyle(.plain)
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
         HalfCard(
             title: "FEELS LIKE",
             icon: "thermometer.medium",
@@ -45,7 +62,8 @@ struct FeelsLikeCard: View {
                 humidity: 84.0,
                 pressure: 1012.0,
                 observedAt: .now
-            )
+            ),
+            onOpen: {}
         )
         .padding()
     }

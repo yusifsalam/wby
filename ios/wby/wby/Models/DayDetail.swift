@@ -47,6 +47,27 @@ struct DayDetail: Identifiable {
         return Self.longDateFormatter(timeZone).string(from: date)
     }
 
+    /// "Sunday, November 15, 2026".
+    var fullDate: String {
+        guard let date else { return day.date }
+        return Self.formatter("EEEE, MMMM d, yyyy", timeZone).string(from: date)
+    }
+
+    /// Single-letter weekday for the day strip, e.g. "S".
+    var weekdayInitial: String {
+        guard let date else { return "" }
+        return Self.formatter("EEEEE", timeZone).string(from: date)
+    }
+
+    var dayOfMonth: String {
+        guard let date else { return day.date }
+        return Self.formatter("d", timeZone).string(from: date)
+    }
+
+    func timeLabel(_ date: Date) -> String {
+        Self.formatter("HH:mm", timeZone).string(from: date)
+    }
+
     var conditionDescription: String {
         WeatherSymbols.conditionDescription(from: day.symbol) ?? "Forecast"
     }
@@ -132,6 +153,14 @@ struct DayDetail: Identifiable {
     static func formatSpeed(_ value: Double?) -> String {
         guard let value else { return "--" }
         return "\(Int(value.rounded())) m/s"
+    }
+
+    private static func formatter(_ format: String, _ timeZone: TimeZone) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = format
+        formatter.timeZone = timeZone
+        return formatter
     }
 
     private static func weekdayFormatter(_ timeZone: TimeZone) -> DateFormatter {

@@ -5,8 +5,6 @@ struct DailyForecastCard: View {
     let overallLow: Double
     let overallHigh: Double
     let timeZone: TimeZone
-    private let absoluteMinTemp = -40.0
-    private let absoluteMaxTemp = 40.0
     private let minimumBarFraction = 0.03
 
     var body: some View {
@@ -86,24 +84,10 @@ struct DailyForecastCard: View {
         let mid = (low + high) / 2
 
         return LinearGradient(
-            colors: [colorForTemperature(low), colorForTemperature(mid), colorForTemperature(high)],
+            colors: [TemperatureColor.color(for: low), TemperatureColor.color(for: mid), TemperatureColor.color(for: high)],
             startPoint: .leading,
             endPoint: .trailing
         )
-    }
-
-    private func colorForTemperature(_ temp: Double) -> Color {
-        let t = min(max(temp, absoluteMinTemp), absoluteMaxTemp)
-        switch t {
-        case ..<(-30): return Color(red: 0.23, green: 0.08, blue: 0.36)
-        case ..<(-20): return Color(red: 0.27, green: 0.19, blue: 0.59)
-        case ..<(-10): return Color(red: 0.20, green: 0.36, blue: 0.83)
-        case ..<0: return Color(red: 0.20, green: 0.58, blue: 0.95)
-        case ..<10: return Color(red: 0.22, green: 0.77, blue: 0.72)
-        case ..<20: return Color(red: 0.94, green: 0.82, blue: 0.28)
-        case ..<30: return Color(red: 0.93, green: 0.49, blue: 0.23)
-        default: return Color(red: 0.57, green: 0.10, blue: 0.12)
-        }
     }
 
     private func formatTemp(_ temp: Double?) -> String {
